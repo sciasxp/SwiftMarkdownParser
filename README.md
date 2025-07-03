@@ -88,13 +88,11 @@ let parser = SwiftMarkdownParser()
 let ast = try await parser.parseToAST(markdown)
 ```
 
-> A thoughtful quote about parsing
-
 - [x] Parse CommonMark
 - [x] Support GFM extensions  
 - [ ] Add SwiftUI renderer
-"""
 
+```swift
 // Parse to AST
 let parser = SwiftMarkdownParser()
 let ast = try await parser.parseToAST(markdown)
