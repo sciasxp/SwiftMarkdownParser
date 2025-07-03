@@ -1,5 +1,6 @@
 # SwiftMarkdownParser
 
+[![CI](https://github.com/sciasxp/SwiftMarkdownParser/actions/workflows/ci.yml/badge.svg)](https://github.com/sciasxp/SwiftMarkdownParser/actions/workflows/ci.yml)
 [![Swift 6.0+](https://img.shields.io/badge/Swift-6.0+-orange.svg)](https://swift.org)
 [![iOS 18.0+](https://img.shields.io/badge/iOS-18.0+-blue.svg)](https://developer.apple.com/ios/)
 [![macOS 15.0+](https://img.shields.io/badge/macOS-15.0+-blue.svg)](https://developer.apple.com/macos/)
