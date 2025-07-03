@@ -19,70 +19,100 @@ public final class BlockParser {
         self.configuration = configuration
     }
     
-    /// Parse the token stream into a document AST
-    public func parseDocument() throws -> DocumentNode {
-        var blocks: [ASTNode] = []
+    /// Parse the entire document into an AST
+    public func parseDocument() throws -> AST.DocumentNode {
+        print("[DEBUG] parseDocument() started")
+        var children: [ASTNode] = []
+        var blockCount = 0
+        let maxBlocks = 100 // Safety limit
         
-        // Skip leading whitespace and newlines
-        skipWhitespaceAndNewlines()
-        
-        while !tokenStream.isAtEnd {
+        while !tokenStream.isAtEnd && blockCount < maxBlocks {
+            print("[DEBUG] parseDocument() - parsing block \(blockCount)")
             if let block = try parseBlock() {
-                blocks.append(block)
+                print("[DEBUG] parseDocument() - got block of type: \(block.nodeType.rawValue)")
+                children.append(block)
+            } else {
+                print("[DEBUG] parseDocument() - parseBlock returned nil")
             }
-            skipWhitespaceAndNewlines()
+            blockCount += 1
         }
         
-        // Create document with link references
-        let document = DocumentNode(children: blocks)
-        return document
+        if blockCount >= maxBlocks {
+            print("[DEBUG] parseDocument() - hit max blocks limit, possible infinite loop")
+        }
+        
+        print("[DEBUG] parseDocument() completed with \(children.count) children")
+        return AST.DocumentNode(children: children)
     }
     
     /// Parse a single block element
     private func parseBlock() throws -> ASTNode? {
+        print("[DEBUG] parseBlock() called, current token: \(tokenStream.current.type.rawValue)")
+        
         // Skip whitespace at start of line
         skipWhitespace()
         
-        guard !tokenStream.isAtEnd else { return nil }
+        guard !tokenStream.isAtEnd else { 
+            print("[DEBUG] parseBlock() - at end of stream")
+            return nil 
+        }
         
         let token = tokenStream.current
+        print("[DEBUG] parseBlock() - processing token: \(token.type.rawValue), content: '\(token.content)'")
         
         switch token.type {
         case .atxHeaderStart:
+            print("[DEBUG] parseBlock() - parsing ATX heading")
             return try parseATXHeading()
             
         case .blockQuoteMarker:
+            print("[DEBUG] parseBlock() - parsing block quote")
             return try parseBlockQuote()
             
         case .listMarker:
+            print("[DEBUG] parseBlock() - parsing list")
             return try parseList()
             
         case .backtick, .tildeCodeFence:
             if token.content.count >= 3 {
+                print("[DEBUG] parseBlock() - parsing fenced code block")
                 return try parseFencedCodeBlock()
             }
             fallthrough
             
         case .indentedCodeBlock:
+            print("[DEBUG] parseBlock() - parsing indented code block")
             return try parseIndentedCodeBlock()
             
         case .thematicBreak:
+            print("[DEBUG] parseBlock() - parsing thematic break")
             return parseThematicBreak()
             
         case .htmlTag:
+            print("[DEBUG] parseBlock() - parsing HTML block")
             return try parseHTMLBlock()
             
         case .newline:
+            print("[DEBUG] parseBlock() - skipping newline")
             // Empty line - skip
             tokenStream.advance()
             return nil
             
         default:
+            print("[DEBUG] parseBlock() - default case, checking setext heading")
+            // Check for GFM table
+            if let table = try parseSimpleGFMTable() {
+                print("[DEBUG] parseBlock() - found GFM table")
+                return table
+            }
+            
             // Check for setext heading
             if let setextHeading = try parseSetextHeading() {
+                print("[DEBUG] parseBlock() - found setext heading")
                 return setextHeading
             }
             
+            print("[DEBUG] parseBlock() - parsing as paragraph")
             // Default to paragraph
             return try parseParagraph()
         }
@@ -90,7 +120,7 @@ public final class BlockParser {
     
     // MARK: - Heading Parsers
     
-    private func parseATXHeading() throws -> HeadingNode {
+    private func parseATXHeading() throws -> AST.HeadingNode {
         let startLocation = tokenStream.current.location
         let headerToken = tokenStream.consume()
         let level = headerToken.content.count
@@ -117,18 +147,17 @@ public final class BlockParser {
         }
         
         if !textContent.isEmpty {
-            children.append(TextNode(content: textContent, sourceLocation: startLocation))
+            children.append(AST.TextNode(content: textContent, sourceLocation: startLocation))
         }
         
-        return HeadingNode(
+        return AST.HeadingNode(
             level: level,
-            isSetext: false,
             children: children,
             sourceLocation: startLocation
         )
     }
     
-    private func parseSetextHeading() throws -> HeadingNode? {
+    private func parseSetextHeading() throws -> AST.HeadingNode? {
         // Look ahead to see if next line is setext underline
         let startPosition = tokenStream.currentPosition
         
@@ -165,11 +194,10 @@ public final class BlockParser {
         
         // Create heading
         let textContent = textTokens.map { $0.content }.joined()
-        let children = [TextNode(content: textContent.trimmingCharacters(in: .whitespacesAndNewlines))]
+        let children = [AST.TextNode(content: textContent.trimmingCharacters(in: .whitespacesAndNewlines))]
         
-        return HeadingNode(
+        return AST.HeadingNode(
             level: isLevel1 ? 1 : 2,
-            isSetext: true,
             children: children,
             sourceLocation: textTokens.first?.location
         )
@@ -177,7 +205,7 @@ public final class BlockParser {
     
     // MARK: - Block Quote Parser
     
-    private func parseBlockQuote() throws -> BlockQuoteNode {
+    private func parseBlockQuote() throws -> AST.BlockQuoteNode {
         let startLocation = tokenStream.current.location
         var children: [ASTNode] = []
         
@@ -194,12 +222,12 @@ public final class BlockParser {
             skipWhitespaceAndNewlines()
         }
         
-        return BlockQuoteNode(children: children, sourceLocation: startLocation)
+        return AST.BlockQuoteNode(children: children, sourceLocation: startLocation)
     }
     
     // MARK: - List Parsers
     
-    private func parseList() throws -> ListNode {
+    private func parseList() throws -> AST.ListNode {
         let startLocation = tokenStream.current.location
         let firstMarker = tokenStream.current.content
         
@@ -236,18 +264,15 @@ public final class BlockParser {
             skipWhitespaceAndNewlines()
         }
         
-        return ListNode(
+        return AST.ListNode(
             isOrdered: isOrdered,
             startNumber: startNumber,
-            delimiter: delimiter,
-            bulletChar: bulletChar,
-            isTight: true, // TODO: Implement tight vs loose detection
-            children: items,
+            items: items,
             sourceLocation: startLocation
         )
     }
     
-    private func parseListItem() throws -> ListItemNode {
+    private func parseListItem() throws -> AST.ListItemNode {
         let startLocation = tokenStream.current.location
         
         // Consume list marker
@@ -256,8 +281,31 @@ public final class BlockParser {
         
         var children: [ASTNode] = []
         
-        // Parse content until next list item or end
-        while !tokenStream.isAtEnd && !isNextListItem() {
+        // Parse inline content for the first line
+        let inlineParser = InlineParser(tokenStream: tokenStream, configuration: configuration)
+        let inlineNodes = try inlineParser.parseInlines(until: [.newline, .eof])
+        
+        // Create paragraph for first line if not empty
+        if !inlineNodes.isEmpty {
+            children.append(AST.ParagraphNode(children: inlineNodes, sourceLocation: startLocation))
+        }
+        
+        // Skip the newline if present
+        _ = tokenStream.match(.newline)
+        
+        // Check if there's continuation content (indented blocks)
+        while !tokenStream.isAtEnd {
+            // Check if next line starts a new list item
+            if isAtStartOfListItem() {
+                break
+            }
+            
+            // Check for blank line followed by non-indented content (ends list)
+            if isBlankLineThenNonIndented() {
+                break
+            }
+            
+            // Parse any continuation blocks
             if let block = try parseBlock() {
                 children.append(block)
             } else {
@@ -265,7 +313,7 @@ public final class BlockParser {
             }
         }
         
-        return ListItemNode(children: children, sourceLocation: startLocation)
+        return AST.ListItemNode(children: children, sourceLocation: startLocation)
     }
     
     private func isNextListItem() -> Bool {
@@ -285,9 +333,54 @@ public final class BlockParser {
         return isListItem
     }
     
+    private func isAtStartOfListItem() -> Bool {
+        // Check if we're at the start of a line with a list marker
+        let currentPos = tokenStream.currentPosition
+        
+        // We should be at start of line (possibly with leading whitespace)
+        skipWhitespace()
+        
+        let result = tokenStream.check(.listMarker)
+        
+        // Restore position
+        tokenStream.setPosition(currentPos)
+        
+        return result
+    }
+    
+    private func isBlankLineThenNonIndented() -> Bool {
+        let currentPos = tokenStream.currentPosition
+        
+        // Check for blank line
+        if !tokenStream.check(.newline) {
+            return false
+        }
+        
+        tokenStream.advance()
+        
+        // Skip any additional blank lines
+        while tokenStream.check(.newline) {
+            tokenStream.advance()
+        }
+        
+        // Check if next content is non-indented
+        var spaceCount = 0
+        while tokenStream.check(.whitespace) && spaceCount < 4 {
+            spaceCount += tokenStream.current.content.count
+            tokenStream.advance()
+        }
+        
+        let result = spaceCount < 4 && !tokenStream.isAtEnd
+        
+        // Restore position
+        tokenStream.setPosition(currentPos)
+        
+        return result
+    }
+    
     // MARK: - Code Block Parsers
     
-    private func parseFencedCodeBlock() throws -> CodeBlockNode {
+    private func parseFencedCodeBlock() throws -> AST.CodeBlockNode {
         let startLocation = tokenStream.current.location
         let fenceToken = tokenStream.consume()
         let fenceChar = fenceToken.content.first!
@@ -329,16 +422,15 @@ public final class BlockParser {
             tokenStream.advance()
         }
         
-        return CodeBlockNode(
+        return AST.CodeBlockNode(
             content: content,
             language: language,
             isFenced: true,
-            fenceChar: fenceChar,
             sourceLocation: startLocation
         )
     }
     
-    private func parseIndentedCodeBlock() throws -> CodeBlockNode {
+    private func parseIndentedCodeBlock() throws -> AST.CodeBlockNode {
         let startLocation = tokenStream.current.location
         var content = ""
         
@@ -358,7 +450,7 @@ public final class BlockParser {
             }
         }
         
-        return CodeBlockNode(
+        return AST.CodeBlockNode(
             content: content,
             language: nil,
             isFenced: false,
@@ -368,15 +460,16 @@ public final class BlockParser {
     
     // MARK: - Other Block Parsers
     
-    private func parseThematicBreak() -> ThematicBreakNode {
+    private func parseThematicBreak() -> AST.ThematicBreakNode {
         let startLocation = tokenStream.current.location
         let token = tokenStream.consume()
         let character = token.content.first { !$0.isWhitespace } ?? "-"
         
-        return ThematicBreakNode(character: character, sourceLocation: startLocation)
+        return AST.ThematicBreakNode(character: character, sourceLocation: startLocation)
     }
     
-    private func parseHTMLBlock() throws -> HTMLBlockNode {
+    
+    private func parseHTMLBlock() throws -> AST.HTMLBlockNode {
         let startLocation = tokenStream.current.location
         var content = ""
         
@@ -393,14 +486,117 @@ public final class BlockParser {
             }
         }
         
-        return HTMLBlockNode(
+        return AST.HTMLBlockNode(
             content: content.trimmingCharacters(in: .whitespacesAndNewlines),
-            htmlType: .element, // TODO: Implement proper HTML type detection
             sourceLocation: startLocation
         )
     }
     
-    private func parseParagraph() throws -> ParagraphNode {
+    // MARK: - GFM Table Parser
+    
+    private func parseSimpleGFMTable() throws -> AST.GFMTableNode? {
+        // Save current position for backtracking
+        let startPosition = tokenStream.currentPosition
+        
+        // Simple approach: collect a few lines and check if they form a table
+        var lines: [String] = []
+        var lineCount = 0
+        let maxLines = 10 // Limit to prevent infinite loops
+        
+        // Collect up to maxLines or until we hit a clear boundary
+        while !tokenStream.isAtEnd && lineCount < maxLines {
+            if let line = collectCurrentLine() {
+                lines.append(line.content)
+                lineCount += 1
+                
+                // Advance past newline if present
+                if tokenStream.check(.newline) {
+                    tokenStream.advance()
+                }
+                
+                // Stop if we hit a blank line or non-table content
+                if line.content.isEmpty || !GFMUtils.isTableRow(line.content) {
+                    break
+                }
+            } else {
+                break
+            }
+        }
+        
+        // Need at least 2 lines for a table (header + separator)
+        guard lines.count >= 2 else {
+            tokenStream.setPosition(startPosition)
+            return nil
+        }
+        
+        // Check if first line is table row and second is separator
+        guard GFMUtils.isTableRow(lines[0]) && GFMUtils.isTableHeaderSeparator(lines[1]) else {
+            tokenStream.setPosition(startPosition)
+            return nil
+        }
+        
+        // Parse the table
+        let headerCells = GFMUtils.parseTableRow(lines[0])
+        let alignments = GFMUtils.parseTableHeaderSeparator(lines[1])
+        
+        var rows: [AST.GFMTableRowNode] = []
+        
+        // Create header row
+        let headerRow = AST.GFMTableRowNode(
+            cells: headerCells.map { 
+                AST.GFMTableCellNode(content: $0.trimmingCharacters(in: .whitespaces), isHeader: true) 
+            },
+            isHeader: true,
+            sourceLocation: SourceLocation(line: 1, column: 1, offset: 0)
+        )
+        rows.append(headerRow)
+        
+        // Create body rows (skip separator line at index 1)
+        for i in 2..<lines.count {
+            if GFMUtils.isTableRow(lines[i]) {
+                let rowCells = GFMUtils.parseTableRow(lines[i])
+                let cells = rowCells.enumerated().map { index, content in
+                    let alignment = index < alignments.count ? alignments[index] : .none
+                    return AST.GFMTableCellNode(
+                        content: content.trimmingCharacters(in: .whitespaces),
+                        isHeader: false,
+                        alignment: alignment
+                    )
+                }
+                
+                let row = AST.GFMTableRowNode(
+                    cells: cells,
+                    isHeader: false,
+                    sourceLocation: SourceLocation(line: i + 1, column: 1, offset: 0)
+                )
+                rows.append(row)
+            }
+        }
+        
+        return AST.GFMTableNode(
+            rows: rows,
+            alignments: alignments,
+            sourceLocation: SourceLocation(line: 1, column: 1, offset: 0)
+        )
+    }
+    
+    private func collectCurrentLine() -> (content: String, location: SourceLocation)? {
+        guard !tokenStream.isAtEnd && !tokenStream.check(.newline) else {
+            return nil
+        }
+        
+        let startLocation = tokenStream.current.location
+        var lineContent = ""
+        
+        // Collect all tokens until newline
+        while !tokenStream.isAtEnd && !tokenStream.check(.newline) {
+            lineContent += tokenStream.consume().content
+        }
+        
+        return (content: lineContent.trimmingCharacters(in: .whitespacesAndNewlines), location: startLocation)
+    }
+    
+    private func parseParagraph() throws -> AST.ParagraphNode {
         let startLocation = tokenStream.current.location
         var children: [ASTNode] = []
         var textContent = ""
@@ -425,10 +621,10 @@ public final class BlockParser {
         
         textContent = textContent.trimmingCharacters(in: .whitespacesAndNewlines)
         if !textContent.isEmpty {
-            children.append(TextNode(content: textContent, sourceLocation: startLocation))
+            children.append(AST.TextNode(content: textContent, sourceLocation: startLocation))
         }
         
-        return ParagraphNode(children: children, sourceLocation: startLocation)
+        return AST.ParagraphNode(children: children, sourceLocation: startLocation)
     }
     
     private func isBlockBoundary() -> Bool {

@@ -8,6 +8,17 @@
 /// output formats including HTML, SwiftUI, and more.
 import Foundation
 
+// MARK: - Error Types
+
+/// Errors that can occur during markdown parsing
+public enum MarkdownParsingError: Error, Sendable {
+    case invalidTableStructure(String)
+    case invalidInput(String)
+    case tokenizationFailed(String)
+    case parsingFailed(String)
+    case invalidASTConstruction(String)
+}
+
 /// The main entry point for the Swift Markdown Parser.
 /// 
 /// This class provides methods to parse Markdown text into an AST that can
@@ -56,144 +67,380 @@ public final class SwiftMarkdownParser: Sendable {
     /// - Parameter markdown: The Markdown text to parse
     /// - Returns: A `DocumentNode` containing the parsed AST structure
     /// - Throws: `MarkdownParserError` if parsing fails
-    public func parseToAST(_ markdown: String) async throws -> DocumentNode {
-        // Step 1: Tokenize the input
+    public func parseToAST(_ markdown: String) async throws -> AST.DocumentNode {
         let tokenizer = MarkdownTokenizer(markdown)
-        let tokens = tokenizer.tokenize()
-        let tokenStream = TokenStream(tokens)
+        let tokenStream = TokenStream(tokenizer.tokenize())
         
-        // Step 2: Parse blocks
         let blockParser = BlockParser(tokenStream: tokenStream, configuration: configuration)
-        var document = try blockParser.parseDocument()
+        let document = try blockParser.parseDocument()
         
-        // Step 3: Parse inlines within blocks
-        document = try await parseInlinesInDocument(document)
+        let inlineParser = InlineParser(tokenStream: tokenStream, configuration: configuration)
         
-        return document
-    }
-    
-    /// Recursively parse inline elements within block elements
-    private func parseInlinesInDocument(_ document: DocumentNode) async throws -> DocumentNode {
-        let processedChildren = try await processChildrenForInlines(document.children)
-        return DocumentNode(children: processedChildren, sourceLocation: document.sourceLocation)
-    }
-    
-    /// Process children nodes to parse inline elements
-    private func processChildrenForInlines(_ children: [ASTNode]) async throws -> [ASTNode] {
-        var processedChildren: [ASTNode] = []
+        // Post-process AST to resolve inline content
+        let processedDocument = try await processNodeForInlineContent(document, using: inlineParser)
         
-        for child in children {
-            let processedChild = try await processNodeForInlines(child)
-            processedChildren.append(processedChild)
+        guard let finalDocument = processedDocument as? AST.DocumentNode else {
+            throw MarkdownParsingError.invalidASTConstruction("Root node must be a DocumentNode")
         }
         
-        return processedChildren
+        return finalDocument
     }
     
-    /// Process a single node to parse inline elements
-    private func processNodeForInlines(_ node: ASTNode) async throws -> ASTNode {
-        switch node {
-        case let paragraph as ParagraphNode:
-            return try await processParagraphInlines(paragraph)
+    /// Process AST nodes to parse inline content and GFM extensions
+    private func processNodesForInlineContent(_ nodes: [ASTNode], using inlineParser: InlineParser) async throws -> [ASTNode] {
+        var processedNodes: [ASTNode] = []
+        
+        for node in nodes {
+            let processedNode = try await processNodeForInlineContent(node, using: inlineParser)
+            processedNodes.append(processedNode)
+        }
+        
+        return processedNodes
+    }
+    
+    /// Process a single AST node for inline content and GFM extensions
+    private func processNodeForInlineContent(_ node: ASTNode, using inlineParser: InlineParser) async throws -> ASTNode {
+        print("[DEBUG] Processing node type: \(node.nodeType.rawValue)")
+        
+        if let fragment = node as? AST.FragmentNode {
+            print("[DEBUG] Processing FragmentNode with \(fragment.children.count) children")
+            // This should not happen if flatten is called, but as a safeguard:
+            let processedChildren = try await processNodesForInlineContent(fragment.children, using: inlineParser)
+            return AST.FragmentNode(children: processedChildren, sourceLocation: fragment.sourceLocation)
+        }
+        
+        // Handle GFM table nodes explicitly first to avoid infinite recursion
+        if let tableNode = node as? AST.GFMTableNode {
+            print("[DEBUG] Skipping table node processing")
+            // Table nodes should not be processed for inline content
+            return tableNode
+        }
+        
+        if let tableRowNode = node as? AST.GFMTableRowNode {
+            print("[DEBUG] Skipping table row node processing")
+            // Table row nodes should not be processed for inline content
+            return tableRowNode
+        }
+        
+        if let tableCellNode = node as? AST.GFMTableCellNode {
+            print("[DEBUG] Skipping table cell node processing")
+            // Table cell nodes should not be processed for inline content
+            return tableCellNode
+        }
+        
+        switch node.nodeType {
+        case .paragraph:
+            print("[DEBUG] Processing paragraph node")
+            if let paragraphNode = node as? AST.ParagraphNode {
+                return try await processParagraphForInlineContent(paragraphNode, using: inlineParser)
+            }
             
-        case let heading as HeadingNode:
-            return try await processHeadingInlines(heading)
+        case .heading:
+            print("[DEBUG] Processing heading node")
+            if let headingNode = node as? AST.HeadingNode {
+                return try await processHeadingForInlineContent(headingNode, using: inlineParser)
+            }
             
-        case let blockQuote as BlockQuoteNode:
-            let processedChildren = try await processChildrenForInlines(blockQuote.children)
-            return BlockQuoteNode(children: processedChildren, sourceLocation: blockQuote.sourceLocation)
+        case .blockQuote:
+            print("[DEBUG] Processing blockquote node")
+            if let blockQuoteNode = node as? AST.BlockQuoteNode {
+                let processedChildren = try await processNodesForInlineContent(blockQuoteNode.children, using: inlineParser)
+                return AST.BlockQuoteNode(
+                    children: processedChildren,
+                    sourceLocation: blockQuoteNode.sourceLocation
+                )
+            }
             
-        case let list as ListNode:
-            let processedChildren = try await processChildrenForInlines(list.children)
-            return ListNode(
-                isOrdered: list.isOrdered,
-                startNumber: list.startNumber,
-                delimiter: list.delimiter,
-                bulletChar: list.bulletChar,
-                isTight: list.isTight,
-                children: processedChildren,
-                sourceLocation: list.sourceLocation
-            )
+        case .list:
+            print("[DEBUG] Processing list node")
+            if let listNode = node as? AST.ListNode {
+                return try await processListForInlineContent(listNode, using: inlineParser)
+            }
             
-        case let listItem as ListItemNode:
-            let processedChildren = try await processChildrenForInlines(listItem.children)
-            return ListItemNode(children: processedChildren, sourceLocation: listItem.sourceLocation)
-            
-        case let table as TableNode:
-            let processedChildren = try await processChildrenForInlines(table.children)
-            return TableNode(
-                children: processedChildren,
-                columnAlignments: table.columnAlignments,
-                sourceLocation: table.sourceLocation
-            )
-            
-        case let tableRow as TableRowNode:
-            let processedChildren = try await processChildrenForInlines(tableRow.children)
-            return TableRowNode(
-                children: processedChildren,
-                isHeader: tableRow.isHeader,
-                sourceLocation: tableRow.sourceLocation
-            )
-            
-        case let tableCell as TableCellNode:
-            let processedChildren = try await processChildrenForInlines(tableCell.children)
-            return TableCellNode(
-                children: processedChildren,
-                alignment: tableCell.alignment,
-                sourceLocation: tableCell.sourceLocation
-            )
+        case .listItem:
+            print("[DEBUG] Processing list item node")
+            if let listItemNode = node as? AST.ListItemNode {
+                return try await processListItemForInlineContent(listItemNode, using: inlineParser)
+            }
             
         default:
-            // For nodes that don't contain inline content, return as-is
-            return node
+            print("[DEBUG] Processing default case for node type: \(node.nodeType.rawValue)")
+            // For other node types, process children if they exist
+            if !node.children.isEmpty {
+                print("[DEBUG] Node has \(node.children.count) children, processing them")
+                let processedChildren = try await processNodesForInlineContent(node.children, using: inlineParser)
+                return createNodeWithProcessedChildren(node, children: processedChildren)
+            }
         }
+        
+        print("[DEBUG] Returning original node")
+        return node
     }
     
-    /// Process paragraph to parse inline elements
-    private func processParagraphInlines(_ paragraph: ParagraphNode) async throws -> ParagraphNode {
-        // Convert text content to tokens and parse inlines
-        let textContent = extractTextContent(from: paragraph.children)
-        let inlineNodes = try parseInlineContent(textContent)
+    
+    /// Process paragraph for inline content and GFM extensions
+    private func processParagraphForInlineContent(_ paragraph: AST.ParagraphNode, using inlineParser: InlineParser) async throws -> ASTNode {
+        // Parse inline content with GFM extensions
+        let inlineNodes = try await parseInlineContentWithGFM(paragraph.children, using: inlineParser)
         
-        return ParagraphNode(children: inlineNodes, sourceLocation: paragraph.sourceLocation)
+        return AST.ParagraphNode(
+            children: inlineNodes,
+            sourceLocation: paragraph.sourceLocation
+        )
     }
     
-    /// Process heading to parse inline elements
-    private func processHeadingInlines(_ heading: HeadingNode) async throws -> HeadingNode {
-        // Convert text content to tokens and parse inlines
-        let textContent = extractTextContent(from: heading.children)
-        let inlineNodes = try parseInlineContent(textContent)
+    /// Process heading for inline content
+    private func processHeadingForInlineContent(_ heading: AST.HeadingNode, using inlineParser: InlineParser) async throws -> ASTNode {
+        let inlineNodes = try await parseInlineContentWithGFM(heading.children, using: inlineParser)
         
-        return HeadingNode(
+        return AST.HeadingNode(
             level: heading.level,
-            isSetext: heading.isSetext,
             children: inlineNodes,
             sourceLocation: heading.sourceLocation
         )
     }
     
-    /// Extract text content from nodes
-    private func extractTextContent(from nodes: [ASTNode]) -> String {
-        return nodes.compactMap { node in
-            if let textNode = node as? TextNode {
-                return textNode.content
+    /// Process list for GFM task lists and inline content
+    private func processListForInlineContent(_ list: AST.ListNode, using inlineParser: InlineParser) async throws -> ASTNode {
+        var processedItems: [ASTNode] = []
+        
+        for item in list.items {
+            // Check if this is a task list item
+            if let listItemNode = item as? AST.ListItemNode,
+               let paragraphNode = listItemNode.children.first as? AST.ParagraphNode {
+                
+                // Reconstruct the text content from the paragraph's text nodes
+                let fullText = paragraphNode.children.compactMap { child in
+                    if let textNode = child as? AST.TextNode {
+                        return textNode.content
+                    }
+                    return nil
+                }.joined()
+                
+                // Check if this looks like a task list item
+                if GFMUtils.isTaskListItem("- " + fullText) { // Add dummy marker since isTaskListItem expects it
+                    // Parse the task list item (add dummy marker for parsing)
+                    if let taskInfo = GFMUtils.parseTaskListItem("- " + fullText) {
+                        let contentNodes = try inlineParser.parseInlineContent(taskInfo.content)
+                        let taskListItem = AST.GFMTaskListItemNode(
+                            isChecked: taskInfo.isChecked,
+                            children: contentNodes,
+                            sourceLocation: listItemNode.sourceLocation
+                        )
+                        processedItems.append(taskListItem)
+                    } else {
+                        // Fall back to regular list item
+                        let processedItem = try await processListItemForInlineContent(listItemNode, using: inlineParser)
+                        processedItems.append(processedItem)
+                    }
+                } else {
+                    // Regular list item - process normally
+                    let processedItem = try await processListItemForInlineContent(listItemNode, using: inlineParser)
+                    processedItems.append(processedItem)
+                }
+            } else {
+                // Regular list item (not containing a paragraph or different structure)
+                let processedItem = try await processNodeForInlineContent(item, using: inlineParser)
+                processedItems.append(processedItem)
             }
-            return nil
-        }.joined()
+        }
+        
+        return AST.ListNode(
+            isOrdered: list.isOrdered,
+            startNumber: list.startNumber,
+            items: processedItems,
+            sourceLocation: list.sourceLocation
+        )
     }
     
-    /// Parse inline content from text
-    private func parseInlineContent(_ text: String) throws -> [ASTNode] {
-        guard !text.isEmpty else { return [] }
+    /// Process list item for inline content
+    private func processListItemForInlineContent(_ listItem: AST.ListItemNode, using inlineParser: InlineParser) async throws -> ASTNode {
+        let processedChildren = try await processNodesForInlineContent(listItem.children, using: inlineParser)
         
-        // Tokenize the text
-        let tokenizer = MarkdownTokenizer(text)
-        let tokens = tokenizer.tokenize()
-        let tokenStream = TokenStream(tokens)
+        return AST.ListItemNode(
+            children: processedChildren,
+            sourceLocation: listItem.sourceLocation
+        )
+    }
+    
+    /// Parse inline content with GFM extensions (strikethrough, autolinks)
+    private func parseInlineContentWithGFM(_ nodes: [ASTNode], using inlineParser: InlineParser) async throws -> [ASTNode] {
+        var result: [ASTNode] = []
         
-        // Parse inlines
-        let inlineParser = InlineParser(tokenStream: tokenStream, configuration: configuration)
-        return try inlineParser.parseInlines()
+        for node in nodes {
+            if let textNode = node as? AST.TextNode {
+                let enhancedNodes = try await parseGFMInlineExtensions(textNode.content, using: inlineParser)
+                result.append(contentsOf: enhancedNodes)
+            } else {
+                // Process children if they exist
+                if !node.children.isEmpty {
+                    let processedChildren = try await parseInlineContentWithGFM(node.children, using: inlineParser)
+                    let newNode = createNodeWithProcessedChildren(node, children: processedChildren)
+                    result.append(newNode)
+                } else {
+                    result.append(node)
+                }
+            }
+        }
+        
+        return result
+    }
+    
+    /// Parse GFM inline extensions (strikethrough, autolinks) in text
+    private func parseGFMInlineExtensions(_ text: String, using inlineParser: InlineParser) async throws -> [ASTNode] {
+        // First parse regular inline content
+        var nodes = try inlineParser.parseInlineContent(text)
+        
+        // Then enhance with GFM extensions
+        nodes = try await enhanceWithStrikethrough(nodes, using: inlineParser)
+        nodes = try await enhanceWithAutolinks(nodes, using: inlineParser)
+        
+        return nodes
+    }
+    
+    /// Enhance nodes with strikethrough parsing
+    private func enhanceWithStrikethrough(_ nodes: [ASTNode], using inlineParser: InlineParser) async throws -> [ASTNode] {
+        var result: [ASTNode] = []
+        
+        for node in nodes {
+            if let textNode = node as? AST.TextNode,
+                           GFMUtils.containsStrikethrough(textNode.content) {
+            
+            let strikethroughNodes = inlineParser.parseGFMStrikethrough(textNode.content)
+                if !strikethroughNodes.isEmpty {
+                    result.append(contentsOf: strikethroughNodes)
+                } else {
+                    result.append(node)
+                }
+            } else {
+                result.append(node)
+            }
+        }
+        
+        return result
+    }
+    
+    /// Enhance nodes with autolink parsing
+    private func enhanceWithAutolinks(_ nodes: [ASTNode], using inlineParser: InlineParser) async throws -> [ASTNode] {
+        var result: [ASTNode] = []
+        
+        for node in nodes {
+            if let textNode = node as? AST.TextNode,
+                           GFMUtils.containsAutolinks(textNode.content) {
+            
+            let autolinkNodes = inlineParser.parseGFMAutolinks(textNode.content)
+                if !autolinkNodes.isEmpty {
+                    result.append(contentsOf: autolinkNodes)
+                } else {
+                    result.append(node)
+                }
+            } else {
+                result.append(node)
+            }
+        }
+        
+        return result
+    }
+    
+    /// Create a new node with processed children
+    private func createNodeWithProcessedChildren(_ originalNode: ASTNode, children: [ASTNode]) -> ASTNode {
+        switch originalNode.nodeType {
+        case .document:
+            if let documentNode = originalNode as? AST.DocumentNode {
+                return AST.DocumentNode(
+                    children: children,
+                    sourceLocation: documentNode.sourceLocation
+                )
+            }
+            
+        case .paragraph:
+            if let paragraphNode = originalNode as? AST.ParagraphNode {
+                return AST.ParagraphNode(
+                    children: children,
+                    sourceLocation: paragraphNode.sourceLocation
+                )
+            }
+            
+        case .heading:
+            if let headingNode = originalNode as? AST.HeadingNode {
+                return AST.HeadingNode(
+                    level: headingNode.level,
+                    children: children,
+                    sourceLocation: headingNode.sourceLocation
+                )
+            }
+            
+        case .blockQuote:
+            if let blockQuoteNode = originalNode as? AST.BlockQuoteNode {
+                return AST.BlockQuoteNode(
+                    children: children,
+                    sourceLocation: blockQuoteNode.sourceLocation
+                )
+            }
+            
+        case .listItem:
+            if let listItemNode = originalNode as? AST.ListItemNode {
+                return AST.ListItemNode(
+                    children: children,
+                    sourceLocation: listItemNode.sourceLocation
+                )
+            }
+            
+        case .emphasis:
+            if let emphasisNode = originalNode as? AST.EmphasisNode {
+                return AST.EmphasisNode(
+                    children: children,
+                    sourceLocation: emphasisNode.sourceLocation
+                )
+            }
+            
+        case .strongEmphasis:
+            if let strongEmphasisNode = originalNode as? AST.StrongEmphasisNode {
+                return AST.StrongEmphasisNode(
+                    children: children,
+                    sourceLocation: strongEmphasisNode.sourceLocation
+                )
+            }
+            
+        case .link:
+            if let linkNode = originalNode as? AST.LinkNode {
+                return AST.LinkNode(
+                    url: linkNode.url,
+                    title: linkNode.title,
+                    children: children,
+                    sourceLocation: linkNode.sourceLocation
+                )
+            }
+            
+        case .table:
+            if let tableNode = originalNode as? AST.GFMTableNode {
+                return AST.GFMTableNode(
+                    rows: children.compactMap { $0 as? AST.GFMTableRowNode },
+                    alignments: tableNode.alignments,
+                    sourceLocation: tableNode.sourceLocation
+                )
+            }
+            
+        case .tableRow:
+            if let rowNode = originalNode as? AST.GFMTableRowNode {
+                return AST.GFMTableRowNode(
+                    cells: children.compactMap { $0 as? AST.GFMTableCellNode },
+                    isHeader: rowNode.isHeader,
+                    sourceLocation: rowNode.sourceLocation
+                )
+            }
+            
+        case .tableCell:
+            // Table cells typically don't have children that need processing
+            // Return the original node unchanged
+            return originalNode
+            
+        default:
+            // For unknown node types, return original
+            return originalNode
+        }
+        
+        return originalNode
     }
     
     /// Convenience method to parse Markdown and render to HTML.
@@ -245,13 +492,15 @@ public enum MarkdownParserError: Error, LocalizedError, Sendable {
 public struct HTMLRenderer: MarkdownRenderer {
     public typealias Output = String
     
-    private let context: RenderContext
+    internal let context: RenderContext
+    internal let configuration: SwiftMarkdownParser.Configuration
     
-    public init(context: RenderContext = RenderContext()) {
+    public init(context: RenderContext = RenderContext(), configuration: SwiftMarkdownParser.Configuration = SwiftMarkdownParser.Configuration()) {
         self.context = context
+        self.configuration = configuration
     }
     
-    public func render(document: DocumentNode) async throws -> String {
+    public func render(document: AST.DocumentNode) async throws -> String {
         var html = ""
         
         for child in document.children {
@@ -263,10 +512,10 @@ public struct HTMLRenderer: MarkdownRenderer {
     
     public func render(node: ASTNode) async throws -> String {
         switch node {
-        case let textNode as TextNode:
+        case let textNode as AST.TextNode:
             return RendererUtils.escapeHTML(textNode.content)
             
-        case let paragraphNode as ParagraphNode:
+        case let paragraphNode as AST.ParagraphNode:
             var content = ""
             for child in paragraphNode.children {
                 content += try await render(node: child)
@@ -278,7 +527,7 @@ public struct HTMLRenderer: MarkdownRenderer {
             )
             return "<p\(RendererUtils.formatHTMLAttributes(attributes))>\(content)</p>\n"
             
-        case let headingNode as HeadingNode:
+        case let headingNode as AST.HeadingNode:
             var content = ""
             for child in headingNode.children {
                 content += try await render(node: child)
@@ -290,7 +539,7 @@ public struct HTMLRenderer: MarkdownRenderer {
             )
             return "<h\(headingNode.level)\(RendererUtils.formatHTMLAttributes(attributes))>\(content)</h\(headingNode.level)>\n"
             
-        case let blockQuoteNode as BlockQuoteNode:
+        case let blockQuoteNode as AST.BlockQuoteNode:
             var content = ""
             for child in blockQuoteNode.children {
                 content += try await render(node: child)
@@ -302,7 +551,7 @@ public struct HTMLRenderer: MarkdownRenderer {
             )
             return "<blockquote\(RendererUtils.formatHTMLAttributes(attributes))>\n\(content)</blockquote>\n"
             
-        case let listNode as ListNode:
+        case let listNode as AST.ListNode:
             var content = ""
             for child in listNode.children {
                 content += try await render(node: child)
@@ -321,19 +570,18 @@ public struct HTMLRenderer: MarkdownRenderer {
             
             return "<\(tagName)\(RendererUtils.formatHTMLAttributes(attributes))>\n\(content)</\(tagName)>\n"
             
-        case let listItemNode as ListItemNode:
-            var content = ""
-            for child in listItemNode.children {
-                content += try await render(node: child)
-            }
-            let attributes = RendererUtils.htmlAttributes(
-                for: .listItem,
-                sourceLocation: listItemNode.sourceLocation,
-                styleConfig: context.styleConfiguration
-            )
-            return "<li\(RendererUtils.formatHTMLAttributes(attributes))>\(content)</li>\n"
+        case let listItemNode as AST.ListItemNode:
+            var html = "<li>"
             
-        case let codeBlockNode as CodeBlockNode:
+            // Render content
+            for child in listItemNode.children {
+                html += try await render(node: child)
+            }
+            
+            html += "</li>\n"
+            return html
+            
+        case let codeBlockNode as AST.CodeBlockNode:
             let escapedContent = RendererUtils.escapeHTML(codeBlockNode.content)
             var codeAttributes: [String: String] = [:]
             
@@ -349,7 +597,7 @@ public struct HTMLRenderer: MarkdownRenderer {
             
             return "<pre\(RendererUtils.formatHTMLAttributes(preAttributes))><code\(RendererUtils.formatHTMLAttributes(codeAttributes))>\(escapedContent)</code></pre>\n"
             
-        case let thematicBreakNode as ThematicBreakNode:
+        case let thematicBreakNode as AST.ThematicBreakNode:
             let attributes = RendererUtils.htmlAttributes(
                 for: .thematicBreak,
                 sourceLocation: thematicBreakNode.sourceLocation,
@@ -357,7 +605,7 @@ public struct HTMLRenderer: MarkdownRenderer {
             )
             return "<hr\(RendererUtils.formatHTMLAttributes(attributes)) />\n"
             
-        case let emphasisNode as EmphasisNode:
+        case let emphasisNode as AST.EmphasisNode:
             var content = ""
             for child in emphasisNode.children {
                 content += try await render(node: child)
@@ -369,7 +617,7 @@ public struct HTMLRenderer: MarkdownRenderer {
             )
             return "<em\(RendererUtils.formatHTMLAttributes(attributes))>\(content)</em>"
             
-        case let strongNode as StrongEmphasisNode:
+        case let strongNode as AST.StrongEmphasisNode:
             var content = ""
             for child in strongNode.children {
                 content += try await render(node: child)
@@ -381,7 +629,7 @@ public struct HTMLRenderer: MarkdownRenderer {
             )
             return "<strong\(RendererUtils.formatHTMLAttributes(attributes))>\(content)</strong>"
             
-        case let strikethroughNode as StrikethroughNode:
+        case let strikethroughNode as AST.StrikethroughNode:
             var content = ""
             for child in strikethroughNode.children {
                 content += try await render(node: child)
@@ -393,7 +641,7 @@ public struct HTMLRenderer: MarkdownRenderer {
             )
             return "<del\(RendererUtils.formatHTMLAttributes(attributes))>\(content)</del>"
             
-        case let linkNode as LinkNode:
+        case let linkNode as AST.LinkNode:
             var content = ""
             for child in linkNode.children {
                 content += try await render(node: child)
@@ -417,11 +665,11 @@ public struct HTMLRenderer: MarkdownRenderer {
             
             return "<a\(RendererUtils.formatHTMLAttributes(attributes))>\(content)</a>"
             
-        case let imageNode as ImageNode:
+        case let imageNode as AST.ImageNode:
             var altText = ""
             for child in imageNode.children {
                 // For alt text, we want plain text without HTML tags
-                if let textNode = child as? TextNode {
+                if let textNode = child as? AST.TextNode {
                     altText += textNode.content
                 }
             }
@@ -445,54 +693,50 @@ public struct HTMLRenderer: MarkdownRenderer {
             
             return "<img\(RendererUtils.formatHTMLAttributes(attributes)) />"
             
-        case let codeSpanNode as CodeSpanNode:
-            let escapedContent = RendererUtils.escapeHTML(codeSpanNode.content)
+        case let codeSpanNode as AST.CodeSpanNode:
             let attributes = RendererUtils.htmlAttributes(
                 for: .codeSpan,
                 sourceLocation: codeSpanNode.sourceLocation,
                 styleConfig: context.styleConfiguration
             )
-            return "<code\(RendererUtils.formatHTMLAttributes(attributes))>\(escapedContent)</code>"
+            return "<code\(RendererUtils.formatHTMLAttributes(attributes))>\(RendererUtils.escapeHTML(codeSpanNode.content))</code>"
             
-        case let htmlInlineNode as HTMLInlineNode:
-            if context.sanitizeHTML {
-                return RendererUtils.escapeHTML(htmlInlineNode.content)
-            } else {
-                return htmlInlineNode.content
-            }
+        case let lineBreakNode as AST.LineBreakNode:
+            return lineBreakNode.isHard ? "<br />\n" : "\n"
             
-        case let htmlBlockNode as HTMLBlockNode:
-            if context.sanitizeHTML {
-                return RendererUtils.escapeHTML(htmlBlockNode.content)
-            } else {
-                return htmlBlockNode.content + "\n"
-            }
-            
-        case let lineBreakNode as LineBreakNode:
-            if lineBreakNode.isHard {
-                return "<br />\n"
-            } else {
-                return "\n"
-            }
-            
-        case _ as SoftBreakNode:
+        case _ as AST.SoftBreakNode:
             return " "
             
-        case let autolinkNode as AutolinkNode:
+        case let autolinkNode as AST.AutolinkNode:
             let url = autolinkNode.url
+            let text = autolinkNode.text
             guard let normalizedURL = RendererUtils.normalizeURL(url, baseURL: context.baseURL) else {
-                return RendererUtils.escapeHTML(url)
+                return RendererUtils.escapeHTML(text)
             }
-            
-            let attributes = RendererUtils.htmlAttributes(
+            var attributes = RendererUtils.htmlAttributes(
                 for: .autolink,
                 sourceLocation: autolinkNode.sourceLocation,
                 styleConfig: context.styleConfiguration
             )
+            attributes["href"] = normalizedURL
+            return "<a\(RendererUtils.formatHTMLAttributes(attributes))>\(RendererUtils.escapeHTML(text))</a>"
             
-            let href = autolinkNode.linkType == .email ? "mailto:\(normalizedURL)" : normalizedURL
+        case let htmlBlockNode as AST.HTMLBlockNode:
+            if context.sanitizeHTML {
+                return RendererUtils.escapeHTML(htmlBlockNode.content)
+            }
+            return htmlBlockNode.content
             
-            return "<a href=\"\(RendererUtils.escapeHTMLAttribute(href))\"\(RendererUtils.formatHTMLAttributes(attributes))>\(RendererUtils.escapeHTML(url))</a>"
+        case let htmlInlineNode as AST.HTMLInlineNode:
+            if context.sanitizeHTML {
+                return RendererUtils.escapeHTML(htmlInlineNode.content)
+            }
+            return htmlInlineNode.content
+            
+        // GFM Extensions
+        case let tableNode as AST.GFMTableNode:
+            let renderer = HTMLRenderer(context: context, configuration: configuration)
+            return renderer.renderGFMTable(tableNode)
             
         default:
             throw RendererError.unsupportedNodeType(node.nodeType)

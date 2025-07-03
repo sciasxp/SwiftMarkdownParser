@@ -328,6 +328,12 @@ public final class MarkdownTokenizer {
             advance()
         }
         
+        // If we didn't consume any characters, consume at least one to avoid infinite loop
+        if content.isEmpty && !isAtEnd {
+            content.append(currentChar)
+            advance()
+        }
+        
         return Token(type: .text, content: content, location: startLocation)
     }
     

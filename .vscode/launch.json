@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:markdown}",
+            "name": "Debug TestListParsing",
+            "program": "${workspaceFolder:markdown}/.build/debug/TestListParsing",
+            "preLaunchTask": "swift: Build Debug TestListParsing"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:markdown}",
+            "name": "Release TestListParsing",
+            "program": "${workspaceFolder:markdown}/.build/release/TestListParsing",
+            "preLaunchTask": "swift: Build Release TestListParsing"
+        }
+    ]
+}

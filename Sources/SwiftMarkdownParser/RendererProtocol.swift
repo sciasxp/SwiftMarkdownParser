@@ -14,7 +14,7 @@ public protocol MarkdownRenderer: Sendable {
     /// Render a complete document AST to the output format
     /// - Parameter document: The root document node
     /// - Returns: The rendered output
-    func render(document: DocumentNode) async throws -> Output
+    func render(document: AST.DocumentNode) async throws -> Output
     
     /// Render any AST node to the output format
     /// - Parameter node: The AST node to render
@@ -229,12 +229,12 @@ public enum RendererUtils {
     ) -> [String: String] {
         var attributes: [String: String] = [:]
         
-        // Add CSS class
+        // Add CSS class only if explicitly configured
         if let cssClass = styleConfig.cssClasses[nodeType] {
             attributes["class"] = cssClass
-        } else {
-            attributes["class"] = cssClassName(for: nodeType)
         }
+        // Note: Removed the automatic fallback to cssClassName for default styling
+        // This keeps HTML output clean by default, CSS classes only when explicitly requested
         
         // Add custom attributes
         if let customAttrs = styleConfig.customAttributes[nodeType] {
@@ -289,5 +289,92 @@ public actor RendererRegistry {
     /// Remove a renderer
     public func unregister(name: String) {
         renderers.removeValue(forKey: name)
+    }
+}
+
+// MARK: - HTML Renderer Implementation
+
+extension HTMLRenderer {
+    // This extension is now primarily for CommonMark nodes.
+    // GFM-specific rendering is handled in the public extension below.
+}
+
+// MARK: - GFM Rendering for HTML
+
+public extension HTMLRenderer {
+    /// Render GFM table
+    func renderGFMTable(_ node: AST.GFMTableNode) -> String {
+        var html = "<table"
+        
+        if let tableClass = context.styleConfiguration.cssClasses[.table] {
+            html += " class=\"\(tableClass)\""
+        }
+        
+        html += ">\n"
+        
+        // Separate header and body rows
+        let headerRows = node.rows.filter { $0.isHeader }
+        let bodyRows = node.rows.filter { !$0.isHeader }
+        
+        // Render header
+        if !headerRows.isEmpty {
+            html += "<thead>\n"
+            for headerRow in headerRows {
+                html += renderTableRow(headerRow, alignments: node.alignments)
+            }
+            html += "</thead>\n"
+        }
+        
+        // Render body
+        if !bodyRows.isEmpty {
+            html += "<tbody>\n"
+            for bodyRow in bodyRows {
+                html += renderTableRow(bodyRow, alignments: node.alignments)
+            }
+            html += "</tbody>\n"
+        }
+        
+        html += "</table>\n"
+        return html
+    }
+    
+    /// Render table row
+    private func renderTableRow(_ row: AST.GFMTableRowNode, alignments: [GFMTableAlignment]) -> String {
+        var html = "<tr"
+        
+        if let rowClass = context.styleConfiguration.cssClasses[.tableRow] {
+            html += " class=\"\(rowClass)\""
+        }
+        
+        html += ">\n"
+        
+        for (index, cell) in row.cells.enumerated() {
+            html += renderTableCell(cell, alignment: index < alignments.count ? alignments[index] : .none)
+        }
+        
+        html += "</tr>\n"
+        return html
+    }
+    
+    /// Render table cell
+    private func renderTableCell(_ cell: AST.GFMTableCellNode, alignment: GFMTableAlignment) -> String {
+        let tag = cell.isHeader ? "th" : "td"
+        var html = "<\(tag)"
+        
+        // Add alignment
+        if alignment != .none {
+            html += " style=\"text-align: \(alignment.rawValue)\""
+        }
+        
+        // Add CSS class
+        if let cellClass = context.styleConfiguration.cssClasses[.tableCell] {
+            html += " class=\"\(cellClass)\""
+        }
+        
+        html += ">"
+        html += RendererUtils.escapeHTML(cell.content)
+        html += "</\(tag)>\n"
+        
+        return html
     }
 } 

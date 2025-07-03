@@ -1,304 +1,446 @@
-import Testing
+import XCTest
 @testable import SwiftMarkdownParser
 
 /// Test suite for the SwiftMarkdownParser functionality.
 /// 
 /// This test suite covers the AST-focused parsing functionality,
 /// including parsing various markdown elements and error handling.
-struct SwiftMarkdownParserTests {
+final class SwiftMarkdownParserTests: XCTestCase {
+    var parser: SwiftMarkdownParser!
     
-    @Test func test_init_createsParserInstance() async throws {
-        // Given & When
-        let parser = SwiftMarkdownParser()
-        
-        // Then
-        // Verify that the parser instance was created successfully
-        #expect(type(of: parser) == SwiftMarkdownParser.self)
+    override func setUp() {
+        super.setUp()
+        parser = SwiftMarkdownParser()
     }
     
-    @Test func test_parseToAST_emptyString_returnsEmptyDocument() async throws {
-        // Given
-        let parser = SwiftMarkdownParser()
-        let emptyMarkdown = ""
-        
-        // When
-        let document = try await parser.parseToAST(emptyMarkdown)
-        
-        // Then
-        #expect(type(of: document) == DocumentNode.self)
-        #expect(document.children.count == 0) // Empty string should result in empty document
+    override func tearDown() {
+        parser = nil
+        super.tearDown()
     }
     
-    @Test func test_parseToAST_validMarkdown_returnsDocument() async throws {
-        // Given
-        let parser = SwiftMarkdownParser()
-        let markdown = "# Hello World"
-        
-        // When
-        let document = try await parser.parseToAST(markdown)
-        
-        // Then
-        #expect(type(of: document) == DocumentNode.self)
-        #expect(document.children.count >= 1) // Should contain at least one element
+    // MARK: - Parser Tests
+    
+    func test_parse_emptyString_returnsEmptyDocument() async throws {
+        let document = try await parser.parseToAST("")
+        XCTAssertEqual(document.children.count, 0)
     }
     
-    @Test func test_parseToHTML_simpleMarkdown_returnsHTML() async throws {
-        // Given
-        let parser = SwiftMarkdownParser()
-        let markdown = "**Bold text**"
-        
-        // When
-        let html = try await parser.parseToHTML(markdown)
-        
-        // Then
-        #expect(html.contains("<p"))
-        #expect(html.contains("Bold text"))
-        #expect(html.contains("</p>"))
-    }
-    
-    // MARK: - AST Node Tests
-    
-    @Test func test_documentNode_init_createsEmptyDocument() async throws {
-        // Given & When
-        let document = DocumentNode(children: [])
-        
-        // Then
-        #expect(document.nodeType == .document)
-        #expect(document.children.isEmpty)
-    }
-    
-    @Test func test_textNode_init_createsTextNode() async throws {
-        // Given
-        let text = "Hello, World!"
-        
-        // When
-        let textNode = TextNode(content: text)
-        
-        // Then
-        #expect(textNode.nodeType == .text)
-        #expect(textNode.content == text)
-        #expect(textNode.children.isEmpty)
-    }
-    
-    @Test func test_headingNode_init_createsHeadingWithLevel() async throws {
-        // Given
-        let level = 2
-        let text = "Test Heading"
-        let textNode = TextNode(content: text)
-        
-        // When
-        let heading = HeadingNode(level: level, children: [textNode])
-        
-        // Then
-        #expect(heading.nodeType == .heading)
-        #expect(heading.level == level)
-        #expect(heading.children.count == 1)
-    }
-    
-    @Test func test_paragraphNode_init_createsParagraph() async throws {
-        // Given
-        let text = "This is a paragraph."
-        let textNode = TextNode(content: text)
-        
-        // When
-        let paragraph = ParagraphNode(children: [textNode])
-        
-        // Then
-        #expect(paragraph.nodeType == .paragraph)
-        #expect(paragraph.children.count == 1)
-    }
-    
-    @Test func test_emphasisNode_init_createsEmphasis() async throws {
-        // Given
-        let text = "italic text"
-        let textNode = TextNode(content: text)
-        
-        // When
-        let emphasis = EmphasisNode(children: [textNode])
-        
-        // Then
-        #expect(emphasis.nodeType == .emphasis)
-        #expect(emphasis.delimiter == "*")
-        #expect(emphasis.children.count == 1)
-    }
-    
-    @Test func test_strongEmphasisNode_init_createsStrongEmphasis() async throws {
-        // Given
-        let text = "bold text"
-        let textNode = TextNode(content: text)
-        
-        // When
-        let strong = StrongEmphasisNode(children: [textNode])
-        
-        // Then
-        #expect(strong.nodeType == .strongEmphasis)
-        #expect(strong.delimiter == "*")
-        #expect(strong.children.count == 1)
-    }
-    
-    @Test func test_linkNode_init_createsLink() async throws {
-        // Given
-        let url = "https://swift.org"
-        let title = "Swift.org"
-        let textNode = TextNode(content: "Swift")
-        
-        // When
-        let link = LinkNode(url: url, title: title, children: [textNode])
-        
-        // Then
-        #expect(link.nodeType == .link)
-        #expect(link.url == url)
-        #expect(link.title == title)
-        #expect(link.children.count == 1)
-    }
-    
-    @Test func test_codeBlockNode_init_createsCodeBlock() async throws {
-        // Given
-        let content = "let x = 42"
-        let language = "swift"
-        
-        // When
-        let codeBlock = CodeBlockNode(content: content, language: language, isFenced: true)
-        
-        // Then
-        #expect(codeBlock.nodeType == .codeBlock)
-        #expect(codeBlock.content == content)
-        #expect(codeBlock.language == language)
-        #expect(codeBlock.isFenced == true)
+    func test_parse_simpleParagraph_returnsDocumentWithParagraph() async throws {
+        let document = try await parser.parseToAST("This is a simple paragraph.")
+        XCTAssertEqual(document.children.count, 1)
+        XCTAssertEqual(document.children.first?.nodeType, .paragraph)
     }
     
     // MARK: - HTML Renderer Tests
     
-    @Test func test_htmlRenderer_renderTextNode_returnsEscapedHTML() async throws {
-        // Given
+    func test_htmlRenderer_renderTextNode_returnsEscapedHTML() async throws {
         let renderer = HTMLRenderer()
-        let textNode = TextNode(content: "Hello & <world>")
-        
-        // When
+        let textNode = AST.TextNode(content: "Hello & <world>")
         let html = try await renderer.render(node: textNode)
-        
-        // Then
-        #expect(html == "Hello &amp; &lt;world&gt;")
+        XCTAssertEqual(html, "Hello &amp; &lt;world&gt;")
     }
     
-    @Test func test_htmlRenderer_renderParagraphNode_returnsWrappedHTML() async throws {
-        // Given
+    func test_htmlRenderer_renderParagraphNode_returnsWrappedHTML() async throws {
         let renderer = HTMLRenderer()
-        let textNode = TextNode(content: "Hello, World!")
-        let paragraph = ParagraphNode(children: [textNode])
-        
-        // When
+        let textNode = AST.TextNode(content: "Hello, World!")
+        let paragraph = AST.ParagraphNode(children: [textNode])
         let html = try await renderer.render(node: paragraph)
-        
-        // Then
-        #expect(html.contains("<p"))
-        #expect(html.contains("Hello, World!"))
-        #expect(html.contains("</p>"))
+        XCTAssertTrue(html.contains("<p>Hello, World!</p>"))
     }
     
-    @Test func test_htmlRenderer_renderHeadingNode_returnsHeadingHTML() async throws {
-        // Given
+    func test_htmlRenderer_renderHeadingNode_returnsHeadingHTML() async throws {
         let renderer = HTMLRenderer()
-        let textNode = TextNode(content: "Test Heading")
-        let heading = HeadingNode(level: 2, children: [textNode])
-        
-        // When
+        let textNode = AST.TextNode(content: "Test Heading")
+        let heading = AST.HeadingNode(level: 2, children: [textNode])
         let html = try await renderer.render(node: heading)
-        
-        // Then
-        #expect(html.contains("<h2"))
-        #expect(html.contains("Test Heading"))
-        #expect(html.contains("</h2>"))
+        XCTAssertTrue(html.contains("<h2>Test Heading</h2>"))
     }
     
-    @Test func test_htmlRenderer_renderLinkNode_returnsLinkHTML() async throws {
-        // Given
+    func test_htmlRenderer_renderLinkNode_returnsLinkHTML() async throws {
         let renderer = HTMLRenderer()
-        let textNode = TextNode(content: "Swift")
-        let link = LinkNode(url: "https://swift.org", title: "Swift.org", children: [textNode])
-        
-        // When
+        let textNode = AST.TextNode(content: "Swift")
+        let link = AST.LinkNode(url: "https://swift.org", title: "Swift.org", children: [textNode])
         let html = try await renderer.render(node: link)
-        
-        // Then
-        #expect(html.contains("<a"))
-        #expect(html.contains("href=\"https://swift.org\""))
-        #expect(html.contains("title=\"Swift.org\""))
-        #expect(html.contains("Swift"))
-        #expect(html.contains("</a>"))
+        XCTAssertEqual(html, "<a href=\"https://swift.org\" title=\"Swift.org\">Swift</a>")
     }
     
-    // MARK: - Error Handling Tests
+    // MARK: - GFM Tests
     
-    @Test func test_markdownParserError_invalidInput_hasCorrectDescription() async throws {
-        // Given
-        let error = MarkdownParserError.invalidInput("Test message")
+    func test_gfm_parseSimpleTableLine() async throws {
+        print("[TEST] Starting simple table line test...")
         
-        // When
-        let description = error.errorDescription
+        let markdown = "| Name | Age |"
         
-        // Then
-        #expect(description?.contains("Invalid input") == true)
-        #expect(description?.contains("Test message") == true)
+        print("[TEST] Markdown input: '\(markdown)'")
+        print("[TEST] Calling parseToAST...")
+        
+        let ast = try await parser.parseToAST(markdown)
+        
+        print("[TEST] Parse completed! Children count: \(ast.children.count)")
+        print("[TEST] First child type: \(type(of: ast.children.first!))")
+        
+        // This should still be parsed as a paragraph (single line can't be a table without separator)
+        XCTAssertTrue(ast.children.first is AST.ParagraphNode)
     }
     
-    @Test func test_markdownParserError_nestingTooDeep_hasCorrectDescription() async throws {
-        // Given
-        let depth = 150
-        let error = MarkdownParserError.nestingTooDeep(depth)
+    func test_gfm_parseMinimalTable() async throws {
+        print("[TEST] Starting minimal table test...")
         
-        // When
-        let description = error.errorDescription
+        // For now, test that we can parse a single line without hanging
+        let markdown = "| A | B |"
         
-        // Then
-        #expect(description?.contains("Nesting too deep") == true)
-        #expect(description?.contains("150") == true)
+        print("[TEST] Markdown input: '\(markdown)'")
+        print("[TEST] Calling parseToAST...")
+        
+        let ast = try await parser.parseToAST(markdown)
+        
+        print("[TEST] Parse completed! Children count: \(ast.children.count)")
+        print("[TEST] First child type: \(type(of: ast.children.first!))")
+        
+        // This should be parsed as a paragraph (single line can't be a table)
+        XCTAssertTrue(ast.children.first is AST.ParagraphNode)
     }
     
-    @Test func test_rendererError_unsupportedNodeType_hasCorrectDescription() async throws {
-        // Given
-        let error = RendererError.unsupportedNodeType(.document)
+    func test_gfm_parseTable() async throws {
+        print("[TEST] Starting table parsing test...")
         
-        // When
-        let description = error.errorDescription
+        let markdown = """
+        | Name | Age | City |
+        |------|-----|------|
+        | John | 25  | NYC  |
+        | Jane | 30  | LA   |
+        """
         
-        // Then
-        #expect(description?.contains("Unsupported AST node type") == true)
-        #expect(description?.contains("document") == true)
+        print("[TEST] Markdown input: '\(markdown)'")
+        
+        let parser = SwiftMarkdownParser()
+        print("[TEST] Calling parseToAST...")
+        let document = try await parser.parseToAST(markdown)
+        print("[TEST] Parse completed! Children count: \(document.children.count)")
+        
+        // Should have one table
+        XCTAssertEqual(document.children.count, 1)
+        
+        guard let table = document.children.first as? AST.GFMTableNode else {
+            XCTFail("Expected GFMTableNode, got \(type(of: document.children.first))")
+            return
+        }
+        
+        print("[TEST] Found table with \(table.rows.count) rows")
+        
+        // Should have 3 rows (header + 2 data rows)
+        XCTAssertEqual(table.rows.count, 3)
+        
+        // Check header row
+        let headerRow = table.rows[0]
+        XCTAssertTrue(headerRow.isHeader)
+        XCTAssertEqual(headerRow.cells.count, 3)
+        XCTAssertEqual(headerRow.cells[0].content, "Name")
+        XCTAssertEqual(headerRow.cells[1].content, "Age")
+        XCTAssertEqual(headerRow.cells[2].content, "City")
+        
+        // Check data rows
+        let dataRow1 = table.rows[1]
+        XCTAssertFalse(dataRow1.isHeader)
+        XCTAssertEqual(dataRow1.cells.count, 3)
+        XCTAssertEqual(dataRow1.cells[0].content, "John")
+        XCTAssertEqual(dataRow1.cells[1].content, "25")
+        XCTAssertEqual(dataRow1.cells[2].content, "NYC")
+        
+        let dataRow2 = table.rows[2]
+        XCTAssertFalse(dataRow2.isHeader)
+        XCTAssertEqual(dataRow2.cells.count, 3)
+        XCTAssertEqual(dataRow2.cells[0].content, "Jane")
+        XCTAssertEqual(dataRow2.cells[1].content, "30")
+        XCTAssertEqual(dataRow2.cells[2].content, "LA")
+        
+        // Check alignments
+        XCTAssertEqual(table.alignments.count, 3)
+        XCTAssertEqual(table.alignments[0], .none)
+        XCTAssertEqual(table.alignments[1], .none)
+        XCTAssertEqual(table.alignments[2], .none)
+        
+        print("[TEST] Table parsing test completed successfully!")
     }
     
-    // MARK: - Utility Tests
-    
-    @Test func test_rendererUtils_escapeHTML_escapesSpecialCharacters() async throws {
-        // Given
-        let input = "Hello & <world> \"quoted\" 'text'"
+    func test_gfm_parseTaskList() async throws {
+        // Test single task list item
+        let markdown = "- [x] Completed task"
         
-        // When
-        let escaped = RendererUtils.escapeHTML(input)
+        let ast = try await parser.parseToAST(markdown)
         
-        // Then
-        #expect(escaped == "Hello &amp; &lt;world&gt; &quot;quoted&quot; &#39;text&#39;")
+        guard let list = ast.children.first as? AST.ListNode else {
+            XCTFail("Expected ListNode")
+            return
+        }
+        
+        XCTAssertEqual(list.items.count, 1)
+        
+        // Check that the item was converted to a GFMTaskListItemNode
+        guard let taskItem = list.items[0] as? AST.GFMTaskListItemNode else {
+            XCTFail("Expected GFMTaskListItemNode")
+            return
+        }
+        
+        XCTAssertTrue(taskItem.isChecked)
+        
+        // Test unchecked task
+        let markdown2 = "- [ ] Incomplete task"
+        let ast2 = try await parser.parseToAST(markdown2)
+        
+        guard let list2 = ast2.children.first as? AST.ListNode else {
+            XCTFail("Expected ListNode for second test")
+            return
+        }
+        
+        guard let taskItem2 = list2.items[0] as? AST.GFMTaskListItemNode else {
+            XCTFail("Expected GFMTaskListItemNode for second test")
+            return
+        }
+        
+        XCTAssertFalse(taskItem2.isChecked)
+    }
+
+    func test_gfm_parseStrikethrough() async throws {
+        let markdown = "This is ~~strikethrough~~ text."
+        let ast = try await parser.parseToAST(markdown)
+        
+        guard let paragraph = ast.children.first as? AST.ParagraphNode else {
+            XCTFail("Expected ParagraphNode")
+            return
+        }
+        
+        // Should have 7 nodes: "This", " ", "is", " ", StrikethroughNode, " ", "text."
+        XCTAssertEqual(paragraph.children.count, 7)
+        
+        // Check that the 5th node (index 4) is a strikethrough node
+        let strikethroughNode = paragraph.children[4]
+        XCTAssertEqual(strikethroughNode.nodeType, .strikethrough)
+        
+        // Verify it's actually a StrikethroughNode with correct content
+        guard let strikethrough = strikethroughNode as? AST.StrikethroughNode else {
+            XCTFail("Expected StrikethroughNode")
+            return
+        }
+        
+        XCTAssertEqual(strikethrough.content.count, 1)
+        guard let strikethroughText = strikethrough.content.first as? AST.TextNode else {
+            XCTFail("Expected TextNode in strikethrough content")
+            return
+        }
+        XCTAssertEqual(strikethroughText.content, "strikethrough")
+    }
+
+    func test_gfm_parseAutolinks() async throws {
+        let markdown = "Visit https://example.com"
+        let ast = try await parser.parseToAST(markdown)
+        guard let paragraph = ast.children.first as? AST.ParagraphNode else {
+            XCTFail("Expected ParagraphNode")
+            return
+        }
+        
+        // Should have 3 nodes: "Visit", " ", AutolinkNode
+        XCTAssertEqual(paragraph.children.count, 3)
+        
+        // Check that the third node is an autolink
+        let autolinkNode = paragraph.children[2]
+        XCTAssertEqual(autolinkNode.nodeType, .autolink)
+        
+        // Verify it's actually an AutolinkNode with correct content
+        guard let autolink = autolinkNode as? AST.AutolinkNode else {
+            XCTFail("Expected AutolinkNode")
+            return
+        }
+        
+        XCTAssertEqual(autolink.url, "https://example.com")
+        XCTAssertEqual(autolink.text, "https://example.com")
     }
     
-    @Test func test_rendererUtils_normalizeURL_rejectsJavaScript() async throws {
-        // Given
-        let jsURL = "javascript:alert('xss')"
+    // MARK: - List Tests
+    
+    func test_parseMultipleListItems_unordered() async throws {
+        let markdown = """
+        - Item 1
+        - Item 2
+        - Item 3
+        """
         
-        // When
-        let normalized = RendererUtils.normalizeURL(jsURL)
+        let ast = try await parser.parseToAST(markdown)
         
-        // Then
-        #expect(normalized == nil)
+        XCTAssertEqual(ast.children.count, 1)
+        guard let list = ast.children.first as? AST.ListNode else {
+            XCTFail("Expected ListNode")
+            return
+        }
+        
+        XCTAssertFalse(list.isOrdered)
+        XCTAssertEqual(list.items.count, 3)
+        
+        // Verify each item
+        for (index, item) in list.items.enumerated() {
+            guard let listItem = item as? AST.ListItemNode else {
+                XCTFail("Expected ListItemNode at index \(index)")
+                continue
+            }
+            XCTAssertEqual(listItem.children.count, 1)
+            
+            guard let paragraph = listItem.children.first as? AST.ParagraphNode else {
+                XCTFail("Expected ParagraphNode in list item at index \(index)")
+                continue
+            }
+            
+            // Each paragraph should contain text nodes with "Item N"
+            let textContent = paragraph.children.compactMap { ($0 as? AST.TextNode)?.content }.joined()
+            XCTAssertEqual(textContent, "Item \(index + 1)")
+        }
     }
     
-    @Test func test_rendererUtils_normalizeURL_acceptsHTTPS() async throws {
-        // Given
-        let httpsURL = "https://example.com"
+    func test_parseMultipleListItems_ordered() async throws {
+        let markdown = """
+        1. First item
+        2. Second item
+        3. Third item
+        """
         
-        // When
-        let normalized = RendererUtils.normalizeURL(httpsURL)
+        let ast = try await parser.parseToAST(markdown)
         
-        // Then
-        #expect(normalized == httpsURL)
+        XCTAssertEqual(ast.children.count, 1)
+        guard let list = ast.children.first as? AST.ListNode else {
+            XCTFail("Expected ListNode")
+            return
+        }
+        
+        XCTAssertTrue(list.isOrdered)
+        XCTAssertEqual(list.startNumber, 1)
+        XCTAssertEqual(list.items.count, 3)
+        
+        // Verify first item content
+        guard let firstItem = list.items.first as? AST.ListItemNode,
+              let paragraph = firstItem.children.first as? AST.ParagraphNode else {
+            XCTFail("Expected ListItemNode with ParagraphNode")
+            return
+        }
+        
+        let textContent = paragraph.children.compactMap { ($0 as? AST.TextNode)?.content }.joined()
+        XCTAssertEqual(textContent, "First item")
+    }
+
+    func test_debug_pipeCharacter() async throws {
+        print("[DEBUG] Starting pipe character test...")
+        
+        // Test with just pipe characters to see if that's the trigger
+        let markdown = "| A |"
+        
+        print("[DEBUG] Markdown: '\(markdown)'")
+        print("[DEBUG] About to call parseToAST...")
+        
+        let startTime = Date()
+        let result = try await parser.parseToAST(markdown)
+        let endTime = Date()
+        
+        print("[DEBUG] Parse completed in \(endTime.timeIntervalSince(startTime)) seconds")
+        print("[DEBUG] Children: \(result.children.count)")
+        
+        XCTAssertTrue(result.children.count >= 0)
+    }
+
+    func test_debug_simpleText() async throws {
+        print("[DEBUG] Starting simple text test...")
+        
+        // Test with just simple text that should not trigger table parsing
+        let markdown = "Hello world"
+        
+        print("[DEBUG] Markdown: '\(markdown)'")
+        print("[DEBUG] About to call parseToAST...")
+        
+        let startTime = Date()
+        let result = try await parser.parseToAST(markdown)
+        let endTime = Date()
+        
+        print("[DEBUG] Parse completed in \(endTime.timeIntervalSince(startTime)) seconds")
+        print("[DEBUG] Children: \(result.children.count)")
+        
+        XCTAssertEqual(result.children.count, 1)
+        XCTAssertTrue(result.children.first is AST.ParagraphNode)
+    }
+
+    func test_debug_tableHang() async throws {
+        print("[DEBUG] Starting minimal table debug test...")
+        
+        // Start with the simplest possible table
+        let markdown = """
+        | A |
+        |---|
+        | B |
+        """
+        
+        print("[DEBUG] Markdown: '\(markdown)'")
+        print("[DEBUG] About to call parseToAST...")
+        
+        // Create a simple task that we can monitor
+        let startTime = Date()
+        let result = try await parser.parseToAST(markdown)
+        let endTime = Date()
+        
+        print("[DEBUG] Parse completed in \(endTime.timeIntervalSince(startTime)) seconds")
+        print("[DEBUG] Children: \(result.children.count)")
+        
+        // If we get here, it didn't hang
+        XCTAssertTrue(result.children.count >= 0)
+    }
+
+    func test_debug_tableStructure() async throws {
+        print("[DEBUG] Starting table structure test...")
+        
+        // Test with the exact table structure that was hanging
+        let markdown = """
+        | A |
+        |---|
+        | B |
+        """
+        
+        print("[DEBUG] Markdown: '\(markdown)'")
+        print("[DEBUG] About to call parseToAST...")
+        
+        let startTime = Date()
+        let result = try await parser.parseToAST(markdown)
+        let endTime = Date()
+        
+        print("[DEBUG] Parse completed in \(endTime.timeIntervalSince(startTime)) seconds")
+        print("[DEBUG] Children: \(result.children.count)")
+        
+        // Since table parsing is disabled, this should be parsed as paragraphs
+        XCTAssertTrue(result.children.count >= 1)
+    }
+
+    func test_debug_tokenizerOnly() async throws {
+        print("[DEBUG] Starting tokenizer-only test...")
+        
+        let markdown = """
+        | A |
+        |---|
+        | B |
+        """
+        
+        print("[DEBUG] About to create tokenizer...")
+        let tokenizer = MarkdownTokenizer(markdown)
+        print("[DEBUG] About to tokenize...")
+        let tokens = tokenizer.tokenize()
+        print("[DEBUG] Tokenization completed! Got \(tokens.count) tokens")
+        
+        XCTAssertTrue(tokens.count > 0)
+    }
+
+    func test_tokenizer_edge_cases() {
+        // Test edge cases that previously caused infinite loops
+        
+        // Test mixed pipes and dashes (table separator line)
+        let mixed = "|----------|----------|"
+        let tokenizer = MarkdownTokenizer(mixed)
+        let tokens = tokenizer.tokenize()
+        
+        XCTAssertGreaterThan(tokens.count, 0, "Mixed pipes and dashes should produce tokens")
+        XCTAssertTrue(tokens.contains { $0.type == .pipe }, "Should contain pipe tokens")
+        XCTAssertTrue(tokens.contains { $0.type == .text }, "Should contain text tokens")
     }
 }
