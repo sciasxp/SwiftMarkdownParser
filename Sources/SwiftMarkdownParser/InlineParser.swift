@@ -279,8 +279,15 @@ public final class InlineParser {
         }
         
         guard tokenStream.match(.rightBracket) else {
-            // No closing bracket, treat as text
-            return parseText()
+            // No closing bracket, treat as text - reconstruct the original content
+            let linkTextContent = linkText.compactMap { node in
+                if let textNode = node as? AST.TextNode {
+                    return textNode.content
+                }
+                return nil
+            }.joined()
+            
+            return AST.TextNode(content: "[\(linkTextContent)", sourceLocation: startLocation)
         }
         
         // Check for inline link: [text](url "title")
@@ -319,8 +326,15 @@ public final class InlineParser {
             }
         }
         
-        // Not a valid link, treat as text
-        return parseText()
+        // Not a valid link, treat as text - reconstruct the original bracket content
+        let linkTextContent = linkText.compactMap { node in
+            if let textNode = node as? AST.TextNode {
+                return textNode.content
+            }
+            return nil
+        }.joined()
+        
+        return AST.TextNode(content: "[\(linkTextContent)]", sourceLocation: startLocation)
     }
     
     private func parseImage() throws -> ASTNode? {
