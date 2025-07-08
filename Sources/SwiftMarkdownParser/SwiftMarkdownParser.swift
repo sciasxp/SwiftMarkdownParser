@@ -666,13 +666,7 @@ public struct HTMLRenderer: MarkdownRenderer {
             return "<a\(RendererUtils.formatHTMLAttributes(attributes))>\(content)</a>"
             
         case let imageNode as AST.ImageNode:
-            var altText = ""
-            for child in imageNode.children {
-                // For alt text, we want plain text without HTML tags
-                if let textNode = child as? AST.TextNode {
-                    altText += textNode.content
-                }
-            }
+            let altText = imageNode.altText
             
             guard let normalizedURL = RendererUtils.normalizeURL(imageNode.url, baseURL: context.baseURL) else {
                 // If URL is invalid/unsafe, render alt text

@@ -53,6 +53,41 @@ public final class InlineParser {
         switch token.type {
         case .text, .whitespace:
             return [AST.TextNode(content: tokenStream.consume().content)]
+        case .asterisk:
+            // Handle emphasis and strong emphasis with *
+            if let emphasisNode = try parseEmphasisOrStrong(delimiter: "*") {
+                return [emphasisNode]
+            } else {
+                return [AST.TextNode(content: tokenStream.consume().content)]
+            }
+        case .underscore:
+            // Handle emphasis and strong emphasis with _
+            if let emphasisNode = try parseEmphasisOrStrong(delimiter: "_") {
+                return [emphasisNode]
+            } else {
+                return [AST.TextNode(content: tokenStream.consume().content)]
+            }
+        case .backtick:
+            // Handle code spans
+            if let codeSpan = try parseCodeSpan() {
+                return [codeSpan]
+            } else {
+                return [AST.TextNode(content: tokenStream.consume().content)]
+            }
+        case .leftBracket:
+            // Handle links
+            if let link = try parseLinkOrImage() {
+                return [link]
+            } else {
+                return [AST.TextNode(content: tokenStream.consume().content)]
+            }
+        case .exclamation:
+            // Handle images
+            if let image = try parseImage() {
+                return [image]
+            } else {
+                return [AST.TextNode(content: tokenStream.consume().content)]
+            }
         case .tilde:
             // Handle strikethrough
             if let strikethrough = try parseStrikethrough() {
@@ -60,8 +95,22 @@ public final class InlineParser {
             } else {
                 return [AST.TextNode(content: tokenStream.consume().content)]
             }
+        case .autolink:
+            // Handle autolinks
+            if let autolink = parseAutolink() {
+                return [autolink]
+            } else {
+                return [AST.TextNode(content: tokenStream.consume().content)]
+            }
+        case .backslash:
+            // Handle escaped characters
+            if let escaped = parseEscapedCharacter() {
+                return [escaped]
+            } else {
+                return [AST.TextNode(content: tokenStream.consume().content)]
+            }
         default:
-            // For simplicity, we'll just consume other tokens as text for now
+            // For other tokens, treat as text
             return [AST.TextNode(content: tokenStream.consume().content)]
         }
     }
@@ -230,8 +279,15 @@ public final class InlineParser {
         }
         
         guard tokenStream.match(.rightBracket) else {
-            // No closing bracket, treat as text
-            return parseText()
+            // No closing bracket, treat as text - reconstruct the original content
+            let linkTextContent = linkText.compactMap { node in
+                if let textNode = node as? AST.TextNode {
+                    return textNode.content
+                }
+                return nil
+            }.joined()
+            
+            return AST.TextNode(content: "[\(linkTextContent)", sourceLocation: startLocation)
         }
         
         // Check for inline link: [text](url "title")
@@ -270,8 +326,15 @@ public final class InlineParser {
             }
         }
         
-        // Not a valid link, treat as text
-        return parseText()
+        // Not a valid link, treat as text - reconstruct the original bracket content
+        let linkTextContent = linkText.compactMap { node in
+            if let textNode = node as? AST.TextNode {
+                return textNode.content
+            }
+            return nil
+        }.joined()
+        
+        return AST.TextNode(content: "[\(linkTextContent)]", sourceLocation: startLocation)
     }
     
     private func parseImage() throws -> ASTNode? {
