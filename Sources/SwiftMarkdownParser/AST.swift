@@ -470,10 +470,10 @@ public enum AST {
     /// GFM Table cell node
     public struct GFMTableCellNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .tableCell
-        public let children: [ASTNode] = []
+        public let children: [ASTNode]
         public let sourceLocation: SourceLocation?
         
-        /// Cell content
+        /// Cell content (plain text for backwards compatibility)
         public let content: String
         
         /// Whether this is a header cell
@@ -486,7 +486,41 @@ public enum AST {
             self.content = content
             self.isHeader = isHeader
             self.alignment = alignment
+            self.children = []
             self.sourceLocation = sourceLocation
+        }
+        
+        /// Initialize with inline content nodes
+        public init(children: [ASTNode], isHeader: Bool, alignment: GFMTableAlignment = .none, sourceLocation: SourceLocation? = nil) {
+            self.children = children
+            self.isHeader = isHeader
+            self.alignment = alignment
+            // Generate plain text content for backwards compatibility
+            self.content = Self.extractPlainText(from: children)
+            self.sourceLocation = sourceLocation
+        }
+        
+        /// Recursively extracts plain text content from AST nodes
+        private static func extractPlainText(from nodes: [ASTNode]) -> String {
+            return nodes.compactMap { node in
+                switch node {
+                case let textNode as AST.TextNode:
+                    return textNode.content
+                case let codeSpanNode as AST.CodeSpanNode:
+                    return codeSpanNode.content
+                case let autolinkNode as AST.AutolinkNode:
+                    return autolinkNode.text
+                case let imageNode as AST.ImageNode:
+                    return imageNode.altText
+                case let htmlInlineNode as AST.HTMLInlineNode:
+                    return htmlInlineNode.content
+                case let htmlBlockNode as AST.HTMLBlockNode:
+                    return htmlBlockNode.content
+                default:
+                    // For nodes with children (emphasis, strong, links, etc.)
+                    return extractPlainText(from: node.children)
+                }
+            }.joined()
         }
     }
     
