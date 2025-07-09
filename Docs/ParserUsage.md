@@ -39,13 +39,47 @@ let config = SwiftMarkdownParser.Configuration(
     enableGFMExtensions: true,      // GitHub Flavored Markdown
     strictMode: false,              // Relaxed parsing rules
     maxNestingDepth: 100,          // Prevent infinite recursion
-    trackSourceLocations: true     // Include position information
+    trackSourceLocations: true,    // Include position information
+    maxParsingTime: 30.0           // Maximum parsing time in seconds
 )
 
 let parser = SwiftMarkdownParser(configuration: config)
 ```
 
 ### Configuration Options Explained
+
+#### Parsing Time Limits
+
+```swift
+// Default timeout (30 seconds)
+let defaultConfig = SwiftMarkdownParser.Configuration()
+
+// Extended timeout for large documents
+let largeDocConfig = SwiftMarkdownParser.Configuration(
+    maxParsingTime: 60.0  // 60 seconds
+)
+
+// No timeout (use with caution)
+let unlimitedConfig = SwiftMarkdownParser.Configuration(
+    maxParsingTime: 0.0   // 0 = no limit
+)
+```
+
+The `maxParsingTime` setting provides protection against:
+- Maliciously crafted documents designed to cause infinite loops
+- Extremely complex documents that take too long to parse
+- Parser bugs that might cause infinite loops
+
+#### Performance and Safety Features
+
+SwiftMarkdownParser includes multiple protection mechanisms:
+
+1. **Time-based Protection**: Configurable timeout prevents runaway parsing
+2. **Position Tracking**: Detects when parser gets stuck at the same token position
+3. **Consecutive Nil Detection**: Prevents infinite loops from empty block parsing
+4. **Nesting Depth Limits**: Prevents stack overflow on deeply nested structures
+
+Unlike older parsers with arbitrary block count limits, SwiftMarkdownParser can handle documents of any reasonable size while maintaining safety through intelligent detection algorithms.
 
 #### GFM Extensions
 
@@ -815,12 +849,14 @@ public struct Configuration: Sendable {
     public let strictMode: Bool
     public let maxNestingDepth: Int
     public let trackSourceLocations: Bool
+    public let maxParsingTime: TimeInterval
     
     public init(
         enableGFMExtensions: Bool = true,
         strictMode: Bool = false,
         maxNestingDepth: Int = 100,
-        trackSourceLocations: Bool = false
+        trackSourceLocations: Bool = false,
+        maxParsingTime: TimeInterval = 30.0
     )
     
     public static let `default`: Configuration
@@ -836,6 +872,7 @@ public enum MarkdownParserError: Error, LocalizedError, Sendable {
     case malformedMarkdown(String, SourceLocation?)
     case unsupportedFeature(String)
     case internalError(String)
+    case parsingTimeout(TimeInterval)  // New error type for timeout
 }
 ```
 
@@ -853,4 +890,4 @@ public struct SourceLocation: Sendable, Equatable {
 
 ---
 
-**Next Steps**: Explore the [HTML Renderer Documentation](HTMLRenderer.md) and [SwiftUI Renderer Documentation](SwiftUIRenderer.md) for output formatting options. 
+**Next Steps**: Explore the [HTML Renderer Documentation](HTMLRenderer.md) and [SwiftUI Renderer Documentation](SwiftUIRenderer.md) for output formatting options.

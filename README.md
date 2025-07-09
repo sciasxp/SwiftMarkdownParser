@@ -4,6 +4,7 @@
 [![Swift 6.0+](https://img.shields.io/badge/Swift-6.0+-orange.svg)](https://swift.org)
 [![iOS 18.0+](https://img.shields.io/badge/iOS-18.0+-blue.svg)](https://developer.apple.com/ios/)
 [![macOS 15.0+](https://img.shields.io/badge/macOS-15.0+-blue.svg)](https://developer.apple.com/macos/)
+[![SPM Compatible](https://img.shields.io/badge/SPM-Compatible-brightgreen.svg)](https://swift.org/package-manager/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A modern, Swift-native Markdown parser that generates Abstract Syntax Trees (AST) with support for multiple output renderers. Built with Swift 6 concurrency and designed for performance, extensibility, and type safety.
@@ -50,8 +51,7 @@ A modern, Swift-native Markdown parser that generates Abstract Syntax Trees (AST
 
 ## 📋 Requirements
 
-- **iOS 17.0+** or **macOS 14.0+** (for SwiftUI renderer)
-- **iOS 13.0+** or **macOS 10.15+** (for HTML renderer only)
+- **iOS 18.0+** or **macOS 15.0+**
 - **Swift 6.0+**
 - **Xcode 16.0+**
 
@@ -655,13 +655,41 @@ let views = try await swiftUIRenderer.render(document: ast)
 
 ```swift
 let config = SwiftMarkdownParser.Configuration(
-    enableGFMExtensions: true,
-    strictMode: false,
-    maxNestingDepth: 100,
-    trackSourceLocations: true
+    enableGFMExtensions: true,       // GitHub Flavored Markdown extensions
+    strictMode: false,               // Relaxed parsing rules  
+    maxNestingDepth: 100,           // Maximum nesting depth for recursive elements
+    trackSourceLocations: true,     // Include source position information
+    maxParsingTime: 30.0            // Maximum parsing time in seconds (0 = no limit)
 )
 
 let parser = SwiftMarkdownParser(configuration: config)
+```
+
+#### Configuration Options
+
+- **enableGFMExtensions**: Enable GitHub Flavored Markdown features (tables, task lists, strikethrough, autolinks)
+- **strictMode**: Enable strict CommonMark compliance mode vs. relaxed parsing
+- **maxNestingDepth**: Maximum nesting depth for recursive elements to prevent stack overflow
+- **trackSourceLocations**: Include source position information in AST nodes for debugging
+- **maxParsingTime**: Maximum parsing time in seconds before timeout (default: 30.0, set to 0 for no limit)
+
+#### Performance and Safety Features
+
+SwiftMarkdownParser includes intelligent protection mechanisms:
+
+- **Time-based protection**: Configurable timeout prevents runaway parsing on malicious or extremely complex documents
+- **Infinite loop detection**: Advanced position tracking detects and prevents parser from getting stuck
+- **Memory safety**: Nesting depth limits prevent stack overflow on deeply nested structures
+- **No artificial limits**: Unlike older parsers, there are no arbitrary block count limits - documents can be any reasonable size
+
+For large documents (like technical documentation), you may want to increase the timeout:
+
+```swift
+// Configuration for large documents
+let largeDocConfig = SwiftMarkdownParser.Configuration(
+    enableGFMExtensions: true,
+    maxParsingTime: 60.0  // 60 seconds for complex documents
+)
 ```
 
 ### Error Handling

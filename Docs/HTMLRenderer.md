@@ -69,10 +69,27 @@ let config = SwiftMarkdownParser.Configuration(
     enableGFMExtensions: true,      // GitHub Flavored Markdown
     strictMode: false,              // Relaxed parsing rules
     maxNestingDepth: 100,          // Prevent infinite recursion
-    trackSourceLocations: true     // Include position information
+    trackSourceLocations: true,    // Include position information
+    maxParsingTime: 30.0           // Maximum parsing time in seconds
 )
 
 let parser = SwiftMarkdownParser(configuration: config)
+```
+
+#### Performance Considerations
+
+For large documents or when processing user-generated content, consider adjusting the timeout:
+
+```swift
+// For large documentation files
+let largeDocConfig = SwiftMarkdownParser.Configuration(
+    maxParsingTime: 60.0  // Extended timeout
+)
+
+// For user-generated content (security-focused)
+let userContentConfig = SwiftMarkdownParser.Configuration(
+    maxParsingTime: 5.0   // Shorter timeout for safety
+)
 ```
 
 ### Render Context Configuration

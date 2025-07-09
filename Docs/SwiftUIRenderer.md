@@ -75,6 +75,42 @@ struct MarkdownView: View {
 
 ## Basic Usage
 
+### Parser Configuration
+
+For SwiftUI rendering, parser configuration affects both parsing performance and rendering behavior:
+
+```swift
+// Default configuration suitable for most SwiftUI apps
+let defaultConfig = SwiftMarkdownParser.Configuration(
+    enableGFMExtensions: true,      // Tables, task lists, etc.
+    strictMode: false,              // Relaxed parsing
+    maxNestingDepth: 100,          // Prevent stack overflow
+    trackSourceLocations: false,   // Not needed for SwiftUI rendering
+    maxParsingTime: 30.0           // 30 second timeout
+)
+
+// Configuration for real-time preview (like in a markdown editor)
+let previewConfig = SwiftMarkdownParser.Configuration(
+    enableGFMExtensions: true,
+    maxParsingTime: 2.0            // Quick timeout for responsive UI
+)
+
+// Configuration for large documents
+let largeDocConfig = SwiftMarkdownParser.Configuration(
+    enableGFMExtensions: true,
+    maxParsingTime: 60.0           // Extended timeout for complex documents
+)
+
+let parser = SwiftMarkdownParser(configuration: defaultConfig)
+```
+
+#### Performance Considerations for SwiftUI
+
+- **Timeout Settings**: Use shorter timeouts (2-5 seconds) for interactive editing to keep the UI responsive
+- **Source Locations**: Usually not needed for SwiftUI rendering, disable to improve performance
+- **GFM Extensions**: Enable for rich content, but may increase parsing time for complex tables
+- **Nesting Depth**: Default is sufficient for most content, but may need adjustment for deeply nested lists
+
 ### Creating a SwiftUI Renderer
 
 ```swift
