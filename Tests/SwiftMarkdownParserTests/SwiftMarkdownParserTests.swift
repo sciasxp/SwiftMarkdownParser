@@ -443,4 +443,97 @@ final class SwiftMarkdownParserTests: XCTestCase {
         XCTAssertTrue(tokens.contains { $0.type == .pipe }, "Should contain pipe tokens")
         XCTAssertTrue(tokens.contains { $0.type == .text }, "Should contain text tokens")
     }
+    
+    // MARK: - GFMTableCellNode Fix Tests
+    
+    func test_gfmTableCellNode_nestedInlineContentExtraction() {
+        // Test that the fix correctly extracts plain text from nested inline elements
+        
+        // Create some nested inline elements
+        let boldText = AST.StrongEmphasisNode(children: [
+            AST.TextNode(content: "Bold")
+        ])
+        
+        let regularText = AST.TextNode(content: " text ")
+        
+        let emphasisText = AST.EmphasisNode(children: [
+            AST.TextNode(content: "italic")
+        ])
+        
+        let linkText = AST.LinkNode(
+            url: "https://example.com",
+            title: "Example",
+            children: [AST.TextNode(content: "link")]
+        )
+        
+        let codeSpan = AST.CodeSpanNode(content: "code")
+        
+        // Create a table cell with nested inline elements
+        let tableCell = AST.GFMTableCellNode(
+            children: [boldText, regularText, emphasisText, linkText, codeSpan],
+            isHeader: false,
+            alignment: .none
+        )
+        
+        // Test that the content extraction works correctly
+        let expectedContent = "Bold text italiclinkcode"
+        let actualContent = tableCell.content
+        
+        XCTAssertEqual(actualContent, expectedContent, "Content extraction should work for nested inline elements")
+        
+        // Test that children are preserved
+        XCTAssertEqual(tableCell.children.count, 5, "Children should be preserved correctly")
+        
+        // Test that the cell properties are correct
+        XCTAssertFalse(tableCell.isHeader, "Header flag should be preserved")
+        XCTAssertEqual(tableCell.alignment, .none, "Alignment should be preserved")
+    }
+    
+    func test_gfmTableCellNode_emptyChildren() {
+        // Test with empty children array
+        let tableCell = AST.GFMTableCellNode(
+            children: [],
+            isHeader: true,
+            alignment: .center
+        )
+        
+        XCTAssertEqual(tableCell.content, "", "Empty children should result in empty content")
+        XCTAssertEqual(tableCell.children.count, 0, "Children should be empty")
+        XCTAssertTrue(tableCell.isHeader, "Header flag should be preserved")
+        XCTAssertEqual(tableCell.alignment, .center, "Alignment should be preserved")
+    }
+    
+    func test_gfmTableCellNode_deeplyNestedContent() {
+        // Test with deeply nested content
+        let deeplyNestedText = AST.EmphasisNode(children: [
+            AST.StrongEmphasisNode(children: [
+                AST.TextNode(content: "Deep")
+            ])
+        ])
+        
+        let tableCell = AST.GFMTableCellNode(
+            children: [deeplyNestedText],
+            isHeader: false,
+            alignment: .left
+        )
+        
+        XCTAssertEqual(tableCell.content, "Deep", "Deeply nested content should be extracted")
+        XCTAssertEqual(tableCell.children.count, 1, "Children should be preserved")
+    }
+    
+    func test_gfmTableCellNode_mixedContentTypes() {
+        // Test with various content types
+        let imageNode = AST.ImageNode(url: "image.jpg", altText: "Alt text")
+        let autolinkNode = AST.AutolinkNode(url: "https://example.com", text: "example.com")
+        let htmlInlineNode = AST.HTMLInlineNode(content: "<span>HTML</span>")
+        
+        let tableCell = AST.GFMTableCellNode(
+            children: [imageNode, autolinkNode, htmlInlineNode],
+            isHeader: false,
+            alignment: .right
+        )
+        
+        let expectedContent = "Alt textexample.com<span>HTML</span>"
+        XCTAssertEqual(tableCell.content, expectedContent, "Mixed content types should be extracted correctly")
+    }
 }

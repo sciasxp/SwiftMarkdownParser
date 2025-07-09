@@ -496,14 +496,31 @@ public enum AST {
             self.isHeader = isHeader
             self.alignment = alignment
             // Generate plain text content for backwards compatibility
-            self.content = children.compactMap { node in
-                if let textNode = node as? TextNode {
-                    return textNode.content
-                } else {
-                    return nil
-                }
-            }.joined(separator: " ")
+            self.content = Self.extractPlainText(from: children)
             self.sourceLocation = sourceLocation
+        }
+        
+        /// Recursively extracts plain text content from AST nodes
+        private static func extractPlainText(from nodes: [ASTNode]) -> String {
+            return nodes.compactMap { node in
+                switch node {
+                case let textNode as AST.TextNode:
+                    return textNode.content
+                case let codeSpanNode as AST.CodeSpanNode:
+                    return codeSpanNode.content
+                case let autolinkNode as AST.AutolinkNode:
+                    return autolinkNode.text
+                case let imageNode as AST.ImageNode:
+                    return imageNode.altText
+                case let htmlInlineNode as AST.HTMLInlineNode:
+                    return htmlInlineNode.content
+                case let htmlBlockNode as AST.HTMLBlockNode:
+                    return htmlBlockNode.content
+                default:
+                    // For nodes with children (emphasis, strong, links, etc.)
+                    return extractPlainText(from: node.children)
+                }
+            }.joined()
         }
     }
     
