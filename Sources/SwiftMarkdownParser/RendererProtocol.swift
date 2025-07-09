@@ -306,7 +306,7 @@ public extension HTMLRenderer {
     func renderGFMTable(_ node: AST.GFMTableNode) async throws -> String {
         var html = "<table"
         
-        var attributes = RendererUtils.htmlAttributes(
+        let attributes = RendererUtils.htmlAttributes(
             for: .table,
             sourceLocation: node.sourceLocation,
             styleConfig: context.styleConfiguration
@@ -345,7 +345,7 @@ public extension HTMLRenderer {
     private func renderTableRow(_ row: AST.GFMTableRowNode, alignments: [GFMTableAlignment]) async throws -> String {
         var html = "<tr"
         
-        var attributes = RendererUtils.htmlAttributes(
+        let attributes = RendererUtils.htmlAttributes(
             for: .tableRow,
             sourceLocation: row.sourceLocation,
             styleConfig: context.styleConfiguration
