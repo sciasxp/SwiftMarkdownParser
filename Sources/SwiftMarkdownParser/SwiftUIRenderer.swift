@@ -157,44 +157,105 @@ extension SwiftUIRenderer {
     
     /// Render paragraph node
     private func renderParagraph(_ node: AST.ParagraphNode) async throws -> AnyView {
-        let childViews = try await node.children.asyncMap { child in
-            try await render(node: child)
-        }
+        // Combine all text content into a single Text view for proper wrapping
+        let combinedText = try await createCombinedText(from: node.children)
         
         return AnyView(
-            HStack(spacing: 0) {
-                ForEach(Array(childViews.enumerated()), id: \.offset) { index, view in
-                    view
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.bottom, context.styleConfiguration.paragraphSpacing)
-            .accessibilityElement(children: .combine)
+            combinedText
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, context.styleConfiguration.paragraphSpacing)
+                .accessibilityElement(children: .combine)
         )
+    }
+    
+    /// Create a combined Text view from child nodes that supports proper text wrapping
+    private func createCombinedText(from nodes: [ASTNode]) async throws -> Text {
+        var combinedText = Text("")
+        
+        for node in nodes {
+            let textComponent = try await createTextComponent(from: node)
+            combinedText = combinedText + textComponent
+        }
+        
+        return combinedText
+            .font(context.styleConfiguration.bodyFont)
+            .foregroundColor(context.styleConfiguration.textColor)
+    }
+    
+    /// Create a Text component from an AST node
+    private func createTextComponent(from node: ASTNode) async throws -> Text {
+        switch node {
+        case let textNode as AST.TextNode:
+            return Text(textNode.content)
+            
+        case let emphasisNode as AST.EmphasisNode:
+            let childText = try await createCombinedText(from: emphasisNode.children)
+            return childText.italic()
+            
+        case let strongNode as AST.StrongEmphasisNode:
+            let childText = try await createCombinedText(from: strongNode.children)
+            return childText.fontWeight(.bold)
+            
+        case let codeSpanNode as AST.CodeSpanNode:
+            return Text(codeSpanNode.content)
+                .font(context.styleConfiguration.codeFont)
+                .foregroundColor(context.styleConfiguration.codeTextColor)
+            
+        case let linkNode as AST.LinkNode:
+            let childText = try await createCombinedText(from: linkNode.children)
+            return childText
+                .foregroundColor(context.styleConfiguration.linkColor)
+                .underline()
+            
+        case let strikethroughNode as AST.StrikethroughNode:
+            let childText = try await createCombinedText(from: strikethroughNode.children)
+            return childText
+                .strikethrough()
+                .foregroundColor(context.styleConfiguration.strikethroughColor)
+            
+        case let autolinkNode as AST.AutolinkNode:
+            return Text(autolinkNode.text)
+                .foregroundColor(context.styleConfiguration.linkColor)
+                .underline()
+            
+        case _ as AST.LineBreakNode:
+            return Text("\n")
+            
+        case _ as AST.SoftBreakNode:
+            return Text(" ")
+            
+        case let htmlInlineNode as AST.HTMLInlineNode:
+            // For HTML inline, just render as plain text
+            return Text(htmlInlineNode.content)
+                .font(context.styleConfiguration.codeFont)
+                .foregroundColor(context.styleConfiguration.codeTextColor)
+            
+        default:
+            // For other node types, try to extract text content
+            if !node.children.isEmpty {
+                return try await createCombinedText(from: node.children)
+            } else {
+                return Text("")
+            }
+        }
     }
     
     /// Render heading node
     private func renderHeading(_ node: AST.HeadingNode) async throws -> AnyView {
-        let childViews = try await node.children.asyncMap { child in
-            try await render(node: child)
-        }
+        let combinedText = try await createCombinedText(from: node.children)
         
         let font = context.styleConfiguration.headingFont(for: node.level)
         let spacing = context.styleConfiguration.headingSpacing(for: node.level)
         
         return AnyView(
-            HStack(spacing: 0) {
-                ForEach(Array(childViews.enumerated()), id: \.offset) { index, view in
-                    view
-                }
-            }
-            .font(font)
-            .fontWeight(.bold)
-            .foregroundColor(context.styleConfiguration.headingColor)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.bottom, spacing)
-            .accessibilityAddTraits(.isHeader)
-            .accessibilityElement(children: .combine)
+            combinedText
+                .font(font)
+                .fontWeight(.bold)
+                .foregroundColor(context.styleConfiguration.headingColor)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, spacing)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityElement(children: .combine)
         )
     }
     
