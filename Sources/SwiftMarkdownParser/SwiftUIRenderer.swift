@@ -157,15 +157,84 @@ extension SwiftUIRenderer {
     
     /// Render paragraph node
     private func renderParagraph(_ node: AST.ParagraphNode) async throws -> AnyView {
-        // Combine all text content into a single Text view for proper wrapping
-        let combinedText = try await createCombinedText(from: node.children)
-        
-        return AnyView(
-            combinedText
+        // Check if paragraph contains only text-compatible elements
+        if canUseTextCombination(for: node.children) {
+            // Use combined text approach for proper wrapping
+            let combinedText = try await createCombinedText(from: node.children)
+            
+            return AnyView(
+                combinedText
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, context.styleConfiguration.paragraphSpacing)
+                    .accessibilityElement(children: .combine)
+            )
+        } else {
+            // Use separate views for mixed content with links and images
+            let childViews = try await node.children.asyncMap { child in
+                try await render(node: child)
+            }
+            
+            return AnyView(
+                // Use flexible layout that handles both inline and block elements
+                HStack(spacing: 0) {
+                    ForEach(Array(childViews.enumerated()), id: \.offset) { index, view in
+                        view
+                    }
+                }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.bottom, context.styleConfiguration.paragraphSpacing)
                 .accessibilityElement(children: .combine)
-        )
+            )
+        }
+    }
+    
+    /// Check if nodes can be combined into a single Text view
+    private func canUseTextCombination(for nodes: [ASTNode]) -> Bool {
+        for node in nodes {
+            if !isTextCompatible(node) {
+                return false
+            }
+        }
+        return true
+    }
+    
+    /// Check if a node is compatible with Text combination
+    private func isTextCompatible(_ node: ASTNode) -> Bool {
+        switch node {
+        case _ as AST.TextNode,
+             _ as AST.CodeSpanNode,
+             _ as AST.LineBreakNode,
+             _ as AST.SoftBreakNode,
+             _ as AST.HTMLInlineNode:
+            return true
+        case let emphasisNode as AST.EmphasisNode:
+            for child in emphasisNode.children {
+                if !isTextCompatible(child) {
+                    return false
+                }
+            }
+            return true
+        case let strongNode as AST.StrongEmphasisNode:
+            for child in strongNode.children {
+                if !isTextCompatible(child) {
+                    return false
+                }
+            }
+            return true
+        case let strikethroughNode as AST.StrikethroughNode:
+            for child in strikethroughNode.children {
+                if !isTextCompatible(child) {
+                    return false
+                }
+            }
+            return true
+        case _ as AST.LinkNode,
+             _ as AST.ImageNode,
+             _ as AST.AutolinkNode:
+            return false
+        default:
+            return false
+        }
     }
     
     /// Create a combined Text view from child nodes that supports proper text wrapping
@@ -201,22 +270,11 @@ extension SwiftUIRenderer {
                 .font(context.styleConfiguration.codeFont)
                 .foregroundColor(context.styleConfiguration.codeTextColor)
             
-        case let linkNode as AST.LinkNode:
-            let childText = try await createCombinedText(from: linkNode.children)
-            return childText
-                .foregroundColor(context.styleConfiguration.linkColor)
-                .underline()
-            
         case let strikethroughNode as AST.StrikethroughNode:
             let childText = try await createCombinedText(from: strikethroughNode.children)
             return childText
                 .strikethrough()
                 .foregroundColor(context.styleConfiguration.strikethroughColor)
-            
-        case let autolinkNode as AST.AutolinkNode:
-            return Text(autolinkNode.text)
-                .foregroundColor(context.styleConfiguration.linkColor)
-                .underline()
             
         case _ as AST.LineBreakNode:
             return Text("\n")
@@ -699,6 +757,8 @@ extension SwiftUIRenderer {
     }
 }
 
+
+
 // MARK: - Async Array Extension
 
 extension Array {
@@ -706,7 +766,7 @@ extension Array {
     func asyncMap<T>(_ transform: (Element) async throws -> T) async rethrows -> [T] {
         var results: [T] = []
         for element in self {
-            try await results.append(transform(element))
+            results.append(try await transform(element))
         }
         return results
     }
