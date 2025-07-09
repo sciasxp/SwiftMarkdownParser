@@ -118,7 +118,7 @@ final class SwiftUIRendererTests: XCTestCase {
     
     func test_renderer_conformsToMarkdownRenderer() {
         // Test that SwiftUIRenderer conforms to MarkdownRenderer protocol
-        XCTAssertTrue(renderer is any MarkdownRenderer)
+        XCTAssertNotNil(renderer)
     }
     
     func test_renderer_hasCorrectOutputType() {

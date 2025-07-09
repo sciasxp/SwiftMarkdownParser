@@ -378,7 +378,6 @@ public struct SwiftUIStyleConfiguration: Sendable {
     
     /// Create a dark mode variant
     public func darkMode() -> SwiftUIStyleConfiguration {
-        var config = self
         return SwiftUIStyleConfiguration(
             codeBackgroundColor: Color.gray.opacity(0.2),
             blockQuoteBorderColor: Color.gray.opacity(0.4),
