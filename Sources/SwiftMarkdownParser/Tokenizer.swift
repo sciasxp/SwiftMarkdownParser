@@ -104,6 +104,12 @@ public final class MarkdownTokenizer {
     private var line: Int = 1
     private var column: Int = 1
     
+    // State tracking for fenced code blocks
+    private var inFencedCodeBlock: Bool = false
+    private var fenceCharacter: Character? = nil
+    private var fenceLength: Int = 0
+    private var fenceStartColumn: Int = 0
+    
     /// Initialize tokenizer with markdown text
     public init(_ input: String) {
         self.input = input
@@ -151,6 +157,23 @@ public final class MarkdownTokenizer {
                 advance()
             }
             return Token(type: .newline, content: "\r\n", location: startLocation)
+        }
+        
+        // Check for fenced code block state first
+        if inFencedCodeBlock {
+            // Inside a fenced code block, check for closing fence
+            if (char == "`" || char == "~") && isAtLineStart() {
+                if let closingFence = checkClosingFence() {
+                    inFencedCodeBlock = false
+                    fenceCharacter = nil
+                    fenceLength = 0
+                    fenceStartColumn = 0
+                    return closingFence
+                }
+            }
+            
+            // Otherwise, treat everything as text inside the code block
+            return tokenizeTextInCodeBlock()
         }
         
         // Check for line-start patterns (headers, lists, block quotes, etc.)
@@ -701,8 +724,89 @@ public final class MarkdownTokenizer {
             return nil
         }
         
+        // Set fenced code block state
+        inFencedCodeBlock = true
+        fenceCharacter = fenceChar
+        fenceLength = content.count
+        fenceStartColumn = startLocation.column
+        
         let tokenType: TokenType = fenceChar == "`" ? .backtick : .tildeCodeFence
         return Token(type: tokenType, content: content, location: startLocation)
+    }
+    
+    private func checkClosingFence() -> Token? {
+        let startLocation = currentLocation
+        let char = currentChar
+        
+        guard char == fenceCharacter else { return nil }
+        
+        var content = ""
+        var count = 0
+        
+        // Count fence characters
+        while !isAtEnd && currentChar == char {
+            content.append(currentChar)
+            count += 1
+            advance()
+        }
+        
+        // Must have at least the same length as opening fence
+        guard count >= fenceLength else {
+            // Backtrack - this is not a closing fence
+            position = startLocation.offset
+            line = startLocation.line
+            column = startLocation.column
+            return nil
+        }
+        
+        // Check that this is followed by end of line or whitespace only
+        // This ensures we don't close on fence characters that are part of content
+        var tempPos = position
+        
+        while tempPos < characters.count && characters[tempPos] != "\n" && characters[tempPos] != "\r" {
+            if !characters[tempPos].isWhitespace {
+                // There's non-whitespace content after the fence, so this is not a closing fence
+                position = startLocation.offset
+                line = startLocation.line
+                column = startLocation.column
+                return nil
+            }
+            tempPos += 1
+        }
+        
+        let tokenType: TokenType = char == "`" ? .backtick : .tildeCodeFence
+        return Token(type: tokenType, content: content, location: startLocation)
+    }
+    
+    private func tokenizeTextInCodeBlock() -> Token {
+        let startLocation = currentLocation
+        var content = ""
+        
+        // Collect text until newline or EOF
+        while !isAtEnd && currentChar != "\n" && currentChar != "\r" {
+            content.append(currentChar)
+            advance()
+        }
+        
+        return Token(type: .text, content: content, location: startLocation)
+    }
+    
+    private func isAtLineStart() -> Bool {
+        // Check if we're at the actual start of a line (column 1)
+        // or if we're after whitespace at the start of a line
+        if column == 1 {
+            return true
+        }
+        
+        // Check if all characters before this on the current line are whitespace
+        var pos = position - 1
+        while pos >= 0 && characters[pos] != "\n" && characters[pos] != "\r" {
+            if !characters[pos].isWhitespace {
+                return false
+            }
+            pos -= 1
+        }
+        return true
     }
 }
 
@@ -728,7 +832,7 @@ public final class TokenStream {
     /// Peek at the next token
     public func peek(_ offset: Int = 1) -> Token {
         let pos = position + offset
-        guard pos < tokens.count else {
+        guard pos >= 0 && pos < tokens.count else {
             return Token(type: .eof, content: "", location: SourceLocation(line: 0, column: 0, offset: 0))
         }
         return tokens[pos]
