@@ -303,13 +303,16 @@ extension HTMLRenderer {
 
 public extension HTMLRenderer {
     /// Render GFM table
-    func renderGFMTable(_ node: AST.GFMTableNode) -> String {
+    func renderGFMTable(_ node: AST.GFMTableNode) async throws -> String {
         var html = "<table"
         
-        if let tableClass = context.styleConfiguration.cssClasses[.table] {
-            html += " class=\"\(tableClass)\""
-        }
+        var attributes = RendererUtils.htmlAttributes(
+            for: .table,
+            sourceLocation: node.sourceLocation,
+            styleConfig: context.styleConfiguration
+        )
         
+        html += RendererUtils.formatHTMLAttributes(attributes)
         html += ">\n"
         
         // Separate header and body rows
@@ -320,7 +323,7 @@ public extension HTMLRenderer {
         if !headerRows.isEmpty {
             html += "<thead>\n"
             for headerRow in headerRows {
-                html += renderTableRow(headerRow, alignments: node.alignments)
+                html += try await renderTableRow(headerRow, alignments: node.alignments)
             }
             html += "</thead>\n"
         }
@@ -329,7 +332,7 @@ public extension HTMLRenderer {
         if !bodyRows.isEmpty {
             html += "<tbody>\n"
             for bodyRow in bodyRows {
-                html += renderTableRow(bodyRow, alignments: node.alignments)
+                html += try await renderTableRow(bodyRow, alignments: node.alignments)
             }
             html += "</tbody>\n"
         }
@@ -339,17 +342,20 @@ public extension HTMLRenderer {
     }
     
     /// Render table row
-    private func renderTableRow(_ row: AST.GFMTableRowNode, alignments: [GFMTableAlignment]) -> String {
+    private func renderTableRow(_ row: AST.GFMTableRowNode, alignments: [GFMTableAlignment]) async throws -> String {
         var html = "<tr"
         
-        if let rowClass = context.styleConfiguration.cssClasses[.tableRow] {
-            html += " class=\"\(rowClass)\""
-        }
+        var attributes = RendererUtils.htmlAttributes(
+            for: .tableRow,
+            sourceLocation: row.sourceLocation,
+            styleConfig: context.styleConfiguration
+        )
         
+        html += RendererUtils.formatHTMLAttributes(attributes)
         html += ">\n"
         
         for (index, cell) in row.cells.enumerated() {
-            html += renderTableCell(cell, alignment: index < alignments.count ? alignments[index] : .none)
+            html += try await renderTableCell(cell, alignment: index < alignments.count ? alignments[index] : .none)
         }
         
         html += "</tr>\n"
@@ -357,7 +363,7 @@ public extension HTMLRenderer {
     }
     
     /// Render table cell
-    private func renderTableCell(_ cell: AST.GFMTableCellNode, alignment: GFMTableAlignment) -> String {
+    private func renderTableCell(_ cell: AST.GFMTableCellNode, alignment: GFMTableAlignment) async throws -> String {
         let tag = cell.isHeader ? "th" : "td"
         var html = "<\(tag)"
         
@@ -366,13 +372,31 @@ public extension HTMLRenderer {
             html += " style=\"text-align: \(alignment.rawValue)\""
         }
         
-        // Add CSS class
-        if let cellClass = context.styleConfiguration.cssClasses[.tableCell] {
-            html += " class=\"\(cellClass)\""
+        // Add CSS class and custom attributes
+        var attributes = RendererUtils.htmlAttributes(
+            for: .tableCell,
+            sourceLocation: cell.sourceLocation,
+            styleConfig: context.styleConfiguration
+        )
+        
+        // Add scope attribute for header cells
+        if cell.isHeader {
+            attributes["scope"] = "col"
         }
         
+        html += RendererUtils.formatHTMLAttributes(attributes)
         html += ">"
-        html += RendererUtils.escapeHTML(cell.content)
+        
+        // Render inline content if available, otherwise use plain text
+        if !cell.children.isEmpty {
+            for child in cell.children {
+                let childRenderer = HTMLRenderer(context: context, configuration: configuration)
+                html += try await childRenderer.render(node: child)
+            }
+        } else {
+            html += RendererUtils.escapeHTML(cell.content)
+        }
+        
         html += "</\(tag)>\n"
         
         return html

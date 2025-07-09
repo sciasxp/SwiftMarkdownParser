@@ -470,10 +470,10 @@ public enum AST {
     /// GFM Table cell node
     public struct GFMTableCellNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .tableCell
-        public let children: [ASTNode] = []
+        public let children: [ASTNode]
         public let sourceLocation: SourceLocation?
         
-        /// Cell content
+        /// Cell content (plain text for backwards compatibility)
         public let content: String
         
         /// Whether this is a header cell
@@ -486,6 +486,23 @@ public enum AST {
             self.content = content
             self.isHeader = isHeader
             self.alignment = alignment
+            self.children = []
+            self.sourceLocation = sourceLocation
+        }
+        
+        /// Initialize with inline content nodes
+        public init(children: [ASTNode], isHeader: Bool, alignment: GFMTableAlignment = .none, sourceLocation: SourceLocation? = nil) {
+            self.children = children
+            self.isHeader = isHeader
+            self.alignment = alignment
+            // Generate plain text content for backwards compatibility
+            self.content = children.compactMap { node in
+                if let textNode = node as? TextNode {
+                    return textNode.content
+                } else {
+                    return nil
+                }
+            }.joined(separator: " ")
             self.sourceLocation = sourceLocation
         }
     }

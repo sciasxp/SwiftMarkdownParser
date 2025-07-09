@@ -422,8 +422,8 @@ final class HTMLRendererTests: XCTestCase {
         <table>
         <thead>
         <tr>
-        <th>Name</th>
-        <th>Age</th>
+        <th scope="col">Name</th>
+        <th scope="col">Age</th>
         </tr>
         </thead>
         <tbody>
@@ -657,7 +657,7 @@ final class HTMLRendererTests: XCTestCase {
         XCTAssertTrue(html.contains("<a href=\"https://example.com\">"))
         XCTAssertTrue(html.contains("<hr />"))
         XCTAssertTrue(html.contains("<table>"))
-        XCTAssertTrue(html.contains("<th>Feature</th>"))
+        XCTAssertTrue(html.contains("<th scope=\"col\">Feature</th>"))
         XCTAssertTrue(html.contains("<td>✅</td>"))
     }
     

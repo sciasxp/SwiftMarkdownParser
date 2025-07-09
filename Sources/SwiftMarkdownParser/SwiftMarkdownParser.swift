@@ -109,22 +109,40 @@ public final class SwiftMarkdownParser: Sendable {
             return AST.FragmentNode(children: processedChildren, sourceLocation: fragment.sourceLocation)
         }
         
-        // Handle GFM table nodes explicitly first to avoid infinite recursion
+        // Handle GFM table nodes - process their cells for inline content
         if let tableNode = node as? AST.GFMTableNode {
-            print("[DEBUG] Skipping table node processing")
-            // Table nodes should not be processed for inline content
-            return tableNode
+            print("[DEBUG] Processing table node for inline content")
+            let processedRows = try await processNodesForInlineContent(tableNode.rows, using: inlineParser)
+            return AST.GFMTableNode(
+                rows: processedRows.compactMap { $0 as? AST.GFMTableRowNode },
+                alignments: tableNode.alignments,
+                sourceLocation: tableNode.sourceLocation
+            )
         }
         
         if let tableRowNode = node as? AST.GFMTableRowNode {
-            print("[DEBUG] Skipping table row node processing")
-            // Table row nodes should not be processed for inline content
-            return tableRowNode
+            print("[DEBUG] Processing table row node for inline content")
+            let processedCells = try await processNodesForInlineContent(tableRowNode.cells, using: inlineParser)
+            return AST.GFMTableRowNode(
+                cells: processedCells.compactMap { $0 as? AST.GFMTableCellNode },
+                isHeader: tableRowNode.isHeader,
+                sourceLocation: tableRowNode.sourceLocation
+            )
         }
         
         if let tableCellNode = node as? AST.GFMTableCellNode {
-            print("[DEBUG] Skipping table cell node processing")
-            // Table cell nodes should not be processed for inline content
+            print("[DEBUG] Processing table cell node for inline content")
+            // Parse table cell content as inline markdown
+            if !tableCellNode.content.isEmpty {
+                let inlineNodes = try inlineParser.parseInlineContent(tableCellNode.content)
+                let enhancedNodes = try await parseInlineContentWithGFM(inlineNodes, using: inlineParser)
+                return AST.GFMTableCellNode(
+                    children: enhancedNodes,
+                    isHeader: tableCellNode.isHeader,
+                    alignment: tableCellNode.alignment,
+                    sourceLocation: tableCellNode.sourceLocation
+                )
+            }
             return tableCellNode
         }
         
@@ -730,7 +748,7 @@ public struct HTMLRenderer: MarkdownRenderer {
         // GFM Extensions
         case let tableNode as AST.GFMTableNode:
             let renderer = HTMLRenderer(context: context, configuration: configuration)
-            return renderer.renderGFMTable(tableNode)
+            return try await renderer.renderGFMTable(tableNode)
             
         default:
             throw RendererError.unsupportedNodeType(node.nodeType)
