@@ -161,17 +161,15 @@ public final class MarkdownTokenizer {
         
         // Check for fenced code block state first
         if inFencedCodeBlock {
-            // Inside a fenced code block, check for closing fence
-            if (char == "`" || char == "~") && isAtLineStart() {
-                if let closingFence = checkClosingFence() {
-                    inFencedCodeBlock = false
-                    fenceCharacter = nil
-                    fenceLength = 0
-                    fenceStartColumn = 0
-                    return closingFence
-                }
+            // Attempt to detect a closing fence (allowing up to 3 leading spaces)
+            if let closingFence = checkClosingFenceAllowingIndentation() {
+                inFencedCodeBlock = false
+                fenceCharacter = nil
+                fenceLength = 0
+                fenceStartColumn = 0
+                return closingFence
             }
-            
+
             // Otherwise, treat everything as text inside the code block
             return tokenizeTextInCodeBlock()
         }
@@ -782,7 +780,10 @@ public final class MarkdownTokenizer {
         let startLocation = currentLocation
         var content = ""
         
-        // Collect text until newline or EOF
+        // The main `nextToken` loop has already checked for a valid closing fence.
+        // Therefore, any character that is not a newline should be consumed as
+        // part of the code block's content. This includes ` and ~ characters
+        // that do not form a valid closing fence.
         while !isAtEnd && currentChar != "\n" && currentChar != "\r" {
             content.append(currentChar)
             advance()
@@ -791,6 +792,56 @@ public final class MarkdownTokenizer {
         return Token(type: .text, content: content, location: startLocation)
     }
     
+    /// Attempt to detect a closing code fence that may be indented by up to three leading spaces.
+    /// This ensures that we can preserve whitespace inside code blocks while still correctly
+    /// terminating the fenced block when the specification allows indentation.
+    private func checkClosingFenceAllowingIndentation() -> Token? {
+        // Ensure we have a fence character recorded; otherwise there is nothing to close.
+        guard let fenceChar = fenceCharacter else { return nil }
+
+        // Capture the current parser state *before* we attempt any operation that may mutate it.
+        let originalPosition = position
+        let originalLine = line
+        let originalColumn = column
+
+        // Fast-path: if the current character matches the opening fence character and we're at
+        // the beginning of the line, defer to the standard closing-fence logic.
+        if currentChar == fenceChar && isAtLineStart() {
+            if let fence = checkClosingFence() {
+                return fence
+            }
+            // `checkClosingFence()` rewinds on failure, so our saved state is still valid.
+        }
+
+        // Only attempt an indented-fence check if we're at (or only preceded by whitespace on) the
+        // start of a line.
+        guard isAtLineStart() else { return nil }
+
+        // Skip up to three leading spaces or tabs.
+        var spacesSkipped = 0
+        while spacesSkipped < 3 && !isAtEnd {
+            if currentChar == " " || currentChar == "\t" {
+                advance()
+                spacesSkipped += 1
+            } else {
+                break
+            }
+        }
+
+        // After skipping indentation, the next character must match the *opening* fence character.
+        if currentChar == fenceChar {
+            if let fence = checkClosingFence() {
+                return fence
+            }
+        }
+
+        // Not a valid closing fence – restore parser state and signal failure.
+        position = originalPosition
+        line = originalLine
+        column = originalColumn
+        return nil
+    }
+
     private func isAtLineStart() -> Bool {
         // Check if we're at the actual start of a line (column 1)
         // or if we're after whitespace at the start of a line
