@@ -21,98 +21,105 @@ public final class BlockParser {
     
     /// Parse the entire document into an AST
     public func parseDocument() throws -> AST.DocumentNode {
-        print("[DEBUG] parseDocument() started")
         var children: [ASTNode] = []
-        var blockCount = 0
-        let maxBlocks = 100 // Safety limit
         
-        while !tokenStream.isAtEnd && blockCount < maxBlocks {
-            print("[DEBUG] parseDocument() - parsing block \(blockCount)")
-            if let block = try parseBlock() {
-                print("[DEBUG] parseDocument() - got block of type: \(block.nodeType.rawValue)")
-                children.append(block)
-            } else {
-                print("[DEBUG] parseDocument() - parseBlock returned nil")
+        // Protection mechanisms
+        var consecutiveNilBlocks = 0
+        let maxConsecutiveNilBlocks = 50 // Prevent infinite loops from nil blocks
+        
+        var lastTokenPosition = -1
+        var stuckPositionCount = 0
+        let maxStuckPositions = 10 // Prevent infinite loops from position not advancing
+        
+        let startTime = Date()
+        let maxParsingTime = configuration.maxParsingTime
+        
+        while !tokenStream.isAtEnd {
+            // Time-based protection
+            if maxParsingTime > 0 && Date().timeIntervalSince(startTime) > maxParsingTime {
+                throw MarkdownParsingError.parsingFailed("Parsing timeout: document too complex or infinite loop detected")
             }
-            blockCount += 1
+            
+            // Position-based protection (detect if parser is stuck)
+            let currentPosition = tokenStream.currentPosition
+            if currentPosition == lastTokenPosition {
+                stuckPositionCount += 1
+                if stuckPositionCount >= maxStuckPositions {
+                    throw MarkdownParsingError.parsingFailed("Parser stuck: infinite loop detected at token position \(currentPosition)")
+                }
+            } else {
+                stuckPositionCount = 0
+                lastTokenPosition = currentPosition
+            }
+            
+            if let block = try parseBlock() {
+                children.append(block)
+                consecutiveNilBlocks = 0 // Reset counter when we get a valid block
+            } else {
+                consecutiveNilBlocks += 1
+                
+                // Consecutive nil blocks protection
+                if consecutiveNilBlocks >= maxConsecutiveNilBlocks {
+                    throw MarkdownParsingError.parsingFailed("Too many consecutive nil blocks: possible infinite loop in parser")
+                }
+            }
         }
         
-        if blockCount >= maxBlocks {
-            print("[DEBUG] parseDocument() - hit max blocks limit, possible infinite loop")
-        }
-        
-        print("[DEBUG] parseDocument() completed with \(children.count) children")
         return AST.DocumentNode(children: children)
     }
     
     /// Parse a single block element
     private func parseBlock() throws -> ASTNode? {
-        print("[DEBUG] parseBlock() called, current token: \(tokenStream.current.type.rawValue)")
-        
         // Skip whitespace at start of line
         skipWhitespace()
         
         guard !tokenStream.isAtEnd else { 
-            print("[DEBUG] parseBlock() - at end of stream")
             return nil 
         }
         
         let token = tokenStream.current
-        print("[DEBUG] parseBlock() - processing token: \(token.type.rawValue), content: '\(token.content)'")
         
         switch token.type {
         case .atxHeaderStart:
-            print("[DEBUG] parseBlock() - parsing ATX heading")
             return try parseATXHeading()
             
         case .blockQuoteMarker:
-            print("[DEBUG] parseBlock() - parsing block quote")
             return try parseBlockQuote()
             
         case .listMarker:
-            print("[DEBUG] parseBlock() - parsing list")
             return try parseList()
             
         case .backtick, .tildeCodeFence:
             if token.content.count >= 3 {
-                print("[DEBUG] parseBlock() - parsing fenced code block")
                 return try parseFencedCodeBlock()
             }
             fallthrough
             
         case .indentedCodeBlock:
-            print("[DEBUG] parseBlock() - parsing indented code block")
             return try parseIndentedCodeBlock()
             
         case .thematicBreak:
-            print("[DEBUG] parseBlock() - parsing thematic break")
             return parseThematicBreak()
             
         case .htmlTag:
-            print("[DEBUG] parseBlock() - parsing HTML block")
             return try parseHTMLBlock()
             
         case .newline:
-            print("[DEBUG] parseBlock() - skipping newline")
             // Empty line - skip
             tokenStream.advance()
             return nil
             
         default:
-            print("[DEBUG] parseBlock() - default case, checking setext heading")
             // Check for GFM table
             if let table = try parseSimpleGFMTable() {
-                print("[DEBUG] parseBlock() - found GFM table")
                 return table
             }
             
             // Check for setext heading
             if let setextHeading = try parseSetextHeading() {
-                print("[DEBUG] parseBlock() - found setext heading")
                 return setextHeading
             }
             
-            print("[DEBUG] parseBlock() - parsing as paragraph")
             // Default to paragraph
             return try parseParagraph()
         }
@@ -662,4 +669,5 @@ public final class BlockParser {
     }
 }
 
+ 
  

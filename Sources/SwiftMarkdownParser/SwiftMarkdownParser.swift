@@ -39,16 +39,21 @@ public final class SwiftMarkdownParser: Sendable {
         /// Enable source location tracking for debugging
         public let trackSourceLocations: Bool
         
+        /// Maximum parsing time in seconds (0 = no limit)
+        public let maxParsingTime: TimeInterval
+        
         public init(
             enableGFMExtensions: Bool = true,
             strictMode: Bool = false,
             maxNestingDepth: Int = 100,
-            trackSourceLocations: Bool = false
+            trackSourceLocations: Bool = false,
+            maxParsingTime: TimeInterval = 30.0
         ) {
             self.enableGFMExtensions = enableGFMExtensions
             self.strictMode = strictMode
             self.maxNestingDepth = maxNestingDepth
             self.trackSourceLocations = trackSourceLocations
+            self.maxParsingTime = maxParsingTime
         }
         
         public static let `default` = Configuration()

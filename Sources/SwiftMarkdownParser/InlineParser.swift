@@ -23,7 +23,32 @@ public final class InlineParser {
     public func parseInlines(until boundary: Set<TokenType> = [.newline, .eof]) throws -> [ASTNode] {
         var nodes: [ASTNode] = []
         
+        // Protection mechanisms
+        var lastTokenPosition = -1
+        var stuckPositionCount = 0
+        let maxStuckPositions = 10 // Prevent infinite loops from position not advancing
+        
+        let startTime = Date()
+        let maxParsingTime = configuration.maxParsingTime
+        
         while !tokenStream.isAtEnd && !boundary.contains(tokenStream.current.type) {
+            // Time-based protection
+            if maxParsingTime > 0 && Date().timeIntervalSince(startTime) > maxParsingTime {
+                throw MarkdownParsingError.parsingFailed("Inline parsing timeout: document too complex or infinite loop detected")
+            }
+            
+            // Position-based protection (detect if parser is stuck)
+            let currentPosition = tokenStream.currentPosition
+            if currentPosition == lastTokenPosition {
+                stuckPositionCount += 1
+                if stuckPositionCount >= maxStuckPositions {
+                    throw MarkdownParsingError.parsingFailed("Inline parser stuck: infinite loop detected at token position \(currentPosition)")
+                }
+            } else {
+                stuckPositionCount = 0
+                lastTokenPosition = currentPosition
+            }
+            
             let parsedNodes = try parseInline()
             nodes.append(contentsOf: parsedNodes)
         }
@@ -40,7 +65,33 @@ public final class InlineParser {
         let tempParser = InlineParser(tokenStream: inlineTokenStream, configuration: configuration)
         
         var nodes: [ASTNode] = []
+        
+        // Protection mechanisms
+        var lastTokenPosition = -1
+        var stuckPositionCount = 0
+        let maxStuckPositions = 10 // Prevent infinite loops from position not advancing
+        
+        let startTime = Date()
+        let maxParsingTime = configuration.maxParsingTime
+        
         while !inlineTokenStream.isAtEnd {
+            // Time-based protection
+            if maxParsingTime > 0 && Date().timeIntervalSince(startTime) > maxParsingTime {
+                throw MarkdownParsingError.parsingFailed("Inline content parsing timeout: document too complex or infinite loop detected")
+            }
+            
+            // Position-based protection (detect if parser is stuck)
+            let currentPosition = inlineTokenStream.currentPosition
+            if currentPosition == lastTokenPosition {
+                stuckPositionCount += 1
+                if stuckPositionCount >= maxStuckPositions {
+                    throw MarkdownParsingError.parsingFailed("Inline content parser stuck: infinite loop detected at token position \(currentPosition)")
+                }
+            } else {
+                stuckPositionCount = 0
+                lastTokenPosition = currentPosition
+            }
+            
             let parsedNodes = try tempParser.parseInline()
             nodes.append(contentsOf: parsedNodes)
         }
