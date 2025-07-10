@@ -427,8 +427,104 @@ public final class MarkdownTokenizer {
     
     private func tokenizeLeftBracket() -> Token {
         let startLocation = currentLocation
+        
+        // Check if this could be a task list marker
+        if let taskListToken = tokenizeTaskListMarker() {
+            return taskListToken
+        }
+        
+        // Default to regular left bracket
         advance()
         return Token(type: .leftBracket, content: "[", location: startLocation)
+    }
+    
+    /// Tokenize task list markers like [x], [ ], [X], etc.
+    private func tokenizeTaskListMarker() -> Token? {
+        let startLocation = currentLocation
+        
+        // Must start with [
+        guard currentChar == "[" else { return nil }
+        
+        // Look ahead to see if this forms a valid task list marker
+        guard position + 2 < characters.count else { return nil }
+        
+        let nextChar = characters[position + 1]
+        let closingChar = characters[position + 2]
+        
+        // Must end with ]
+        guard closingChar == "]" else { return nil }
+        
+        // Check if the middle character is valid for task list
+        let validTaskChars: Set<Character> = ["x", "X", " ", "o", "O", "v", "V"]
+        guard validTaskChars.contains(nextChar) else { return nil }
+        
+        // Additional validation: must be in a list context
+        // Check if we're after a list marker and whitespace
+        if !isInTaskListContext() {
+            return nil
+        }
+        
+        // Check if there's a space after the ] (required by GFM spec)
+        if position + 3 < characters.count {
+            let charAfterBracket = characters[position + 3]
+            if !charAfterBracket.isWhitespace {
+                return nil
+            }
+        }
+        
+        // Valid task list marker - consume all three characters
+        let content = String(characters[position...position + 2])
+        advance() // [
+        advance() // x or space or other valid char
+        advance() // ]
+        
+        return Token(type: .taskListMarker, content: content, location: startLocation)
+    }
+    
+    /// Check if we're in a context where task list markers are valid
+    private func isInTaskListContext() -> Bool {
+        // Look backwards to see if we're after a list marker and whitespace
+        var pos = position - 1
+        
+        // Must have at least one space before the [
+        guard pos >= 0 && characters[pos] == " " else { return false }
+        
+        // Skip whitespace backwards (but we need at least one space)
+        while pos >= 0 && characters[pos].isWhitespace && characters[pos] != "\n" && characters[pos] != "\r" {
+            pos -= 1
+        }
+        
+        // Should find a list marker
+        guard pos >= 0 else { return false }
+        
+        let char = characters[pos]
+        
+        // Check for bullet list markers
+        if char == "-" || char == "+" || char == "*" {
+            // Must be at start of line or after whitespace
+            if pos == 0 || characters[pos - 1].isWhitespace {
+                return true
+            }
+        }
+        
+        // Check for numbered list markers (look for . or ))
+        if char == "." || char == ")" {
+            // Look backwards for digits
+            var digitPos = pos - 1
+            var hasDigits = false
+            
+            while digitPos >= 0 && characters[digitPos].isNumber {
+                hasDigits = true
+                digitPos -= 1
+            }
+            
+            // Must have digits and be at start of line or after whitespace
+            if hasDigits && (digitPos < 0 || characters[digitPos].isWhitespace) {
+                return true
+            }
+        }
+        
+        return false
     }
     
     private func tokenizeRightBracket() -> Token {
@@ -933,4 +1029,4 @@ public final class TokenStream {
     public func setPosition(_ pos: Int) {
         position = max(0, min(pos, tokens.count))
     }
-} 
+}

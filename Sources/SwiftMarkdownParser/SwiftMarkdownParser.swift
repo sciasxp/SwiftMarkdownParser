@@ -175,6 +175,11 @@ public final class SwiftMarkdownParser: Sendable {
                 return try await processListItemForInlineContent(listItemNode, using: inlineParser)
             }
             
+        case .taskListItem:
+            if let taskListItemNode = node as? AST.GFMTaskListItemNode {
+                return try await processTaskListItemForInlineContent(taskListItemNode, using: inlineParser)
+            }
+            
         default:
             // For other node types, process children if they exist
             if !node.children.isEmpty {
@@ -218,22 +223,18 @@ public final class SwiftMarkdownParser: Sendable {
             if let listItemNode = item as? AST.ListItemNode,
                let paragraphNode = listItemNode.children.first as? AST.ParagraphNode {
                 
-                // Reconstruct the text content from the paragraph's text nodes
-                let fullText = paragraphNode.children.compactMap { child in
-                    if let textNode = child as? AST.TextNode {
-                        return textNode.content
-                    }
-                    return nil
-                }.joined()
+                // Reconstruct the text content from the paragraph's nodes (including inline formatting)
+                let fullText = AST.GFMTableCellNode.extractPlainText(from: paragraphNode.children)
                 
                 // Check if this looks like a task list item
                 if GFMUtils.isTaskListItem("- " + fullText) { // Add dummy marker since isTaskListItem expects it
                     // Parse the task list item (add dummy marker for parsing)
                     if let taskInfo = GFMUtils.parseTaskListItem("- " + fullText) {
-                        let contentNodes = try inlineParser.parseInlineContent(taskInfo.content)
+                        // Extract the task content nodes directly from the paragraph, preserving inline formatting
+                        let taskContentNodes = extractTaskContentFromParagraph(paragraphNode)
                         let taskListItem = AST.GFMTaskListItemNode(
                             isChecked: taskInfo.isChecked,
-                            children: contentNodes,
+                            children: taskContentNodes,
                             sourceLocation: listItemNode.sourceLocation
                         )
                         processedItems.append(taskListItem)
@@ -270,6 +271,60 @@ public final class SwiftMarkdownParser: Sendable {
             children: processedChildren,
             sourceLocation: listItem.sourceLocation
         )
+    }
+    
+    /// Process task list item for inline content
+    private func processTaskListItemForInlineContent(_ taskListItem: AST.GFMTaskListItemNode, using inlineParser: InlineParser) async throws -> ASTNode {
+        let processedChildren = try await parseInlineContentWithGFM(taskListItem.children, using: inlineParser)
+        
+        return AST.GFMTaskListItemNode(
+            isChecked: taskListItem.isChecked,
+            children: processedChildren,
+            sourceLocation: taskListItem.sourceLocation
+        )
+    }
+    
+    /// Extract task content from paragraph, preserving inline formatting but removing task list marker
+    private func extractTaskContentFromParagraph(_ paragraph: AST.ParagraphNode) -> [ASTNode] {
+        var result: [ASTNode] = []
+        var foundTaskMarker = false
+        
+        for node in paragraph.children {
+            if !foundTaskMarker {
+                // Look for the task marker pattern: [x], [ ], etc.
+                if let textNode = node as? AST.TextNode {
+                    let content = textNode.content
+                    // Check if this text node contains a task marker
+                    if content.contains("[") && (content.contains("]") || result.isEmpty) {
+                        // This might be the start of a task marker
+                        if content.hasPrefix("[") && content.count >= 3 && content.hasSuffix("]") {
+                            // This is a complete task marker like "[x]"
+                            foundTaskMarker = true
+                            continue
+                        } else if content == "[" {
+                            // This might be the start of a split task marker
+                            foundTaskMarker = true
+                            continue
+                        }
+                    }
+                    
+                    // Skip the first whitespace after finding task marker
+                    if foundTaskMarker && content.trimmingCharacters(in: .whitespaces).isEmpty && result.isEmpty {
+                        continue
+                    }
+                }
+                
+                // If we haven't found the task marker yet, skip this node
+                if !foundTaskMarker {
+                    continue
+                }
+            }
+            
+            // Add all nodes after the task marker
+            result.append(node)
+        }
+        
+        return result
     }
     
     /// Parse inline content with GFM extensions (strikethrough, autolinks)
@@ -740,6 +795,9 @@ public struct HTMLRenderer: MarkdownRenderer {
         case let tableNode as AST.GFMTableNode:
             let renderer = HTMLRenderer(context: context, configuration: configuration)
             return try await renderer.renderGFMTable(tableNode)
+            
+        case let taskListItemNode as AST.GFMTaskListItemNode:
+            return try await renderGFMTaskListItem(taskListItemNode)
             
         default:
             throw RendererError.unsupportedNodeType(node.nodeType)

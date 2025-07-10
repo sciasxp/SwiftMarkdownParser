@@ -501,7 +501,7 @@ public enum AST {
         }
         
         /// Recursively extracts plain text content from AST nodes
-        private static func extractPlainText(from nodes: [ASTNode]) -> String {
+        public static func extractPlainText(from nodes: [ASTNode]) -> String {
             return nodes.compactMap { node in
                 switch node {
                 case let textNode as AST.TextNode:
