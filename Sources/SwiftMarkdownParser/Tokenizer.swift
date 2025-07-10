@@ -161,6 +161,11 @@ public final class MarkdownTokenizer {
         
         // Check for fenced code block state first
         if inFencedCodeBlock {
+            // Handle whitespace characters inside code blocks
+            if char.isWhitespace && char != "\n" && char != "\r" {
+                return tokenizeWhitespace()
+            }
+            
             // Inside a fenced code block, check for closing fence
             if (char == "`" || char == "~") && isAtLineStart() {
                 if let closingFence = checkClosingFence() {
@@ -782,8 +787,16 @@ public final class MarkdownTokenizer {
         let startLocation = currentLocation
         var content = ""
         
-        // Collect text until newline or EOF
-        while !isAtEnd && currentChar != "\n" && currentChar != "\r" {
+        // Only collect a single character or a sequence of non-fence characters
+        // This allows the main tokenization loop to check for closing fences
+        while !isAtEnd && currentChar != "\n" && currentChar != "\r" && 
+              currentChar != "`" && currentChar != "~" && !currentChar.isWhitespace {
+            content.append(currentChar)
+            advance()
+        }
+        
+        // If we didn't consume any characters, consume at least one to avoid infinite loop
+        if content.isEmpty && !isAtEnd && currentChar != "\n" && currentChar != "\r" {
             content.append(currentChar)
             advance()
         }
