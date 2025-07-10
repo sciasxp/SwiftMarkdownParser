@@ -796,20 +796,28 @@ public final class MarkdownTokenizer {
     /// This ensures that we can preserve whitespace inside code blocks while still correctly
     /// terminating the fenced block when the specification allows indentation.
     private func checkClosingFenceAllowingIndentation() -> Token? {
-        // Fast-path: if the current character is the fence character, rely on the existing logic.
-        if (currentChar == "`" || currentChar == "~") && isAtLineStart() {
-            return checkClosingFence()
-        }
+        // Ensure we have a fence character recorded; otherwise there is nothing to close.
+        guard let fenceChar = fenceCharacter else { return nil }
 
-        // Only attempt this check if we're at the start of a line (or only preceded by whitespace)
-        guard isAtLineStart() else { return nil }
-
-        // Save the current parser state in case this isn't a closing fence
+        // Capture the current parser state *before* we attempt any operation that may mutate it.
         let originalPosition = position
         let originalLine = line
         let originalColumn = column
 
-        // Skip up to three leading spaces or tabs
+        // Fast-path: if the current character matches the opening fence character and we're at
+        // the beginning of the line, defer to the standard closing-fence logic.
+        if currentChar == fenceChar && isAtLineStart() {
+            if let fence = checkClosingFence() {
+                return fence
+            }
+            // `checkClosingFence()` rewinds on failure, so our saved state is still valid.
+        }
+
+        // Only attempt an indented-fence check if we're at (or only preceded by whitespace on) the
+        // start of a line.
+        guard isAtLineStart() else { return nil }
+
+        // Skip up to three leading spaces or tabs.
         var spacesSkipped = 0
         while spacesSkipped < 3 && !isAtEnd {
             if currentChar == " " || currentChar == "\t" {
@@ -820,15 +828,14 @@ public final class MarkdownTokenizer {
             }
         }
 
-        // After skipping, the next character must match the opening fence character
-        if (currentChar == "`" || currentChar == "~") {
-            // Delegate to existing fence-checking logic.
+        // After skipping indentation, the next character must match the *opening* fence character.
+        if currentChar == fenceChar {
             if let fence = checkClosingFence() {
                 return fence
             }
         }
 
-        // Not a closing fence – restore state and return nil.
+        // Not a valid closing fence – restore parser state and signal failure.
         position = originalPosition
         line = originalLine
         column = originalColumn
