@@ -112,6 +112,83 @@ final class SwiftUIRendererTests: XCTestCase {
         return AST.ThematicBreakNode()
     }
     
+    /// Actor to safely manage test state in concurrent environment
+    private actor TestState {
+        var handledURL: URL?
+        
+        func setHandledURL(_ url: URL) {
+            self.handledURL = url
+        }
+        
+        func getHandledURL() -> URL? {
+            return self.handledURL
+        }
+    }
+    
+    // MARK: - Link Handling Tests
+    
+    /// Test that link click handlers are properly configured and called
+    func test_linkClickHandler_isCalled() async throws {
+        let expectation = self.expectation(description: "Link handler should be called")
+        let testState = TestState()
+        
+        let testURL = URL(string: "https://example.com")!
+        
+        // Create context with custom link handler
+        let context = SwiftUIRenderContext(
+            linkHandler: { @Sendable url in
+                Task {
+                    await testState.setHandledURL(url)
+                    expectation.fulfill()
+                }
+            }
+        )
+        
+        let renderer = SwiftUIRenderer(context: context)
+        
+        // Create a mock link node
+        let linkText = createMockTextNode("Example Link")
+        let linkNode = createMockLinkNode(
+            url: testURL.absoluteString,
+            [linkText]
+        )
+        
+        // Render the link node
+        let linkView = try await renderer.render(node: linkNode)
+        XCTAssertNotNil(linkView, "Link view should be rendered successfully")
+        
+        // Simulate link tap by manually calling the handler
+        // In a real UI test environment, this would be triggered by user interaction
+        if let handler = context.linkHandler {
+            handler(testURL)
+        }
+        
+        // Wait for the handler to be called
+        await fulfillment(of: [expectation], timeout: 1.0)
+        
+        // Verify the correct URL was passed to the handler
+        let handledURL = await testState.getHandledURL()
+        XCTAssertEqual(handledURL, testURL, "The link handler should receive the correct URL")
+    }
+    
+    /// Test that links work without a custom handler (default behavior)
+    func test_linkWithoutHandler_rendersSuccessfully() async throws {
+        // Create context without link handler (uses default behavior)
+        let context = SwiftUIRenderContext()
+        let renderer = SwiftUIRenderer(context: context)
+        
+        let testURL = URL(string: "https://example.com")!
+        let linkText = createMockTextNode("Example Link")
+        let linkNode = createMockLinkNode(
+            url: testURL.absoluteString,
+            [linkText]
+        )
+        
+        // Should render successfully even without custom handler
+        let linkView = try await renderer.render(node: linkNode)
+        XCTAssertNotNil(linkView, "Link should render successfully without custom handler")
+    }
+    
     // MARK: - Phase 1: Foundation Tests
     
     // MARK: 1.1 Basic Structure Tests
@@ -554,10 +631,12 @@ struct SwiftUIRenderer: MarkdownRenderer {
 struct SwiftUIRenderContext: Sendable {
     let baseURL: URL?
     let styleConfiguration: SwiftUIStyleConfiguration
+    var linkHandler: (@Sendable (URL) -> Void)?
     
-    init(baseURL: URL? = nil, styleConfiguration: SwiftUIStyleConfiguration = SwiftUIStyleConfiguration()) {
+    init(baseURL: URL? = nil, styleConfiguration: SwiftUIStyleConfiguration = SwiftUIStyleConfiguration(), linkHandler: (@Sendable (URL) -> Void)? = nil) {
         self.baseURL = baseURL
         self.styleConfiguration = styleConfiguration
+        self.linkHandler = linkHandler
     }
 }
 

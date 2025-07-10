@@ -105,18 +105,14 @@ public final class SwiftMarkdownParser: Sendable {
     
     /// Process a single AST node for inline content and GFM extensions
     private func processNodeForInlineContent(_ node: ASTNode, using inlineParser: InlineParser) async throws -> ASTNode {
-        print("[DEBUG] Processing node type: \(node.nodeType.rawValue)")
         
         if let fragment = node as? AST.FragmentNode {
-            print("[DEBUG] Processing FragmentNode with \(fragment.children.count) children")
-            // This should not happen if flatten is called, but as a safeguard:
             let processedChildren = try await processNodesForInlineContent(fragment.children, using: inlineParser)
             return AST.FragmentNode(children: processedChildren, sourceLocation: fragment.sourceLocation)
         }
         
         // Handle GFM table nodes - process their cells for inline content
         if let tableNode = node as? AST.GFMTableNode {
-            print("[DEBUG] Processing table node for inline content")
             let processedRows = try await processNodesForInlineContent(tableNode.rows, using: inlineParser)
             return AST.GFMTableNode(
                 rows: processedRows.compactMap { $0 as? AST.GFMTableRowNode },
@@ -126,7 +122,6 @@ public final class SwiftMarkdownParser: Sendable {
         }
         
         if let tableRowNode = node as? AST.GFMTableRowNode {
-            print("[DEBUG] Processing table row node for inline content")
             let processedCells = try await processNodesForInlineContent(tableRowNode.cells, using: inlineParser)
             return AST.GFMTableRowNode(
                 cells: processedCells.compactMap { $0 as? AST.GFMTableCellNode },
@@ -136,7 +131,6 @@ public final class SwiftMarkdownParser: Sendable {
         }
         
         if let tableCellNode = node as? AST.GFMTableCellNode {
-            print("[DEBUG] Processing table cell node for inline content")
             // Parse table cell content as inline markdown
             if !tableCellNode.content.isEmpty {
                 let inlineNodes = try inlineParser.parseInlineContent(tableCellNode.content)
@@ -153,19 +147,16 @@ public final class SwiftMarkdownParser: Sendable {
         
         switch node.nodeType {
         case .paragraph:
-            print("[DEBUG] Processing paragraph node")
             if let paragraphNode = node as? AST.ParagraphNode {
                 return try await processParagraphForInlineContent(paragraphNode, using: inlineParser)
             }
             
         case .heading:
-            print("[DEBUG] Processing heading node")
             if let headingNode = node as? AST.HeadingNode {
                 return try await processHeadingForInlineContent(headingNode, using: inlineParser)
             }
             
         case .blockQuote:
-            print("[DEBUG] Processing blockquote node")
             if let blockQuoteNode = node as? AST.BlockQuoteNode {
                 let processedChildren = try await processNodesForInlineContent(blockQuoteNode.children, using: inlineParser)
                 return AST.BlockQuoteNode(
@@ -175,28 +166,23 @@ public final class SwiftMarkdownParser: Sendable {
             }
             
         case .list:
-            print("[DEBUG] Processing list node")
             if let listNode = node as? AST.ListNode {
                 return try await processListForInlineContent(listNode, using: inlineParser)
             }
             
         case .listItem:
-            print("[DEBUG] Processing list item node")
             if let listItemNode = node as? AST.ListItemNode {
                 return try await processListItemForInlineContent(listItemNode, using: inlineParser)
             }
             
         default:
-            print("[DEBUG] Processing default case for node type: \(node.nodeType.rawValue)")
             // For other node types, process children if they exist
             if !node.children.isEmpty {
-                print("[DEBUG] Node has \(node.children.count) children, processing them")
                 let processedChildren = try await processNodesForInlineContent(node.children, using: inlineParser)
                 return createNodeWithProcessedChildren(node, children: processedChildren)
             }
         }
         
-        print("[DEBUG] Returning original node")
         return node
     }
     

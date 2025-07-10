@@ -787,16 +787,11 @@ public final class MarkdownTokenizer {
         let startLocation = currentLocation
         var content = ""
         
-        // Only collect a single character or a sequence of non-fence characters
-        // This allows the main tokenization loop to check for closing fences
-        while !isAtEnd && currentChar != "\n" && currentChar != "\r" && 
-              currentChar != "`" && currentChar != "~" && !currentChar.isWhitespace {
-            content.append(currentChar)
-            advance()
-        }
-        
-        // If we didn't consume any characters, consume at least one to avoid infinite loop
-        if content.isEmpty && !isAtEnd && currentChar != "\n" && currentChar != "\r" {
+        // The main `nextToken` loop has already checked for a valid closing fence.
+        // Therefore, any character that is not a newline should be consumed as
+        // part of the code block's content. This includes ` and ~ characters
+        // that do not form a valid closing fence.
+        while !isAtEnd && currentChar != "\n" && currentChar != "\r" {
             content.append(currentChar)
             advance()
         }
