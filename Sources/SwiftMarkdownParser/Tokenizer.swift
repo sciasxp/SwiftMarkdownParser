@@ -161,22 +161,15 @@ public final class MarkdownTokenizer {
         
         // Check for fenced code block state first
         if inFencedCodeBlock {
-            // Handle whitespace characters inside code blocks
-            if char.isWhitespace && char != "\n" && char != "\r" {
-                return tokenizeWhitespace()
+            // Attempt to detect a closing fence (allowing up to 3 leading spaces)
+            if let closingFence = checkClosingFenceAllowingIndentation() {
+                inFencedCodeBlock = false
+                fenceCharacter = nil
+                fenceLength = 0
+                fenceStartColumn = 0
+                return closingFence
             }
-            
-            // Inside a fenced code block, check for closing fence
-            if (char == "`" || char == "~") && isAtLineStart() {
-                if let closingFence = checkClosingFence() {
-                    inFencedCodeBlock = false
-                    fenceCharacter = nil
-                    fenceLength = 0
-                    fenceStartColumn = 0
-                    return closingFence
-                }
-            }
-            
+
             // Otherwise, treat everything as text inside the code block
             return tokenizeTextInCodeBlock()
         }
@@ -799,6 +792,49 @@ public final class MarkdownTokenizer {
         return Token(type: .text, content: content, location: startLocation)
     }
     
+    /// Attempt to detect a closing code fence that may be indented by up to three leading spaces.
+    /// This ensures that we can preserve whitespace inside code blocks while still correctly
+    /// terminating the fenced block when the specification allows indentation.
+    private func checkClosingFenceAllowingIndentation() -> Token? {
+        // Fast-path: if the current character is the fence character, rely on the existing logic.
+        if (currentChar == "`" || currentChar == "~") && isAtLineStart() {
+            return checkClosingFence()
+        }
+
+        // Only attempt this check if we're at the start of a line (or only preceded by whitespace)
+        guard isAtLineStart() else { return nil }
+
+        // Save the current parser state in case this isn't a closing fence
+        let originalPosition = position
+        let originalLine = line
+        let originalColumn = column
+
+        // Skip up to three leading spaces or tabs
+        var spacesSkipped = 0
+        while spacesSkipped < 3 && !isAtEnd {
+            if currentChar == " " || currentChar == "\t" {
+                advance()
+                spacesSkipped += 1
+            } else {
+                break
+            }
+        }
+
+        // After skipping, the next character must match the opening fence character
+        if (currentChar == "`" || currentChar == "~") {
+            // Delegate to existing fence-checking logic.
+            if let fence = checkClosingFence() {
+                return fence
+            }
+        }
+
+        // Not a closing fence – restore state and return nil.
+        position = originalPosition
+        line = originalLine
+        column = originalColumn
+        return nil
+    }
+
     private func isAtLineStart() -> Bool {
         // Check if we're at the actual start of a line (column 1)
         // or if we're after whitespace at the start of a line
