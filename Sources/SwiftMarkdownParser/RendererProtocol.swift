@@ -401,4 +401,57 @@ public extension HTMLRenderer {
         
         return html
     }
+    
+    /// Render GFM task list item
+    func renderGFMTaskListItem(_ node: AST.GFMTaskListItemNode) async throws -> String {
+        var html = "<li"
+        
+        // Add CSS class for task list item
+        var attributes = RendererUtils.htmlAttributes(
+            for: .taskListItem,
+            sourceLocation: node.sourceLocation,
+            styleConfig: context.styleConfiguration
+        )
+        
+        // Add default CSS class if not explicitly configured
+        if attributes["class"] == nil {
+            attributes["class"] = "task-list-item"
+        }
+        
+        html += RendererUtils.formatHTMLAttributes(attributes)
+        html += ">"
+        
+        // Add checkbox input
+        html += "<input type=\"checkbox\""
+        
+        // Add checked state
+        if node.isChecked {
+            html += " checked"
+        }
+        
+        // Make disabled for read-only rendering
+        html += " disabled"
+        
+        // Add accessibility attributes
+        html += " aria-checked=\"\(node.isChecked ? "true" : "false")\""
+        html += " aria-label=\"Task list item\""
+        
+        // Add CSS class for checkbox
+        html += " class=\"task-list-checkbox\""
+        
+        html += " />"
+        
+        // Add a space between checkbox and content
+        html += " "
+        
+        // Render task content
+        for child in node.children {
+            let childRenderer = HTMLRenderer(context: context, configuration: configuration)
+            html += try await childRenderer.render(node: child)
+        }
+        
+        html += "</li>\n"
+        
+        return html
+    }
 } 

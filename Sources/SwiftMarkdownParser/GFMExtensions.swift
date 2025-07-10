@@ -104,8 +104,23 @@ public enum GFMUtils {
         // Extract content after marker
         let afterMarker = String(trimmed.dropFirst(markerInfo.width)).trimmingCharacters(in: .whitespacesAndNewlines)
         
-        // Check for task list checkbox
-        return afterMarker.hasPrefix("[ ]") || afterMarker.hasPrefix("[x]") || afterMarker.hasPrefix("[X]")
+        // Check for task list checkbox with all supported markers
+        // Must have space after the closing bracket (GFM spec requirement)
+        return (afterMarker.hasPrefix("[ ] ") || 
+                afterMarker.hasPrefix("[x] ") || 
+                afterMarker.hasPrefix("[X] ") ||
+                afterMarker.hasPrefix("[o] ") ||
+                afterMarker.hasPrefix("[O] ") ||
+                afterMarker.hasPrefix("[v] ") ||
+                afterMarker.hasPrefix("[V] ")) ||
+               // Also accept if the checkbox is at the end of the line (no content after)
+               (afterMarker == "[ ]" || 
+                afterMarker == "[x]" || 
+                afterMarker == "[X]" ||
+                afterMarker == "[o]" ||
+                afterMarker == "[O]" ||
+                afterMarker == "[v]" ||
+                afterMarker == "[V]")
     }
     
     /// Parse task list item
@@ -119,12 +134,25 @@ public enum GFMUtils {
         var isChecked = false
         var content = ""
         
-        if afterMarker.hasPrefix("[ ]") {
+        // Check for unchecked task list items
+        if afterMarker.hasPrefix("[ ] ") {
             isChecked = false
-            content = String(afterMarker.dropFirst(3)).trimmingCharacters(in: .whitespacesAndNewlines)
-        } else if afterMarker.hasPrefix("[x]") || afterMarker.hasPrefix("[X]") {
+            content = String(afterMarker.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if afterMarker == "[ ]" {
+            isChecked = false
+            content = ""
+        }
+        // Check for checked task list items
+        else if afterMarker.hasPrefix("[x] ") || afterMarker.hasPrefix("[X] ") ||
+                afterMarker.hasPrefix("[o] ") || afterMarker.hasPrefix("[O] ") ||
+                afterMarker.hasPrefix("[v] ") || afterMarker.hasPrefix("[V] ") {
             isChecked = true
-            content = String(afterMarker.dropFirst(3)).trimmingCharacters(in: .whitespacesAndNewlines)
+            content = String(afterMarker.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if afterMarker == "[x]" || afterMarker == "[X]" ||
+                  afterMarker == "[o]" || afterMarker == "[O]" ||
+                  afterMarker == "[v]" || afterMarker == "[V]" {
+            isChecked = true
+            content = ""
         } else {
             return nil
         }
