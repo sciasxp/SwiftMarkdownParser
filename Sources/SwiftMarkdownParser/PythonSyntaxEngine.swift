@@ -103,10 +103,14 @@ public struct PythonSyntaxEngine: SyntaxHighlightingEngine {
         guard quoteChar == "\"" || quoteChar == "'" else { return nil }
         
         // Check for triple quotes
-        if startIndex < code.index(code.endIndex, offsetBy: -2) {
-            let nextTwo = String(code[code.index(after: startIndex)..<code.index(startIndex, offsetBy: 3)])
-            if nextTwo == String(repeating: String(quoteChar), count: 2) {
-                return parseTripleQuotedString(code, startIndex: startIndex, quoteChar: quoteChar)
+        // Ensure at least three characters remain so we can safely look ahead
+        let remainingCount = code.distance(from: startIndex, to: code.endIndex)
+        if remainingCount >= 3 {
+            if let tripleQuoteEnd = code.index(startIndex, offsetBy: 3, limitedBy: code.endIndex) {
+                let firstThree = String(code[startIndex..<tripleQuoteEnd])
+                if firstThree == String(repeating: String(quoteChar), count: 3) {
+                    return parseTripleQuotedString(code, startIndex: startIndex, quoteChar: quoteChar)
+                }
             }
         }
         
@@ -118,8 +122,11 @@ public struct PythonSyntaxEngine: SyntaxHighlightingEngine {
                 currentIndex = code.index(after: currentIndex)
                 break
             }
-            if char == "\\" && currentIndex < code.index(before: code.endIndex) {
-                currentIndex = code.index(after: currentIndex)
+            if char == "\\" {
+                let nextIndex = code.index(after: currentIndex)
+                if nextIndex < code.endIndex {
+                    currentIndex = nextIndex
+                }
             }
             currentIndex = code.index(after: currentIndex)
         }
@@ -130,12 +137,22 @@ public struct PythonSyntaxEngine: SyntaxHighlightingEngine {
     
     private func parseTripleQuotedString(_ code: String, startIndex: String.Index, quoteChar: Character) -> SyntaxToken? {
         let tripleQuote = String(repeating: String(quoteChar), count: 3)
-        var currentIndex = code.index(startIndex, offsetBy: 3)
-        
-        while currentIndex < code.index(code.endIndex, offsetBy: -2) {
-            let remaining = String(code[currentIndex...])
-            if remaining.hasPrefix(tripleQuote) {
-                currentIndex = code.index(currentIndex, offsetBy: 3)
+        guard let tripleQuoteEnd = code.index(startIndex, offsetBy: 3, limitedBy: code.endIndex) else {
+            return nil
+        }
+        var currentIndex = tripleQuoteEnd
+
+        // Traverse the string safely until we find the terminating triple quote or reach the end.
+        // Walk through the source until we either encounter a terminating triple quote
+        // or exhaust the input, guaranteeing that unclosed strings include every
+        // remaining character in the resulting token.
+        while currentIndex < code.endIndex {
+            if code[currentIndex...].hasPrefix(tripleQuote) {
+                if let newIndex = code.index(currentIndex, offsetBy: 3, limitedBy: code.endIndex) {
+                    currentIndex = newIndex
+                } else {
+                    currentIndex = code.endIndex
+                }
                 break
             }
             currentIndex = code.index(after: currentIndex)

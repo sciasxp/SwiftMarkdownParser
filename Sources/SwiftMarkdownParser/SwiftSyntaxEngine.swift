@@ -165,13 +165,15 @@ public struct SwiftSyntaxEngine: SyntaxHighlightingEngine {
             }
             
             // Multi-line strings
-            if char == "\"" && currentIndex < code.index(code.endIndex, offsetBy: -2) {
-                let nextTwo = String(code[code.index(after: currentIndex)..<code.index(currentIndex, offsetBy: 3)])
-                if nextTwo == "\"\"" {
-                    if let token = try parseMultilineString(code, startIndex: currentIndex) {
-                        tokens.append(token)
-                        currentIndex = token.range.upperBound
-                        continue
+            if char == "\"" && code.distance(from: currentIndex, to: code.endIndex) >= 3 {
+                if let tripleQuoteEnd = code.index(currentIndex, offsetBy: 3, limitedBy: code.endIndex) {
+                    let firstThree = String(code[currentIndex..<tripleQuoteEnd])
+                    if firstThree == "\"\"\"" {
+                        if let token = try parseMultilineString(code, startIndex: currentIndex) {
+                            tokens.append(token)
+                            currentIndex = token.range.upperBound
+                            continue
+                        }
                     }
                 }
             }
@@ -186,9 +188,9 @@ public struct SwiftSyntaxEngine: SyntaxHighlightingEngine {
             }
             
             // Closure parameters ($0, $1, etc.)
-            if char == "$" && currentIndex < code.index(before: code.endIndex) {
-                let nextChar = code[code.index(after: currentIndex)]
-                if nextChar.isNumber {
+            if char == "$" {
+                let nextIndex = code.index(after: currentIndex)
+                if nextIndex < code.endIndex && code[nextIndex].isNumber {
                     if let token = try parseClosureParameter(code, startIndex: currentIndex) {
                         tokens.append(token)
                         currentIndex = token.range.upperBound
@@ -247,10 +249,13 @@ public struct SwiftSyntaxEngine: SyntaxHighlightingEngine {
         guard nextIndex < code.endIndex && code[nextIndex] == "*" else { return nil }
         
         var endIndex = code.index(after: nextIndex)
-        while endIndex < code.index(before: code.endIndex) {
-            if code[endIndex] == "*" && code[code.index(after: endIndex)] == "/" {
-                endIndex = code.index(after: code.index(after: endIndex))
-                break
+        while endIndex < code.endIndex {
+            if code[endIndex] == "*" {
+                let nextEndIndex = code.index(after: endIndex)
+                if nextEndIndex < code.endIndex && code[nextEndIndex] == "/" {
+                    endIndex = code.index(after: nextEndIndex)
+                    break
+                }
             }
             endIndex = code.index(after: endIndex)
         }
@@ -349,13 +354,13 @@ public struct SwiftSyntaxEngine: SyntaxHighlightingEngine {
         guard tripleQuote == "\"\"\"" else { return nil }
         
         var endIndex = tripleQuoteEnd
-        while endIndex < code.index(code.endIndex, offsetBy: -2) {
-            if let nextTripleEnd = code.index(endIndex, offsetBy: 3, limitedBy: code.endIndex) {
-                let nextTriple = String(code[endIndex..<nextTripleEnd])
-                if nextTriple == "\"\"\"" {
-                    endIndex = nextTripleEnd
-                    break
-                }
+        // Iterate until we find a terminating triple quote or reach the end of the input.
+        // By not imposing a look-ahead constraint, we guarantee that an unclosed
+        // multi-line string token spans the entire remainder of the source.
+        while endIndex < code.endIndex {
+            if code[endIndex...].hasPrefix("\"\"\"") {
+                endIndex = code.index(endIndex, offsetBy: 3)
+                break
             }
             endIndex = code.index(after: endIndex)
         }
@@ -372,47 +377,50 @@ public struct SwiftSyntaxEngine: SyntaxHighlightingEngine {
         var hasExponent = false
         
         // Handle hexadecimal, binary, and octal literals
-        if code[startIndex] == "0" && endIndex < code.index(before: code.endIndex) {
-            let nextChar = code[code.index(after: endIndex)]
-            if nextChar == "x" || nextChar == "X" {
-                // Hexadecimal
-                endIndex = code.index(after: code.index(after: endIndex))
-                while endIndex < code.endIndex {
-                    let char = code[endIndex]
-                    if char.isHexDigit {
-                        endIndex = code.index(after: endIndex)
-                    } else {
-                        break
+        if code[startIndex] == "0" {
+            let nextIndex = code.index(after: endIndex)
+            if nextIndex < code.endIndex {
+                let nextChar = code[nextIndex]
+                if nextChar == "x" || nextChar == "X" {
+                    // Hexadecimal
+                    endIndex = code.index(after: nextIndex)
+                    while endIndex < code.endIndex {
+                        let char = code[endIndex]
+                        if char.isHexDigit {
+                            endIndex = code.index(after: endIndex)
+                        } else {
+                            break
+                        }
                     }
-                }
-                let content = String(code[startIndex..<endIndex])
-                return SyntaxToken(content: content, tokenType: .number, range: startIndex..<endIndex)
-            } else if nextChar == "b" || nextChar == "B" {
-                // Binary
-                endIndex = code.index(after: code.index(after: endIndex))
-                while endIndex < code.endIndex {
-                    let char = code[endIndex]
-                    if char == "0" || char == "1" {
-                        endIndex = code.index(after: endIndex)
-                    } else {
-                        break
+                    let content = String(code[startIndex..<endIndex])
+                    return SyntaxToken(content: content, tokenType: .number, range: startIndex..<endIndex)
+                } else if nextChar == "b" || nextChar == "B" {
+                    // Binary
+                    endIndex = code.index(after: nextIndex)
+                    while endIndex < code.endIndex {
+                        let char = code[endIndex]
+                        if char == "0" || char == "1" {
+                            endIndex = code.index(after: endIndex)
+                        } else {
+                            break
+                        }
                     }
-                }
-                let content = String(code[startIndex..<endIndex])
-                return SyntaxToken(content: content, tokenType: .number, range: startIndex..<endIndex)
-            } else if nextChar == "o" || nextChar == "O" {
-                // Octal
-                endIndex = code.index(after: code.index(after: endIndex))
-                while endIndex < code.endIndex {
-                    let char = code[endIndex]
-                    if char.isNumber && char <= "7" {
-                        endIndex = code.index(after: endIndex)
-                    } else {
-                        break
+                    let content = String(code[startIndex..<endIndex])
+                    return SyntaxToken(content: content, tokenType: .number, range: startIndex..<endIndex)
+                } else if nextChar == "o" || nextChar == "O" {
+                    // Octal
+                    endIndex = code.index(after: nextIndex)
+                    while endIndex < code.endIndex {
+                        let char = code[endIndex]
+                        if char.isNumber && char <= "7" {
+                            endIndex = code.index(after: endIndex)
+                        } else {
+                            break
+                        }
                     }
+                    let content = String(code[startIndex..<endIndex])
+                    return SyntaxToken(content: content, tokenType: .number, range: startIndex..<endIndex)
                 }
-                let content = String(code[startIndex..<endIndex])
-                return SyntaxToken(content: content, tokenType: .number, range: startIndex..<endIndex)
             }
         }
         

@@ -102,21 +102,24 @@ public struct JavaScriptSyntaxEngine: SyntaxHighlightingEngine {
             }
             
             // Comments
-            if char == "/" && currentIndex < code.index(before: code.endIndex) {
-                let nextChar = code[code.index(after: currentIndex)]
-                if nextChar == "/" {
-                    // Single-line comment
-                    if let token = try parseLineComment(code, startIndex: currentIndex) {
-                        tokens.append(token)
-                        currentIndex = token.range.upperBound
-                        continue
-                    }
-                } else if nextChar == "*" {
-                    // Multi-line comment
-                    if let token = try parseBlockComment(code, startIndex: currentIndex) {
-                        tokens.append(token)
-                        currentIndex = token.range.upperBound
-                        continue
+            if char == "/" {
+                let nextIndex = code.index(after: currentIndex)
+                if nextIndex < code.endIndex {
+                    let nextChar = code[nextIndex]
+                    if nextChar == "/" {
+                        // Single-line comment
+                        if let token = try parseLineComment(code, startIndex: currentIndex) {
+                            tokens.append(token)
+                            currentIndex = token.range.upperBound
+                            continue
+                        }
+                    } else if nextChar == "*" {
+                        // Multi-line comment
+                        if let token = try parseBlockComment(code, startIndex: currentIndex) {
+                            tokens.append(token)
+                            currentIndex = token.range.upperBound
+                            continue
+                        }
                     }
                 }
             }
@@ -207,10 +210,13 @@ public struct JavaScriptSyntaxEngine: SyntaxHighlightingEngine {
         guard nextIndex < code.endIndex && code[nextIndex] == "*" else { return nil }
         
         var endIndex = code.index(after: nextIndex)
-        while endIndex < code.index(before: code.endIndex) {
-            if code[endIndex] == "*" && code[code.index(after: endIndex)] == "/" {
-                endIndex = code.index(after: code.index(after: endIndex))
-                break
+        while endIndex < code.endIndex {
+            if code[endIndex] == "*" {
+                let nextEndIndex = code.index(after: endIndex)
+                if nextEndIndex < code.endIndex && code[nextEndIndex] == "/" {
+                    endIndex = code.index(after: nextEndIndex)
+                    break
+                }
             }
             endIndex = code.index(after: endIndex)
         }
@@ -262,9 +268,9 @@ public struct JavaScriptSyntaxEngine: SyntaxHighlightingEngine {
                 let content = String(code[templateStart..<endIndex])
                 tokens.append(SyntaxToken(content: content, tokenType: .template, range: templateStart..<endIndex))
                 return tokens
-            } else if char == "$" && currentIndex < code.index(before: code.endIndex) {
-                let nextChar = code[code.index(after: currentIndex)]
-                if nextChar == "{" {
+            } else if char == "$" {
+                let nextIndex = code.index(after: currentIndex)
+                if nextIndex < code.endIndex && code[nextIndex] == "{" {
                     // Template literal part before interpolation
                     if templateStart < currentIndex {
                         let content = String(code[templateStart..<currentIndex])

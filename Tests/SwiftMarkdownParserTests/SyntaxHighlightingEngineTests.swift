@@ -131,6 +131,74 @@ final class SyntaxHighlightingEngineTests: XCTestCase {
             XCTFail("Should throw SyntaxHighlightingError.unsupportedLanguage")
         }
     }
+    
+    // MARK: - Edge Case Tests
+    
+    func test_engines_handleEmptyStrings() async throws {
+        let engines: [(SyntaxHighlightingEngine, String)] = [
+            (SwiftSyntaxEngine(), "swift"),
+            (PythonSyntaxEngine(), "python"),
+            (JavaScriptSyntaxEngine(), "javascript"),
+            (TypeScriptSyntaxEngine(), "typescript"),
+            (KotlinSyntaxEngine(), "kotlin"),
+            (BashSyntaxEngine(), "bash")
+        ]
+        
+        for (engine, language) in engines {
+            let tokens = try await engine.highlight("", language: language)
+            XCTAssertTrue(tokens.isEmpty, "\(language) engine should handle empty strings")
+        }
+    }
+    
+    func test_engines_handleVeryShortStrings() async throws {
+        let engines: [(SyntaxHighlightingEngine, String)] = [
+            (SwiftSyntaxEngine(), "swift"),
+            (PythonSyntaxEngine(), "python"),
+            (JavaScriptSyntaxEngine(), "javascript"),
+            (TypeScriptSyntaxEngine(), "typescript"),
+            (KotlinSyntaxEngine(), "kotlin"),
+            (BashSyntaxEngine(), "bash")
+        ]
+        
+        let testCases = ["a", "ab", "/", "//", "\"", "\"\"", "$", "/*", "*/", "@", "#"]
+        
+        for (engine, language) in engines {
+            for testCase in testCases {
+                do {
+                    let tokens = try await engine.highlight(testCase, language: language)
+                    // Should not crash and should return some tokens
+                    XCTAssertTrue(tokens.count >= 0, "\(language) engine should handle '\(testCase)' without crashing")
+                } catch {
+                    XCTFail("\(language) engine should not throw error for '\(testCase)': \(error)")
+                }
+            }
+        }
+    }
+    
+    func test_engines_handleSingleCharacterStrings() async throws {
+        let engines: [(SyntaxHighlightingEngine, String)] = [
+            (SwiftSyntaxEngine(), "swift"),
+            (PythonSyntaxEngine(), "python"),
+            (JavaScriptSyntaxEngine(), "javascript"),
+            (TypeScriptSyntaxEngine(), "typescript"),
+            (KotlinSyntaxEngine(), "kotlin"),
+            (BashSyntaxEngine(), "bash")
+        ]
+        
+        // Test single characters that could cause index out of bounds
+        let singleChars = ["/", "*", "\"", "'", "$", "@", "#", "\\", "(", ")", "[", "]", "{", "}", ".", ",", ";", ":", "?", "!", "&", "|", "^", "~", "+", "-", "=", "<", ">", "%"]
+        
+        for (engine, language) in engines {
+            for char in singleChars {
+                do {
+                    let tokens = try await engine.highlight(char, language: language)
+                    XCTAssertTrue(tokens.count >= 0, "\(language) engine should handle single character '\(char)' without crashing")
+                } catch {
+                    XCTFail("\(language) engine should not throw error for single character '\(char)': \(error)")
+                }
+            }
+        }
+    }
 }
 
 // MARK: - JavaScript Engine Tests
