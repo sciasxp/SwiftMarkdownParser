@@ -6,6 +6,7 @@
 
 import Foundation
 import SwiftUI
+import CryptoKit
 
 // MARK: - Core Protocol
 
@@ -356,7 +357,12 @@ public actor SyntaxHighlightingCache {
     }
     
     private func cacheKey(code: String, language: String) -> String {
-        return "\(language):\(code.hashValue)"
+        // Use a stable SHA-256 hash to avoid process-seeded hashValue instability and to greatly
+        // reduce the chance of collisions. This makes cache keys deterministic across launches and
+        // platforms while keeping them reasonably compact.
+        let digest = SHA256.hash(data: Data(code.utf8))
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        return "\(language):\(hex)"
     }
 }
 
