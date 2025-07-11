@@ -125,9 +125,17 @@ public struct KotlinSyntaxEngine: SyntaxHighlightingEngine {
         guard nextIndex < code.endIndex && code[nextIndex] == "*" else { return nil }
         
         var endIndex = code.index(after: nextIndex)
-        while endIndex < code.index(before: code.endIndex) {
-            if code[endIndex] == "*" && code[code.index(after: endIndex)] == "/" {
-                endIndex = code.index(endIndex, offsetBy: 2)
+        
+        // Iterate until we find a terminating "*/" or reach the end of the input.
+        // By not imposing a look-ahead constraint, we guarantee that an unclosed
+        // block comment token spans the entire remainder of the source.
+        while endIndex < code.endIndex {
+            if code[endIndex...].hasPrefix("*/") {
+                if let newIndex = code.index(endIndex, offsetBy: 2, limitedBy: code.endIndex) {
+                    endIndex = newIndex
+                } else {
+                    endIndex = code.endIndex
+                }
                 break
             }
             endIndex = code.index(after: endIndex)

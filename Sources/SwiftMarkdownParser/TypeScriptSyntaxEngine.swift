@@ -229,13 +229,18 @@ public struct TypeScriptSyntaxEngine: SyntaxHighlightingEngine {
         guard nextIndex < code.endIndex && code[nextIndex] == "*" else { return nil }
         
         var endIndex = code.index(after: nextIndex)
+        
+        // Iterate until we find a terminating "*/" or reach the end of the input.
+        // By not imposing a look-ahead constraint, we guarantee that an unclosed
+        // block comment token spans the entire remainder of the source.
         while endIndex < code.endIndex {
-            if code[endIndex] == "*" {
-                let nextEndIndex = code.index(after: endIndex)
-                if nextEndIndex < code.endIndex && code[nextEndIndex] == "/" {
-                    endIndex = code.index(after: nextEndIndex)
-                    break
+            if code[endIndex...].hasPrefix("*/") {
+                if let newIndex = code.index(endIndex, offsetBy: 2, limitedBy: code.endIndex) {
+                    endIndex = newIndex
+                } else {
+                    endIndex = code.endIndex
                 }
+                break
             }
             endIndex = code.index(after: endIndex)
         }
@@ -466,8 +471,22 @@ public struct TypeScriptSyntaxEngine: SyntaxHighlightingEngine {
             
             if char == "<" {
                 angleCount += 1
+                let nextIndex = code.index(after: currentIndex)
+                tokens.append(SyntaxToken(content: "<", tokenType: .punctuation, range: currentIndex..<nextIndex))
+                currentIndex = nextIndex
+                continue
             } else if char == ">" {
                 angleCount -= 1
+                let nextIndex = code.index(after: currentIndex)
+                tokens.append(SyntaxToken(content: ">", tokenType: .punctuation, range: currentIndex..<nextIndex))
+                currentIndex = nextIndex
+                continue
+            }
+            
+            // Skip whitespace
+            if char.isWhitespace {
+                currentIndex = code.index(after: currentIndex)
+                continue
             }
             
             // Parse identifiers within generics
@@ -481,16 +500,14 @@ public struct TypeScriptSyntaxEngine: SyntaxHighlightingEngine {
                 }
             }
             
-            currentIndex = code.index(after: currentIndex)
-        }
-        
-        // Parse closing >
-        if currentIndex <= code.endIndex {
-            let content = String(code[startIndex..<currentIndex])
-            if content.hasSuffix(">") {
-                let closeStart = code.index(before: currentIndex)
-                tokens.append(SyntaxToken(content: ">", tokenType: .punctuation, range: closeStart..<currentIndex))
+            // Parse other punctuation (commas, etc.)
+            if let punctuation = try parseOperatorOrPunctuation(code, startIndex: currentIndex) {
+                tokens.append(punctuation)
+                currentIndex = punctuation.range.upperBound
+                continue
             }
+            
+            currentIndex = code.index(after: currentIndex)
         }
         
         return tokens
