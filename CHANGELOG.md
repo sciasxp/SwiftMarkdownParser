@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **🎨 Professional Syntax Highlighting**: Complete syntax highlighting system for code blocks
+  - **6 Programming Languages**: JavaScript, TypeScript, Swift, Kotlin, Python, Bash
+  - **25+ Token Types**: Keywords, strings, comments, operators, types, functions, and more
+  - **Modern Language Features**: ES6+, async/await, generics, coroutines, decorators
+  - **Built-in Themes**: GitHub, Xcode, VS Code Dark themes with professional styling
+  - **Performance Optimized**: Actor-based engine registry with LRU caching
+  - **Thread-Safe**: Built with Swift 6 concurrency patterns
+  - **Extensible**: Easy to add new languages and custom themes
+- **Enhanced HTML Rendering**: Syntax highlighting integration with HTML renderer
+  - CSS class generation with configurable prefixes
+  - Theme-based color styling
+  - Semantic HTML output with proper `<code>` and `<pre>` structure
+- **SwiftUI Syntax Highlighting**: Native SwiftUI code block rendering
+  - Attributed text with proper color highlighting
+  - Monospace font support with custom font configuration
+  - Theme integration with SwiftUI color system
 - **New Configuration Option**: Added `maxParsingTime` parameter to `SwiftMarkdownParser.Configuration`
   - Configurable timeout for parsing operations (default: 30.0 seconds)
   - Set to 0.0 to disable timeout (use with caution)
@@ -58,4 +74,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 For more details about these changes, see the updated documentation:
 - [Parser Usage Documentation](Docs/ParserUsage.md)
 - [HTML Renderer Documentation](Docs/HTMLRenderer.md)
-- [SwiftUI Renderer Documentation](Docs/SwiftUIRenderer.md) 
+- [SwiftUI Renderer Documentation](Docs/SwiftUIRenderer.md)
+- [Syntax Highlighting Documentation](Docs/SyntaxHighlighting.md) 

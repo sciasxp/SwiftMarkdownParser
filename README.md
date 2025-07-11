@@ -49,6 +49,14 @@ A modern, Swift-native Markdown parser that generates Abstract Syntax Trees (AST
 - **Source Location Tracking**: Debug-friendly position information
 - **Extensible Architecture**: Easy to add custom renderers and output formats
 
+### Advanced Syntax Highlighting
+- **6 Programming Languages**: JavaScript, TypeScript, Swift, Kotlin, Python, Bash
+- **Professional Themes**: GitHub, Xcode, VS Code Dark built-in themes
+- **25+ Token Types**: Keywords, strings, comments, operators, types, functions, and more
+- **Modern Language Features**: ES6+, async/await, generics, coroutines, decorators
+- **Performance Optimized**: Actor-based engine registry with LRU caching
+- **Extensible Engine System**: Easy to add new languages and custom highlighting rules
+
 ## 📋 Requirements
 
 - **iOS 18.0+** or **macOS 15.0+**
@@ -88,11 +96,19 @@ This is **bold** and *italic* text with a [link](https://swift.org).
 - [x] Support GFM extensions  
 - [x] HTML renderer ✅
 - [x] SwiftUI renderer ✅
+- [x] Syntax highlighting ✅
+
+```swift
+func greet(name: String) async throws -> String {
+    return "Hello, \(name)!"
+}
+```
 
 | Feature | Status |
 |---------|--------|
 | Tables | ✅ |
 | Task Lists | ✅ |
+| Syntax Highlighting | ✅ |
 """
 
 // Simple HTML rendering
@@ -201,6 +217,167 @@ func analyzeMarkdown(_ node: ASTNode) {
 }
 
 analyzeMarkdown(ast)
+```
+
+### Advanced Syntax Highlighting
+
+SwiftMarkdownParser includes professional-grade syntax highlighting for code blocks with support for 6 programming languages and 3 built-in themes.
+
+#### Supported Languages
+
+- **JavaScript**: ES6+ features, async/await, template literals, JSX
+- **TypeScript**: Type annotations, generics, interfaces, decorators, TSX
+- **Swift**: Swift 6 syntax, property wrappers, async/await, string interpolation
+- **Kotlin**: Data classes, coroutines, null safety, extension functions
+- **Python**: Python 3+, async/await, triple-quoted strings, scientific notation
+- **Bash**: Shell scripts, variables, control structures, built-in commands
+
+#### Built-in Themes
+
+```swift
+// Configure syntax highlighting with built-in themes
+let context = RenderContext(
+    styleConfiguration: StyleConfiguration(
+        syntaxHighlighting: SyntaxHighlightingConfig(
+            enabled: true,
+            theme: .github,  // or .xcode, .vsCodeDark
+            cssPrefix: "hljs-"
+        )
+    )
+)
+
+let renderer = HTMLRenderer(context: context)
+let highlightedHTML = try await renderer.render(document: ast)
+```
+
+#### Example: Multi-language Code Blocks
+
+```swift
+let codeExamples = """
+# Code Examples
+
+## Swift
+```swift
+@State private var count: Int = 0
+
+func increment() async {
+    await MainActor.run {
+        count += 1
+    }
+}
+```
+
+## JavaScript
+```javascript
+const fetchData = async () => {
+    const response = await fetch('/api/data');
+    return await response.json();
+};
+```
+
+## Python
+```python
+async def process_data():
+    data = await fetch_data()
+    return [x for x in data if x > 0]
+```
+
+## Kotlin
+```kotlin
+data class User(val name: String, var age: Int)
+
+suspend fun fetchUser(): User? = withContext(Dispatchers.IO) {
+    // Fetch user from API
+}
+```
+"""
+
+let parser = SwiftMarkdownParser()
+let ast = try await parser.parseToAST(codeExamples)
+
+// HTML with syntax highlighting
+let htmlContext = RenderContext(
+    styleConfiguration: StyleConfiguration(
+        syntaxHighlighting: SyntaxHighlightingConfig(
+            enabled: true,
+            theme: .github,
+            cssPrefix: "hljs-"
+        )
+    )
+)
+
+let htmlRenderer = HTMLRenderer(context: htmlContext)
+let highlightedHTML = try await htmlRenderer.render(document: ast)
+```
+
+#### Custom Syntax Highlighting Themes
+
+```swift
+// Create a custom theme
+let customTheme = SyntaxHighlightingTheme(
+    name: "Custom Dark",
+    backgroundColor: Color.black,
+    textColor: Color.white,
+    tokenColors: [
+        .keyword: Color.blue,
+        .string: Color.green,
+        .comment: Color.gray,
+        .number: Color.orange,
+        .function: Color.yellow,
+        .type: Color.cyan
+    ]
+)
+
+// Use custom theme in HTML rendering
+let customContext = RenderContext(
+    styleConfiguration: StyleConfiguration(
+        syntaxHighlighting: SyntaxHighlightingConfig(
+            enabled: true,
+            theme: customTheme,
+            cssPrefix: "custom-"
+        )
+    )
+)
+```
+
+#### SwiftUI Syntax Highlighting
+
+```swift
+// SwiftUI with syntax highlighting
+let swiftUIContext = SwiftUIRenderContext(
+    styleConfiguration: SwiftUIStyleConfiguration(
+        syntaxHighlighting: SwiftUISyntaxHighlightingConfig(
+            enabled: true,
+            theme: .xcode,
+            codeFont: .system(.body, design: .monospaced)
+        )
+    )
+)
+
+let swiftUIRenderer = SwiftUIRenderer(context: swiftUIContext)
+let highlightedView = try await swiftUIRenderer.render(document: ast)
+```
+
+#### Performance Features
+
+The syntax highlighting system is built for performance:
+
+- **Actor-based Registry**: Thread-safe engine management
+- **LRU Caching**: Intelligent caching of highlighted code blocks
+- **Lazy Loading**: Engines loaded only when needed
+- **Efficient Parsing**: Single-pass tokenization with bounds checking
+
+```swift
+// Access the syntax highlighting registry
+let registry = SyntaxHighlightingRegistry()
+
+// Get cache statistics
+let stats = await registry.getCacheStatistics()
+print("Cache hits: \(stats["totalHits"] ?? 0)")
+print("Cached entries: \(stats["entryCount"] ?? 0)")
+
+// Clear cache if needed
+await registry.clearCache()
 ```
 
 ### Custom HTML Styling
@@ -500,8 +677,8 @@ let styledContext = RenderContext(
         includeSourcePositions: true,  // Adds data-source-line attributes
         syntaxHighlighting: SyntaxHighlightingConfig(
             enabled: true,
-            cssPrefix: "hljs-",
-            supportedLanguages: ["swift", "javascript", "python", "html"]
+            theme: .github,
+            cssPrefix: "hljs-"
         )
     )
 )
@@ -627,7 +804,7 @@ let views = try await swiftUIRenderer.render(document: ast)
 ### 🔧 **Feature Gaps**
 - **Math Extensions**: No LaTeX/MathJax support yet
 - **Plugins**: No plugin system for custom extensions
-- **Advanced Syntax Highlighting**: Basic code block support only
+- **Additional Languages**: Currently supports 6 languages (more coming soon)
 - **Performance**: May be slower than C-based parsers for massive documents
 
 ### 📚 **Maturity Considerations**
@@ -647,6 +824,8 @@ let views = try await swiftUIRenderer.render(document: ast)
 | HTML Renderer | ✅ | ❌ | ✅ | ✅ |
 | SwiftUI Renderer | ✅ | ❌ | ❌ | ❌ |
 | Multiple Renderers | ✅ | ❌ | ❌ | ❌ |
+| Syntax Highlighting | ✅ | ❌ | ❌ | ⚠️ |
+| Built-in Themes | ✅ | ❌ | ❌ | ❌ |
 | iOS 17+ Only | ⚠️ | ❌ | ❌ | ❌ |
 
 ## 🛠️ Advanced Usage
@@ -766,11 +945,15 @@ For comprehensive guides and examples, check out our detailed documentation:
 - **[Parser Usage Guide](Docs/ParserUsage.md)** - Complete guide to parsing markdown into AST, configuration options, AST traversal, and advanced parsing techniques
 - **[HTML Renderer Guide](Docs/HTMLRenderer.md)** - Comprehensive HTML rendering documentation with styling, security, and customization options
 - **[SwiftUI Renderer Guide](Docs/SwiftUIRenderer.md)** - Native SwiftUI rendering with theming, accessibility, and platform integration
+- **[Syntax Highlighting Guide](Docs/SyntaxHighlighting.md)** - Professional code block highlighting with 6 languages, themes, and performance optimization
 
 ### Quick Links
 - [Getting Started with AST Parsing](Docs/ParserUsage.md#quick-start)
 - [HTML Rendering Examples](Docs/HTMLRenderer.md#basic-usage)
 - [SwiftUI Integration Examples](Docs/SwiftUIRenderer.md#basic-usage)
+- [Syntax Highlighting Setup](Docs/SyntaxHighlighting.md#quick-start)
+- [Built-in Themes](Docs/SyntaxHighlighting.md#built-in-themes)
+- [Custom Theme Creation](Docs/SyntaxHighlighting.md#custom-themes)
 - [Error Handling Best Practices](Docs/ParserUsage.md#error-handling)
 - [Performance Optimization Tips](Docs/HTMLRenderer.md#performance-tips)
 - [Accessibility Features](Docs/SwiftUIRenderer.md#accessibility)
@@ -827,7 +1010,8 @@ We welcome contributions from the community! Whether you're fixing bugs, adding 
 - 📊 **GFM extensions**: Math support, footnotes, definition lists
 - 📚 **Documentation**: API docs, tutorials, and examples
 - 🧪 **Test coverage**: Edge cases and performance tests
-- 🎨 **Syntax highlighting**: Code block language support
+- 🎨 **Syntax highlighting**: Additional programming languages (Go, Rust, C++, etc.)
+- 🎨 **Themes**: More built-in color themes and theme customization
 
 ### Good First Issues
 
