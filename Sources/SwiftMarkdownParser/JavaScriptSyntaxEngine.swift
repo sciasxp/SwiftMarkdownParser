@@ -333,7 +333,7 @@ public struct JavaScriptSyntaxEngine: SyntaxHighlightingEngine {
                 if nextIndex < code.endIndex && (code[nextIndex] == "+" || code[nextIndex] == "-") {
                     endIndex = nextIndex
                 }
-            } else if char == "n" && endIndex == code.index(before: code.endIndex) {
+            } else if char == "n" {
                 // BigInt suffix
                 endIndex = code.index(after: endIndex)
                 break

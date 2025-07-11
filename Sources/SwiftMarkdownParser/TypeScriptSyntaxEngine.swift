@@ -229,10 +229,13 @@ public struct TypeScriptSyntaxEngine: SyntaxHighlightingEngine {
         guard nextIndex < code.endIndex && code[nextIndex] == "*" else { return nil }
         
         var endIndex = code.index(after: nextIndex)
-        while endIndex < code.index(before: code.endIndex) {
-            if code[endIndex] == "*" && code[code.index(after: endIndex)] == "/" {
-                endIndex = code.index(after: code.index(after: endIndex))
-                break
+        while endIndex < code.endIndex {
+            if code[endIndex] == "*" {
+                let nextEndIndex = code.index(after: endIndex)
+                if nextEndIndex < code.endIndex && code[nextEndIndex] == "/" {
+                    endIndex = code.index(after: nextEndIndex)
+                    break
+                }
             }
             endIndex = code.index(after: endIndex)
         }
@@ -368,7 +371,7 @@ public struct TypeScriptSyntaxEngine: SyntaxHighlightingEngine {
                 if nextIndex < code.endIndex && (code[nextIndex] == "+" || code[nextIndex] == "-") {
                     endIndex = nextIndex
                 }
-            } else if char == "n" && endIndex == code.index(before: code.endIndex) {
+            } else if char == "n" {
                 // BigInt suffix
                 endIndex = code.index(after: endIndex)
                 break
