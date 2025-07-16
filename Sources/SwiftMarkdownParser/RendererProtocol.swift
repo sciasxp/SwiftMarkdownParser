@@ -112,7 +112,7 @@ public struct SyntaxHighlightingConfig: Sendable {
     public let supportedLanguages: Set<String>
     
     public init(
-        enabled: Bool = true,
+        enabled: Bool = false,
         cssPrefix: String = "language-",
         supportedLanguages: Set<String> = Self.commonLanguages
     ) {
