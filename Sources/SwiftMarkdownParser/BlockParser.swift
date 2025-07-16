@@ -312,6 +312,12 @@ public final class BlockParser {
                 break
             }
             
+            // Special check: if we encounter a list marker at the start of a line
+            // without proper indentation, it should end this list item
+            if isListMarkerAtStartOfLine() {
+                break
+            }
+            
             // Parse any continuation blocks
             if let block = try parseBlock() {
                 children.append(block)
@@ -344,8 +350,17 @@ public final class BlockParser {
         // Check if we're at the start of a line with a list marker
         let currentPos = tokenStream.currentPosition
         
-        // We should be at start of line (possibly with leading whitespace)
-        skipWhitespace()
+        // Skip to start of content (skip newlines first, then whitespace)
+        while tokenStream.check(.newline) {
+            tokenStream.advance()
+        }
+        
+        // Track indentation level
+        var indentLevel = 0
+        while tokenStream.check(.whitespace) && indentLevel < 4 {
+            indentLevel += 1
+            tokenStream.advance()
+        }
         
         let result = tokenStream.check(.listMarker)
         
@@ -353,6 +368,30 @@ public final class BlockParser {
         tokenStream.setPosition(currentPos)
         
         return result
+    }
+    
+    private func isListMarkerAtStartOfLine() -> Bool {
+        let currentPos = tokenStream.currentPosition
+        
+        // Skip newlines to get to next line
+        while tokenStream.check(.newline) {
+            tokenStream.advance()
+        }
+        
+        // Check for minimal indentation (0-3 spaces is acceptable for a new list)
+        var spaceCount = 0
+        while tokenStream.check(.whitespace) && spaceCount < 4 {
+            spaceCount += 1
+            tokenStream.advance()
+        }
+        
+        // Check if there's a list marker here
+        let hasListMarker = tokenStream.check(.listMarker)
+        
+        // Restore position
+        tokenStream.setPosition(currentPos)
+        
+        return hasListMarker
     }
     
     private func isBlankLineThenNonIndented() -> Bool {

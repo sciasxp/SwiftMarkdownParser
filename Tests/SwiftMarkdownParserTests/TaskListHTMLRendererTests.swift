@@ -337,4 +337,142 @@ final class TaskListHTMLRendererTests: XCTestCase {
             XCTAssertTrue(inputContent.contains("disabled"), "Input should be disabled")
         }
     }
+    
+    // MARK: - Enhanced Styling Tests
+    
+    func test_htmlRenderer_enhancedCheckedTaskListStyling() async throws {
+        let markdown = "- [x] Completed task with enhanced styling"
+        let html = try await parser.parseToHTML(markdown)
+        
+        // Should contain enhanced CSS classes for checked items
+        XCTAssertTrue(html.contains("task-list-item-checked"), "Should contain checked task list item class")
+        XCTAssertTrue(html.contains("task-list-checkbox-checked"), "Should contain checked checkbox class")
+        XCTAssertTrue(html.contains("task-list-content-checked"), "Should contain checked content class")
+        
+        // Should contain enhanced inline styling for checked items
+        XCTAssertTrue(html.contains("background-color: rgba(33, 136, 33, 0.08)"), "Should have background color for checked items")
+        XCTAssertTrue(html.contains("border-radius: 6px"), "Should have border radius for checked items")
+        XCTAssertTrue(html.contains("text-decoration: line-through"), "Should have strikethrough for completed tasks")
+        XCTAssertTrue(html.contains("text-decoration-color: #218838"), "Should have green strikethrough color")
+        
+        // Should contain enhanced checkbox styling
+        XCTAssertTrue(html.contains("transform: scale(1.2)"), "Should have scaled checkbox")
+        XCTAssertTrue(html.contains("accent-color: #218838"), "Should have green accent color for checked")
+        XCTAssertTrue(html.contains("filter: brightness(1.1)"), "Should have brightness filter for checked")
+        
+        // Should have enhanced accessibility
+        XCTAssertTrue(html.contains("aria-label=\"Completed task\""), "Should have enhanced accessibility label")
+    }
+    
+    func test_htmlRenderer_enhancedUncheckedTaskListStyling() async throws {
+        let markdown = "- [ ] Incomplete task with enhanced styling"
+        let html = try await parser.parseToHTML(markdown)
+        
+        // Should contain enhanced CSS classes for unchecked items
+        XCTAssertTrue(html.contains("task-list-item-unchecked"), "Should contain unchecked task list item class")
+        XCTAssertTrue(html.contains("task-list-checkbox-unchecked"), "Should contain unchecked checkbox class")
+        XCTAssertTrue(html.contains("task-list-content-unchecked"), "Should contain unchecked content class")
+        
+        // Should NOT contain styling specific to checked items
+        XCTAssertFalse(html.contains("background-color: rgba(33, 136, 33, 0.08)"), "Should not have background color for unchecked")
+        XCTAssertFalse(html.contains("text-decoration: line-through"), "Should not have strikethrough for incomplete tasks")
+        
+        // Should contain basic checkbox styling
+        XCTAssertTrue(html.contains("transform: scale(1.2)"), "Should have scaled checkbox")
+        XCTAssertTrue(html.contains("accent-color: #6c757d"), "Should have gray accent color for unchecked")
+        XCTAssertFalse(html.contains("filter: brightness(1.1)"), "Should not have brightness filter for unchecked")
+        
+        // Should have enhanced accessibility
+        XCTAssertTrue(html.contains("aria-label=\"Incomplete task\""), "Should have enhanced accessibility label")
+    }
+    
+    func test_htmlRenderer_enhancedTaskListContainerStyling() async throws {
+        let markdown = """
+        - [x] First task
+        - [ ] Second task
+        - [x] Third task
+        """
+        
+        let html = try await parser.parseToHTML(markdown)
+        
+        // Should contain task list container class
+        XCTAssertTrue(html.contains("class=\"task-list\""), "Should contain task-list class")
+        
+        // Should contain enhanced container styling
+        XCTAssertTrue(html.contains("list-style: none"), "Should remove default list styling")
+        XCTAssertTrue(html.contains("padding-left: 0"), "Should remove default padding")
+        XCTAssertTrue(html.contains("margin: 16px 0"), "Should have proper margins")
+        
+        // Should have mixed item types with correct classes
+        let checkedCount = html.components(separatedBy: "task-list-item-checked").count - 1
+        let uncheckedCount = html.components(separatedBy: "task-list-item-unchecked").count - 1
+        XCTAssertEqual(checkedCount, 2, "Should have 2 checked items")
+        XCTAssertEqual(uncheckedCount, 1, "Should have 1 unchecked item")
+    }
+    
+    func test_htmlRenderer_enhancedTaskListWithComplexContent() async throws {
+        let markdown = "- [x] Completed task with **bold** and *italic* text"
+        let html = try await parser.parseToHTML(markdown)
+        
+        // Should contain enhanced styling for checked items
+        XCTAssertTrue(html.contains("task-list-item-checked"), "Should contain checked item class")
+        XCTAssertTrue(html.contains("task-list-content-checked"), "Should contain checked content class")
+        
+        // Should contain inline formatting within the strikethrough styling
+        XCTAssertTrue(html.contains("<strong>") || html.contains("<b>"), "Should contain bold formatting")
+        XCTAssertTrue(html.contains("<em>") || html.contains("<i>"), "Should contain italic formatting")
+        
+        // The content should be wrapped in the styled span
+        XCTAssertTrue(html.contains("task-list-content-checked"), "Should wrap content in styled span")
+        XCTAssertTrue(html.contains("text-decoration: line-through"), "Should have strikethrough even with complex content")
+    }
+    
+    func test_htmlRenderer_enhancedTaskListCustomCSSClass() async throws {
+        let context = RenderContext(
+            styleConfiguration: StyleConfiguration(
+                cssClasses: [
+                    .taskListItem: "custom-task-item"
+                ]
+            )
+        )
+        let customRenderer = HTMLRenderer(context: context)
+        
+        let markdown = "- [x] Custom styled task"
+        let ast = try await parser.parseToAST(markdown)
+        let html = try await customRenderer.render(document: ast)
+        
+        // Should preserve custom CSS class while adding state-specific classes
+        XCTAssertTrue(html.contains("custom-task-item"), "Should contain custom CSS class")
+        XCTAssertTrue(html.contains("task-list-item-checked"), "Should also contain state-specific class")
+        
+        // Should still contain enhanced styling
+        XCTAssertTrue(html.contains("background-color: rgba(33, 136, 33, 0.08)"), "Should have enhanced background styling")
+        XCTAssertTrue(html.contains("text-decoration: line-through"), "Should have strikethrough styling")
+    }
+    
+    func test_htmlRenderer_enhancedTaskListMixedWithRegularList() async throws {
+        let markdown = """
+        - Regular item
+        - [x] Task item
+        - Another regular item
+        """
+        
+        let html = try await parser.parseToHTML(markdown)
+        
+        // Should contain task list container styling
+        XCTAssertTrue(html.contains("class=\"task-list\""), "Should have task-list class on container")
+        XCTAssertTrue(html.contains("list-style: none"), "Should have container styling")
+        
+        // Should have one enhanced task item
+        XCTAssertTrue(html.contains("task-list-item-checked"), "Should have one checked task item")
+        XCTAssertTrue(html.contains("task-list-checkbox-checked"), "Should have enhanced checkbox")
+        
+        // Should contain mix of regular and enhanced items
+        let listItemCount = html.components(separatedBy: "<li").count - 1
+        XCTAssertEqual(listItemCount, 3, "Should have 3 list items total")
+        
+        let enhancedItemCount = html.components(separatedBy: "task-list-content-checked").count - 1
+        XCTAssertEqual(enhancedItemCount, 1, "Should have 1 enhanced task item")
+    }
+
 } 

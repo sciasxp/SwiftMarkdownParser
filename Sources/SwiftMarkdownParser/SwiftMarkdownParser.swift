@@ -634,11 +634,20 @@ public struct HTMLRenderer: MarkdownRenderer {
             }
             
             // If this list contains at least one task-list item, add a
-            // class so consumers (and GitHub-style CSS) can target it.
+            // class and styling so consumers (and GitHub-style CSS) can target it.
             if listNode.items.contains(where: { $0 is AST.GFMTaskListItemNode }) {
                 let existingClass = attributes["class"] ?? ""
                 let taskListClass = "task-list"
                 attributes["class"] = existingClass.isEmpty ? taskListClass : existingClass + " " + taskListClass
+                
+                // Add inline styling for task list container
+                var taskListStyles: [String] = []
+                taskListStyles.append("list-style: none")
+                taskListStyles.append("padding-left: 0")
+                taskListStyles.append("margin: 16px 0")
+                
+                let existingStyle = attributes["style"] ?? ""
+                attributes["style"] = existingStyle.isEmpty ? taskListStyles.joined(separator: "; ") : existingStyle + "; " + taskListStyles.joined(separator: "; ")
             }
             
             return "<\(tagName)\(RendererUtils.formatHTMLAttributes(attributes))>\n\(content)</\(tagName)>\n"

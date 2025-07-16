@@ -602,9 +602,22 @@ extension SwiftUIRenderer {
                     // Task list items are typically read-only in rendered content
                     // But we could add a callback here for interactive task lists
                 }) {
-                    Image(systemName: node.isChecked ? "checkmark.square.fill" : "square")
-                        .foregroundColor(node.isChecked ? context.styleConfiguration.taskListCheckedColor : context.styleConfiguration.taskListUncheckedColor)
-                        .font(context.styleConfiguration.taskListCheckboxFont)
+                    ZStack {
+                        // Background circle for checked items to make them more prominent
+                        if node.isChecked {
+                            Circle()
+                                .fill(context.styleConfiguration.taskListCheckedColor)
+                                .frame(width: 20, height: 20)
+                        }
+                        
+                        // Checkbox icon
+                        Image(systemName: node.isChecked ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(node.isChecked ? .white : context.styleConfiguration.taskListUncheckedColor)
+                            .font(.system(size: 18, weight: node.isChecked ? .bold : .regular))
+                            .shadow(color: node.isChecked ? .black.opacity(0.1) : .clear, radius: 1, x: 0, y: 1)
+                    }
+                    .scaleEffect(node.isChecked ? 1.1 : 1.0)
+                    .animation(.easeInOut(duration: 0.2), value: node.isChecked)
                 }
                 .buttonStyle(PlainButtonStyle())
                 .disabled(true) // Read-only by default
@@ -614,10 +627,28 @@ extension SwiftUIRenderer {
                 VStack(alignment: .leading, spacing: context.styleConfiguration.taskListContentSpacing) {
                     ForEach(Array(childViews.enumerated()), id: \.offset) { index, view in
                         view
+                            .opacity(node.isChecked ? 0.7 : 1.0) // Dim completed tasks slightly
+                            .overlay(
+                                // Add subtle strikethrough effect for completed tasks
+                                node.isChecked ? 
+                                Rectangle()
+                                    .frame(height: 1)
+                                    .foregroundColor(context.styleConfiguration.taskListCheckedColor.opacity(0.6))
+                                    .offset(y: 0)
+                                : nil
+                            )
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .padding(.vertical, 2) // Add slight vertical padding for better visual separation
+            .background(
+                // Subtle background highlight for checked items
+                node.isChecked ? 
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(context.styleConfiguration.taskListCheckedColor.opacity(0.08))
+                : nil
+            )
             .accessibilityElement(children: .combine)
         )
     }

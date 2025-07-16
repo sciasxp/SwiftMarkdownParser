@@ -261,8 +261,8 @@ public struct SwiftUIStyleConfiguration: Sendable {
         thematicBreakColor: Color = Color.gray.opacity(0.3),
         listMarkerColor: Color = .primary,
         strikethroughColor: Color = Color.gray,
-        taskListCheckedColor: Color = .green,
-        taskListUncheckedColor: Color = Color.gray.opacity(0.5),
+        taskListCheckedColor: Color = Color.green,
+        taskListUncheckedColor: Color = Color.gray.opacity(0.4),
         tableBorderColor: Color = Color.gray.opacity(0.3),
         tableBackgroundColor: Color = Color.clear,
         tableHeaderBackgroundColor: Color = Color.gray.opacity(0.1),
@@ -475,6 +475,8 @@ public extension SwiftUIStyleConfiguration {
         codeBackgroundColor: Color(red: 0.97, green: 0.97, blue: 0.98),
         blockQuoteBorderColor: Color(red: 0.87, green: 0.87, blue: 0.87),
         blockQuoteBackgroundColor: Color(red: 0.98, green: 0.98, blue: 0.98),
+        taskListCheckedColor: Color(red: 0.13, green: 0.54, blue: 0.13), // GitHub green
+        taskListUncheckedColor: Color(red: 0.59, green: 0.63, blue: 0.67), // GitHub gray
         
         documentSpacing: 16,
         paragraphSpacing: 16,

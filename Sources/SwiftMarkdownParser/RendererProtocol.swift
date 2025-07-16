@@ -415,13 +415,33 @@ public extension HTMLRenderer {
         
         // Add default CSS class if not explicitly configured
         if attributes["class"] == nil {
-            attributes["class"] = "task-list-item"
+            attributes["class"] = node.isChecked ? "task-list-item task-list-item-checked" : "task-list-item task-list-item-unchecked"
+        } else {
+            // Append state-specific classes to existing class
+            let baseClass = attributes["class"]!
+            attributes["class"] = node.isChecked ? "\(baseClass) task-list-item-checked" : "\(baseClass) task-list-item-unchecked"
+        }
+        
+        // Add inline styling for better visual prominence when checked
+        var styleAttributes: [String] = []
+        if node.isChecked {
+            styleAttributes.append("background-color: rgba(33, 136, 33, 0.08)")  // GitHub green with low opacity
+            styleAttributes.append("border-radius: 6px")
+            styleAttributes.append("padding: 4px 8px")
+            styleAttributes.append("margin: 2px 0")
+        } else {
+            styleAttributes.append("padding: 4px 8px")
+            styleAttributes.append("margin: 2px 0")
+        }
+        
+        if !styleAttributes.isEmpty {
+            attributes["style"] = styleAttributes.joined(separator: "; ")
         }
         
         html += RendererUtils.formatHTMLAttributes(attributes)
         html += ">"
         
-        // Add checkbox input
+        // Add checkbox input with enhanced styling
         html += "<input type=\"checkbox\""
         
         // Add checked state
@@ -434,15 +454,38 @@ public extension HTMLRenderer {
         
         // Add accessibility attributes
         html += " aria-checked=\"\(node.isChecked ? "true" : "false")\""
-        html += " aria-label=\"Task list item\""
+        html += " aria-label=\"\(node.isChecked ? "Completed task" : "Incomplete task")\""
         
-        // Add CSS class for checkbox
-        html += " class=\"task-list-checkbox\""
+        // Add CSS class for checkbox with enhanced styling
+        let checkboxClass = node.isChecked ? "task-list-checkbox task-list-checkbox-checked" : "task-list-checkbox task-list-checkbox-unchecked"
+        html += " class=\"\(checkboxClass)\""
+        
+        // Add inline styling for the checkbox to make it more prominent
+        var checkboxStyles: [String] = []
+        checkboxStyles.append("margin-right: 8px")
+        checkboxStyles.append("transform: scale(1.2)")
+        checkboxStyles.append("vertical-align: middle")
+        
+        if node.isChecked {
+            checkboxStyles.append("accent-color: #218838")  // GitHub green
+            checkboxStyles.append("filter: brightness(1.1)")
+        } else {
+            checkboxStyles.append("accent-color: #6c757d")  // GitHub gray
+        }
+        
+        html += " style=\"\(checkboxStyles.joined(separator: "; "))\""
         
         html += " />"
         
         // Add a space between checkbox and content
         html += " "
+        
+        // Wrap content in a span for styling completed tasks
+        if node.isChecked {
+            html += "<span class=\"task-list-content task-list-content-checked\" style=\"opacity: 0.8; text-decoration: line-through; text-decoration-color: #218838; text-decoration-thickness: 1px;\">"
+        } else {
+            html += "<span class=\"task-list-content task-list-content-unchecked\">"
+        }
         
         // Render task content
         for child in node.children {
@@ -450,6 +493,7 @@ public extension HTMLRenderer {
             html += try await childRenderer.render(node: child)
         }
         
+        html += "</span>"
         html += "</li>\n"
         
         return html
