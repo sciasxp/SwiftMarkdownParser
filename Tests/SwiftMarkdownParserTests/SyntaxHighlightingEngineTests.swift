@@ -199,6 +199,38 @@ final class SyntaxHighlightingEngineTests: XCTestCase {
             }
         }
     }
+    
+    func test_engines_handleUnclosedBlockComments() async throws {
+        // Test for the specific bug where unclosed block comments extending to end of input
+        // were incorrectly truncated by one character
+        let testCases: [(SyntaxHighlightingEngine, String, String)] = [
+            (KotlinSyntaxEngine(), "kotlin", "/* unclosed comment"),
+            (KotlinSyntaxEngine(), "kotlin", "/* unclosed comment with more text"),
+            (KotlinSyntaxEngine(), "kotlin", "/*a"),
+            (TypeScriptSyntaxEngine(), "typescript", "/* unclosed comment"),
+            (TypeScriptSyntaxEngine(), "typescript", "/* unclosed comment with more text"),
+            (TypeScriptSyntaxEngine(), "typescript", "/*a"),
+            (JavaScriptSyntaxEngine(), "javascript", "/* unclosed comment"),
+            (SwiftSyntaxEngine(), "swift", "/* unclosed comment")
+        ]
+        
+        for (engine, language, code) in testCases {
+            do {
+                let tokens = try await engine.highlight(code, language: language)
+                
+                // Find the comment token
+                let commentTokens = tokens.filter { $0.tokenType == .comment }
+                XCTAssertEqual(commentTokens.count, 1, "Should have exactly one comment token for '\(code)' in \(language)")
+                
+                if let commentToken = commentTokens.first {
+                    // The comment token should include the entire input string
+                    XCTAssertEqual(commentToken.content, code, "Comment token should include entire unclosed comment for '\(code)' in \(language)")
+                }
+            } catch {
+                XCTFail("\(language) engine should not throw error for unclosed comment '\(code)': \(error)")
+                         }
+         }
+     }
 }
 
 // MARK: - JavaScript Engine Tests

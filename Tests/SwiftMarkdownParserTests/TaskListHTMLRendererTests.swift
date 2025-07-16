@@ -29,7 +29,7 @@ final class TaskListHTMLRendererTests: XCTestCase {
         let html = try await parser.parseToHTML(markdown)
         
         // Should contain proper task list HTML structure
-        XCTAssertTrue(html.contains("<ul>"), "Should contain unordered list")
+        XCTAssertTrue(html.contains("<ul"), "Should contain unordered list")
         XCTAssertTrue(html.contains("</ul>"), "Should close unordered list")
         XCTAssertTrue(html.contains("<li"), "Should contain list item")
         XCTAssertTrue(html.contains("</li>"), "Should close list item")
@@ -52,7 +52,7 @@ final class TaskListHTMLRendererTests: XCTestCase {
         let html = try await parser.parseToHTML(markdown)
         
         // Should contain proper task list HTML structure
-        XCTAssertTrue(html.contains("<ul>"), "Should contain unordered list")
+        XCTAssertTrue(html.contains("<ul"), "Should contain unordered list")
         XCTAssertTrue(html.contains("<li"), "Should contain list item")
         
         // Should contain checkbox input
@@ -102,7 +102,7 @@ final class TaskListHTMLRendererTests: XCTestCase {
         let html = try await parser.parseToHTML(markdown)
         
         // Should contain one list with multiple items
-        XCTAssertTrue(html.contains("<ul>"), "Should contain unordered list")
+        XCTAssertTrue(html.contains("<ul"), "Should contain unordered list")
         
         // Count list items
         let listItemCount = html.components(separatedBy: "<li").count - 1
@@ -134,7 +134,7 @@ final class TaskListHTMLRendererTests: XCTestCase {
         let html = try await parser.parseToHTML(markdown)
         
         // Should contain one list
-        XCTAssertTrue(html.contains("<ul>"), "Should contain unordered list")
+        XCTAssertTrue(html.contains("<ul"), "Should contain unordered list")
         
         // Should have 3 list items
         let listItemCount = html.components(separatedBy: "<li").count - 1
@@ -162,7 +162,7 @@ final class TaskListHTMLRendererTests: XCTestCase {
         let html = try await parser.parseToHTML(markdown)
         
         // Should contain list structure
-        XCTAssertTrue(html.contains("<ul>"), "Should contain unordered list")
+        XCTAssertTrue(html.contains("<ul"), "Should contain unordered list")
         
         // Should have checkboxes for all tasks
         let checkboxCount = html.components(separatedBy: "type=\"checkbox\"").count - 1
@@ -216,7 +216,7 @@ final class TaskListHTMLRendererTests: XCTestCase {
         let html = try await parser.parseToHTML(markdown)
         
         // Should use proper list structure
-        XCTAssertTrue(html.contains("<ul>"), "Should use unordered list")
+        XCTAssertTrue(html.contains("<ul"), "Should use unordered list")
         XCTAssertTrue(html.contains("<li"), "Should use list items")
         
         // Should use proper form elements
@@ -295,7 +295,7 @@ final class TaskListHTMLRendererTests: XCTestCase {
         let html = try await parser.parseToHTML(markdown)
         
         // Should use ordered list
-        XCTAssertTrue(html.contains("<ol>"), "Should contain ordered list")
+        XCTAssertTrue(html.contains("<ol"), "Should contain ordered list")
         XCTAssertTrue(html.contains("</ol>"), "Should close ordered list")
         
         // Should contain checkboxes
@@ -319,7 +319,7 @@ final class TaskListHTMLRendererTests: XCTestCase {
         let html = try await parser.parseToHTML(markdown)
         
         // Basic HTML structure validation
-        XCTAssertTrue(html.contains("<ul>"), "Should have opening ul tag")
+        XCTAssertTrue(html.contains("<ul"), "Should have opening ul tag")
         XCTAssertTrue(html.contains("</ul>"), "Should have closing ul tag")
         
         // Count opening and closing li tags

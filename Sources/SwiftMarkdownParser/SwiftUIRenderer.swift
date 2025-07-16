@@ -535,23 +535,27 @@ extension SwiftUIRenderer {
         let itemViews = try await node.items.asyncMap { item in
             try await render(node: item)
         }
-        
+        // Determine if each item is a task-list item so we can suppress the normal list marker.
+        let isTaskListFlags: [Bool] = node.items.map { $0 is AST.GFMTaskListItemNode }
+
         return AnyView(
             VStack(alignment: .leading, spacing: context.styleConfiguration.listItemSpacing) {
                 ForEach(Array(itemViews.enumerated()), id: \.offset) { index, view in
                     HStack(alignment: .top, spacing: context.styleConfiguration.listMarkerSpacing) {
-                        if node.isOrdered {
-                            Text("\(index + 1).")
-                                .font(context.styleConfiguration.bodyFont)
-                                .foregroundColor(context.styleConfiguration.listMarkerColor)
-                                .frame(minWidth: context.styleConfiguration.listMarkerWidth, alignment: .trailing)
-                        } else {
-                            Text("•")
-                                .font(context.styleConfiguration.bodyFont)
-                                .foregroundColor(context.styleConfiguration.listMarkerColor)
-                                .frame(width: context.styleConfiguration.listMarkerWidth, alignment: .center)
+                        // Only show the default list marker when this item is NOT a GFM task-list item.
+                        if !isTaskListFlags[index] {
+                            if node.isOrdered {
+                                Text("\(index + 1).")
+                                    .font(context.styleConfiguration.bodyFont)
+                                    .foregroundColor(context.styleConfiguration.listMarkerColor)
+                                    .frame(minWidth: context.styleConfiguration.listMarkerWidth, alignment: .trailing)
+                            } else {
+                                Text("•")
+                                    .font(context.styleConfiguration.bodyFont)
+                                    .foregroundColor(context.styleConfiguration.listMarkerColor)
+                                    .frame(width: context.styleConfiguration.listMarkerWidth, alignment: .center)
+                            }
                         }
-                        
                         view
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }

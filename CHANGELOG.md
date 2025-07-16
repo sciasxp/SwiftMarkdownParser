@@ -20,9 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - CSS class generation with configurable prefixes
   - Theme-based color styling
   - Semantic HTML output with proper `<code>` and `<pre>` structure
-- **SwiftUI Syntax Highlighting**: Native SwiftUI code block rendering
-  - Attributed text with proper color highlighting
-  - Monospace font support with custom font configuration
+- **SwiftUI Code Blocks**: Basic monospace code block rendering
+  - Plain text monospace rendering (no syntax highlighting)
+  - Custom font configuration support
+  - Accessible code block presentation
   - Theme integration with SwiftUI color system
 - **New Configuration Option**: Added `maxParsingTime` parameter to `SwiftMarkdownParser.Configuration`
   - Configurable timeout for parsing operations (default: 30.0 seconds)

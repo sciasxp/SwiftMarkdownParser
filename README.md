@@ -51,7 +51,7 @@ A modern, Swift-native Markdown parser that generates Abstract Syntax Trees (AST
 
 ### Advanced Syntax Highlighting
 - **6 Programming Languages**: JavaScript, TypeScript, Swift, Kotlin, Python, Bash
-- **Professional Themes**: GitHub, Xcode, VS Code Dark built-in themes
+- **Professional Themes**: GitHub, Xcode, VS Code Dark built-in themes (HTML renderer only)
 - **25+ Token Types**: Keywords, strings, comments, operators, types, functions, and more
 - **Modern Language Features**: ES6+, async/await, generics, coroutines, decorators
 - **Performance Optimized**: Actor-based engine registry with LRU caching
@@ -223,6 +223,8 @@ analyzeMarkdown(ast)
 
 SwiftMarkdownParser includes professional-grade syntax highlighting for code blocks with support for 6 programming languages and 3 built-in themes.
 
+**Important**: Syntax highlighting is only available for the HTML renderer. The SwiftUI renderer provides basic monospace code blocks without syntax highlighting.
+
 #### Supported Languages
 
 - **JavaScript**: ES6+ features, async/await, template literals, JSX
@@ -232,7 +234,7 @@ SwiftMarkdownParser includes professional-grade syntax highlighting for code blo
 - **Python**: Python 3+, async/await, triple-quoted strings, scientific notation
 - **Bash**: Shell scripts, variables, control structures, built-in commands
 
-#### Built-in Themes
+#### Built-in Themes (HTML Renderer Only)
 
 ```swift
 // Configure syntax highlighting with built-in themes
@@ -240,8 +242,7 @@ let context = RenderContext(
     styleConfiguration: StyleConfiguration(
         syntaxHighlighting: SyntaxHighlightingConfig(
             enabled: true,
-            theme: .github,  // or .xcode, .vsCodeDark
-            cssPrefix: "hljs-"
+            cssPrefix: "hljs-"  // default is "language-"
         )
     )
 )
@@ -300,7 +301,6 @@ let htmlContext = RenderContext(
     styleConfiguration: StyleConfiguration(
         syntaxHighlighting: SyntaxHighlightingConfig(
             enabled: true,
-            theme: .github,
             cssPrefix: "hljs-"
         )
     )
@@ -310,52 +310,26 @@ let htmlRenderer = HTMLRenderer(context: htmlContext)
 let highlightedHTML = try await htmlRenderer.render(document: ast)
 ```
 
-#### Custom Syntax Highlighting Themes
+#### Custom CSS Classes for HTML Syntax Highlighting
 
 ```swift
-// Create a custom theme
-let customTheme = SyntaxHighlightingTheme(
-    name: "Custom Dark",
-    backgroundColor: Color.black,
-    textColor: Color.white,
-    tokenColors: [
-        .keyword: Color.blue,
-        .string: Color.green,
-        .comment: Color.gray,
-        .number: Color.orange,
-        .function: Color.yellow,
-        .type: Color.cyan
-    ]
-)
-
-// Use custom theme in HTML rendering
+// Custom CSS classes for HTML output
 let customContext = RenderContext(
     styleConfiguration: StyleConfiguration(
         syntaxHighlighting: SyntaxHighlightingConfig(
             enabled: true,
-            theme: customTheme,
             cssPrefix: "custom-"
-        )
-    )
-)
-```
-
-#### SwiftUI Syntax Highlighting
-
-```swift
-// SwiftUI with syntax highlighting
-let swiftUIContext = SwiftUIRenderContext(
-    styleConfiguration: SwiftUIStyleConfiguration(
-        syntaxHighlighting: SwiftUISyntaxHighlightingConfig(
-            enabled: true,
-            theme: .xcode,
-            codeFont: .system(.body, design: .monospaced)
-        )
+        ),
+        cssClasses: [
+            .codeBlock: "my-code-block"
+        ]
     )
 )
 
-let swiftUIRenderer = SwiftUIRenderer(context: swiftUIContext)
-let highlightedView = try await swiftUIRenderer.render(document: ast)
+// Then provide your own CSS rules:
+// .custom-keyword { color: #0066cc; }
+// .custom-string { color: #009900; }
+// .custom-comment { color: #888888; }
 ```
 
 #### Performance Features
@@ -368,16 +342,16 @@ The syntax highlighting system is built for performance:
 - **Efficient Parsing**: Single-pass tokenization with bounds checking
 
 ```swift
-// Access the syntax highlighting registry
-let registry = SyntaxHighlightingRegistry()
+// Access the syntax highlighting cache
+let cache = SyntaxHighlightingCache()
 
 // Get cache statistics
-let stats = await registry.getCacheStatistics()
+let stats = await cache.getStatistics()
 print("Cache hits: \(stats["totalHits"] ?? 0)")
 print("Cached entries: \(stats["entryCount"] ?? 0)")
 
 // Clear cache if needed
-await registry.clearCache()
+await cache.clearCache()
 ```
 
 ### Custom HTML Styling
