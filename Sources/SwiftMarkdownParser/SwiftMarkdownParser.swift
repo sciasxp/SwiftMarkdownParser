@@ -628,8 +628,26 @@ public struct HTMLRenderer: MarkdownRenderer {
                 styleConfig: context.styleConfiguration
             )
             
+            // Add start number attribute for ordered lists when necessary
             if listNode.isOrdered, let startNumber = listNode.startNumber, startNumber != 1 {
                 attributes["start"] = String(startNumber)
+            }
+            
+            // If this list contains at least one task-list item, add a
+            // class and styling so consumers (and GitHub-style CSS) can target it.
+            if listNode.items.contains(where: { $0 is AST.GFMTaskListItemNode }) {
+                let existingClass = attributes["class"] ?? ""
+                let taskListClass = "task-list"
+                attributes["class"] = existingClass.isEmpty ? taskListClass : existingClass + " " + taskListClass
+                
+                // Add inline styling for task list container
+                var taskListStyles: [String] = []
+                taskListStyles.append("list-style: none")
+                taskListStyles.append("padding-left: 0")
+                taskListStyles.append("margin: 16px 0")
+                
+                let existingStyle = attributes["style"] ?? ""
+                attributes["style"] = existingStyle.isEmpty ? taskListStyles.joined(separator: "; ") : existingStyle + "; " + taskListStyles.joined(separator: "; ")
             }
             
             return "<\(tagName)\(RendererUtils.formatHTMLAttributes(attributes))>\n\(content)</\(tagName)>\n"
@@ -646,20 +664,7 @@ public struct HTMLRenderer: MarkdownRenderer {
             return html
             
         case let codeBlockNode as AST.CodeBlockNode:
-            let escapedContent = RendererUtils.escapeHTML(codeBlockNode.content)
-            var codeAttributes: [String: String] = [:]
-            
-            if let language = codeBlockNode.language, context.styleConfiguration.syntaxHighlighting.enabled {
-                codeAttributes["class"] = context.styleConfiguration.syntaxHighlighting.cssPrefix + language
-            }
-            
-            let preAttributes = RendererUtils.htmlAttributes(
-                for: .codeBlock,
-                sourceLocation: codeBlockNode.sourceLocation,
-                styleConfig: context.styleConfiguration
-            )
-            
-            return "<pre\(RendererUtils.formatHTMLAttributes(preAttributes))><code\(RendererUtils.formatHTMLAttributes(codeAttributes))>\(escapedContent)</code></pre>\n"
+            return try await renderCodeBlock(codeBlockNode)
             
         case let thematicBreakNode as AST.ThematicBreakNode:
             let attributes = RendererUtils.htmlAttributes(
@@ -802,5 +807,82 @@ public struct HTMLRenderer: MarkdownRenderer {
         default:
             throw RendererError.unsupportedNodeType(node.nodeType)
         }
+    }
+    
+    private func renderCodeBlock(_ codeBlockNode: AST.CodeBlockNode) async throws -> String {
+        let language = codeBlockNode.language
+        let content = codeBlockNode.content
+        
+        // Check if syntax highlighting is enabled and we have a language
+        if let language = language,
+           context.styleConfiguration.syntaxHighlighting.enabled,
+           context.styleConfiguration.syntaxHighlighting.supportedLanguages.contains(language.lowercased()) {
+            
+            // Use syntax highlighting engine
+            let registry = SyntaxHighlightingRegistry()
+            if let engine = await registry.engine(for: language) {
+                do {
+                    let tokens = try await engine.highlight(content, language: language)
+                    let highlightedHTML = renderSyntaxTokensToHTML(tokens, originalCode: content, cssPrefix: context.styleConfiguration.syntaxHighlighting.cssPrefix)
+                    
+                    var codeAttributes: [String: String] = [:]
+                    codeAttributes["class"] = "language-" + language
+                    
+                    let preAttributes = RendererUtils.htmlAttributes(
+                        for: .codeBlock,
+                        sourceLocation: codeBlockNode.sourceLocation,
+                        styleConfig: context.styleConfiguration
+                    )
+                    
+                    return "<pre\(RendererUtils.formatHTMLAttributes(preAttributes))><code\(RendererUtils.formatHTMLAttributes(codeAttributes))>\(highlightedHTML)</code></pre>\n"
+                } catch {
+                    // Fall back to plain rendering if highlighting fails
+                }
+            }
+        }
+        
+        // Fall back to plain code block rendering
+        let escapedContent = RendererUtils.escapeHTML(content)
+        var codeAttributes: [String: String] = [:]
+        
+        if let language = language {
+            codeAttributes["class"] = "language-" + language
+        }
+        
+        let preAttributes = RendererUtils.htmlAttributes(
+            for: .codeBlock,
+            sourceLocation: codeBlockNode.sourceLocation,
+            styleConfig: context.styleConfiguration
+        )
+        
+        return "<pre\(RendererUtils.formatHTMLAttributes(preAttributes))><code\(RendererUtils.formatHTMLAttributes(codeAttributes))>\(escapedContent)</code></pre>\n"
+    }
+    
+    private func renderSyntaxTokensToHTML(_ tokens: [SyntaxToken], originalCode: String, cssPrefix: String) -> String {
+        var html = ""
+        var lastEndIndex: String.Index?
+        
+        for token in tokens {
+            let escapedContent = RendererUtils.escapeHTML(token.content)
+            
+            // Add any whitespace that was skipped between tokens
+            if let lastEnd = lastEndIndex, lastEnd < token.range.lowerBound {
+                // Extract the whitespace between tokens from the original code
+                let whitespace = String(originalCode[lastEnd..<token.range.lowerBound])
+                html += RendererUtils.escapeHTML(whitespace)
+            }
+            
+            let cssClass = cssPrefix + token.tokenType.rawValue
+            html += "<span class=\"\(cssClass)\">\(escapedContent)</span>"
+            lastEndIndex = token.range.upperBound
+        }
+        
+        // Add any remaining content after the last token
+        if let lastEnd = lastEndIndex, lastEnd < originalCode.endIndex {
+            let remaining = String(originalCode[lastEnd..<originalCode.endIndex])
+            html += RendererUtils.escapeHTML(remaining)
+        }
+        
+        return html
     }
 }

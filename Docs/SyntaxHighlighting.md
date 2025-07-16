@@ -5,11 +5,13 @@ SwiftMarkdownParser includes professional-grade syntax highlighting for code blo
 ## 🌟 Features
 
 - **6 Programming Languages**: JavaScript, TypeScript, Swift, Kotlin, Python, Bash
-- **3 Built-in Themes**: GitHub, Xcode, VS Code Dark
+- **3 Built-in Themes**: GitHub, Xcode, VS Code Dark (HTML renderer only)
 - **25+ Token Types**: Keywords, strings, comments, operators, types, functions, and more
 - **Modern Language Features**: ES6+, async/await, generics, coroutines, decorators
 - **Performance Optimized**: Actor-based engine registry with LRU caching
 - **Thread-Safe**: Built with Swift 6 concurrency patterns
+- **HTML Renderer**: Full syntax highlighting with CSS classes and themes
+- **SwiftUI Renderer**: Basic code blocks with monospace styling (no syntax highlighting)
 
 ## 🚀 Quick Start
 
@@ -37,8 +39,7 @@ let context = RenderContext(
     styleConfiguration: StyleConfiguration(
         syntaxHighlighting: SyntaxHighlightingConfig(
             enabled: true,
-            theme: .github,
-            cssPrefix: "hljs-"
+            cssPrefix: "hljs-"       // optional; default is "language-"
         )
     )
 )
@@ -50,7 +51,9 @@ let renderer = HTMLRenderer(context: context)
 let highlightedHTML = try await renderer.render(document: ast)
 ```
 
-### SwiftUI Integration
+### SwiftUI Integration (Basic Code Blocks Only)
+
+**Note**: SwiftUI renderer does NOT support syntax highlighting. It only renders plain monospace code blocks.
 
 ```swift
 import SwiftUI
@@ -95,14 +98,9 @@ struct MarkdownView: View {
             let parser = SwiftMarkdownParser()
             let ast = try await parser.parseToAST(markdown)
             
+            // Use a predefined SwiftUI style - NO syntax highlighting available
             let context = SwiftUIRenderContext(
-                styleConfiguration: SwiftUIStyleConfiguration(
-                    syntaxHighlighting: SwiftUISyntaxHighlightingConfig(
-                        enabled: true,
-                        theme: .xcode,
-                        codeFont: .system(.body, design: .monospaced)
-                    )
-                )
+                styleConfiguration: SwiftUIStyleConfiguration.github
             )
             
             let renderer = SwiftUIRenderer(context: context)
@@ -244,6 +242,8 @@ fi
 
 ## 🎨 Built-in Themes
 
+**Important**: Themes are only available for the HTML renderer. The SwiftUI renderer uses basic monospace styling without syntax highlighting.
+
 ### GitHub Theme
 Clean, professional styling matching GitHub's code blocks:
 - **Background**: Light gray (#f6f8fa)
@@ -272,9 +272,7 @@ Popular dark theme for developers:
 ```swift
 let syntaxConfig = SyntaxHighlightingConfig(
     enabled: true,
-    theme: .github,           // .github, .xcode, or .vsCodeDark
-    cssPrefix: "hljs-",       // CSS class prefix
-    includeThemeCSS: true     // Include theme CSS in output
+    cssPrefix: "hljs-"   // optional; default is "language-"
 )
 
 let context = RenderContext(
@@ -286,65 +284,56 @@ let context = RenderContext(
 
 ### SwiftUI Renderer Configuration
 
-```swift
-let swiftUIConfig = SwiftUISyntaxHighlightingConfig(
-    enabled: true,
-    theme: .xcode,
-    codeFont: .system(.body, design: .monospaced),
-    backgroundColor: Color.gray.opacity(0.1),
-    cornerRadius: 8.0
-)
+**Note**: SwiftUI renderer does not support syntax highlighting. Only basic styling is available.
 
+```swift
 let context = SwiftUIRenderContext(
     styleConfiguration: SwiftUIStyleConfiguration(
-        syntaxHighlighting: swiftUIConfig
+        // Only basic code styling - no syntax highlighting
+        codeFont: .system(.body, design: .monospaced),
+        codeTextColor: .primary,
+        codeBackgroundColor: Color.gray.opacity(0.1),
+        codeCornerRadius: 8.0
     )
 )
 ```
 
 ## 🎨 Custom Themes
 
-### Creating Custom Themes
+### Creating Custom Themes (HTML Renderer Only)
 
 ```swift
-let customTheme = SyntaxHighlightingTheme(
-    name: "Custom Dark",
-    backgroundColor: Color.black,
-    textColor: Color.white,
-    tokenColors: [
-        .keyword: Color.blue,
-        .string: Color.green,
-        .comment: Color.gray,
-        .number: Color.orange,
-        .function: Color.yellow,
-        .type: Color.cyan,
-        .operator: Color.red,
-        .builtin: Color.purple,
-        .variable: Color.white,
-        .constant: Color.orange,
-        .attribute: Color.pink,
-        .generic: Color.cyan,
-        .method: Color.yellow,
-        .property: Color.lightBlue,
-        .parameter: Color.white,
-        .modifier: Color.blue,
-        .template: Color.green,
-        .interpolation: Color.yellow,
-        .regex: Color.green,
-        .escape: Color.red
-    ]
-)
-
-// Use in HTML rendering
+// Custom CSS classes for HTML output
 let context = RenderContext(
     styleConfiguration: StyleConfiguration(
         syntaxHighlighting: SyntaxHighlightingConfig(
             enabled: true,
-            theme: customTheme,
             cssPrefix: "custom-"
-        )
+        ),
+        cssClasses: [
+            .codeBlock: "my-code-block"
+        ]
     )
 )
+
+// Then provide your own CSS rules:
+// .custom-keyword { color: #0066cc; }
+// .custom-string { color: #009900; }
+// .custom-comment { color: #888888; }
+```
+
+### SwiftUI Basic Styling
+
+```swift
+// Only basic styling available for SwiftUI
+let customStyle = SwiftUIStyleConfiguration(
+    codeFont: .system(.footnote, design: .monospaced),
+    codeTextColor: Color.blue,
+    codeBackgroundColor: Color.gray.opacity(0.05),
+    codeCornerRadius: 4.0
+)
+
+let context = SwiftUIRenderContext(styleConfiguration: customStyle)
 ```
 
 ### Theme Color Mapping
@@ -386,13 +375,13 @@ The syntax highlighting system includes an intelligent caching mechanism:
 let registry = SyntaxHighlightingRegistry()
 
 // Get cache statistics
-let stats = await registry.getCacheStatistics()
+let cache = SyntaxHighlightingCache()
+let stats = await cache.getStatistics()
 print("Cache entries: \(stats["entryCount"] ?? 0)")
 print("Total hits: \(stats["totalHits"] ?? 0)")
-print("Hit rate: \(stats["hitRate"] ?? 0.0)")
 
 // Clear cache if needed
-await registry.clearCache()
+await cache.clearCache()
 ```
 
 ### Performance Features
@@ -405,13 +394,15 @@ await registry.clearCache()
 
 ### Benchmarks
 
-Performance characteristics for different code block sizes:
+Performance characteristics for different code block sizes (HTML renderer):
 
 | Lines of Code | Highlighting Time | Memory Usage |
 |---------------|-------------------|--------------|
 | 10-50 lines   | < 1ms            | < 10KB       |
 | 100-500 lines | < 5ms            | < 50KB       |
 | 1000+ lines   | < 20ms           | < 200KB      |
+
+**Note**: SwiftUI renderer performance is simpler as it doesn't perform syntax highlighting.
 
 ## 🔧 Advanced Usage
 
@@ -425,7 +416,7 @@ let tokens = try await jsEngine.highlight(
     language: "javascript"
 )
 
-// Process tokens
+// Process tokens for HTML output
 for token in tokens {
     print("\(token.content): \(token.tokenType)")
 }
@@ -478,58 +469,22 @@ swift test --filter SyntaxHighlightingEngineTests
 # Run specific language tests
 swift test --filter test_swiftEngine
 swift test --filter test_javascriptEngine
+
+# Run integration tests (HTML renderer)
+swift test --filter SyntaxHighlightingIntegrationTests
 ```
 
 ### Test Coverage
 
 - **Engine Tests**: Each language engine has dedicated tests
-- **Theme Tests**: Color theme functionality
+- **Theme Tests**: Color theme functionality (HTML only)
 - **Registry Tests**: Engine registration and caching
 - **Performance Tests**: Large code block handling
 - **Edge Cases**: Malformed code, empty blocks, special characters
 
-## 🤝 Contributing
-
-### Adding New Languages
-
-To add support for a new programming language:
-
-1. **Create Engine**: Implement `SyntaxHighlightingEngine` protocol
-2. **Define Tokens**: Create language-specific token definitions
-3. **Add Tests**: Write comprehensive test cases
-4. **Register Engine**: Add to the built-in registry
-5. **Update Documentation**: Add examples and usage notes
-
-Example engine structure:
-
-```swift
-public struct NewLanguageEngine: SyntaxHighlightingEngine {
-    public func highlight(_ code: String, language: String) async throws -> [SyntaxToken] {
-        // Tokenization logic
-    }
-    
-    public func supportedLanguages() -> Set<String> {
-        return ["newlang"]
-    }
-    
-    // Private parsing methods
-    private func parseKeywords(_ code: String) -> [SyntaxToken] { /* ... */ }
-    private func parseStrings(_ code: String) -> [SyntaxToken] { /* ... */ }
-}
-```
-
-### Adding New Themes
-
-To create new built-in themes:
-
-1. **Define Theme**: Create `SyntaxHighlightingTheme` instance
-2. **Add to Extensions**: Include in built-in theme extensions
-3. **Test Colors**: Ensure good contrast and readability
-4. **Update Documentation**: Add theme examples
-
 ## 📚 Examples
 
-### Complete HTML Example
+### Complete HTML Example with Syntax Highlighting
 
 ```swift
 import SwiftMarkdownParser
@@ -569,35 +524,6 @@ struct App {
     }
 }
 ```
-
-## Database (Python)
-```python
-from sqlalchemy import create_engine, Column, Integer, String
-from sqlalchemy.ext.declarative import declarative_base
-
-Base = declarative_base()
-
-class User(Base):
-    __tablename__ = 'users'
-    
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)
-    email = Column(String(255), unique=True)
-```
-
-## Deployment (Bash)
-```bash
-#!/bin/bash
-set -e
-
-echo "Deploying application..."
-docker build -t myapp:latest .
-docker push myapp:latest
-
-kubectl apply -f k8s/
-kubectl rollout status deployment/myapp
-echo "Deployment complete!"
-```
 """
 
 async func generateHighlightedHTML() throws -> String {
@@ -608,9 +534,7 @@ async func generateHighlightedHTML() throws -> String {
         styleConfiguration: StyleConfiguration(
             syntaxHighlighting: SyntaxHighlightingConfig(
                 enabled: true,
-                theme: .github,
-                cssPrefix: "hljs-",
-                includeThemeCSS: true
+                cssPrefix: "hljs-"
             ),
             cssClasses: [
                 .codeBlock: "code-block highlighted",
@@ -628,8 +552,75 @@ let html = try await generateHighlightedHTML()
 print(html)
 ```
 
-This will generate HTML with proper syntax highlighting for all four languages, complete with CSS classes and theme styling.
+### SwiftUI Example (Basic Code Blocks)
+
+```swift
+import SwiftUI
+import SwiftMarkdownParser
+
+struct SwiftUICodeExample: View {
+    let codeMarkdown = """
+    ```swift
+    let message = "Hello, World!"
+    print(message)
+    ```
+    """
+    
+    @State private var renderedView: AnyView?
+    
+    var body: some View {
+        VStack {
+            if let view = renderedView {
+                view
+            } else {
+                ProgressView("Rendering...")
+            }
+        }
+        .task {
+            await renderCode()
+        }
+    }
+    
+    private func renderCode() async {
+        do {
+            let parser = SwiftMarkdownParser()
+            let ast = try await parser.parseToAST(codeMarkdown)
+            
+            // SwiftUI basic styling - no syntax highlighting
+            let context = SwiftUIRenderContext(
+                styleConfiguration: SwiftUIStyleConfiguration(
+                    codeFont: .system(.body, design: .monospaced),
+                    codeTextColor: .primary,
+                    codeBackgroundColor: Color.gray.opacity(0.1)
+                )
+            )
+            
+            let renderer = SwiftUIRenderer(context: context)
+            let view = try await renderer.render(document: ast)
+            
+            await MainActor.run {
+                self.renderedView = view
+            }
+        } catch {
+            await MainActor.run {
+                self.renderedView = AnyView(Text("Error: \(error.localizedDescription)"))
+            }
+        }
+    }
+}
+```
+
+## 📋 Renderer Comparison
+
+| Feature | HTML Renderer | SwiftUI Renderer |
+|---------|---------------|------------------|
+| Syntax Highlighting | ✅ Full support | ❌ Not supported |
+| Themes | ✅ 3 built-in themes | ❌ Basic styling only |
+| Token-level styling | ✅ 25+ token types | ❌ Plain text only |
+| Custom CSS classes | ✅ Configurable | ❌ N/A |
+| Performance | ✅ Cached highlighting | ✅ Simple rendering |
+| Use case | Web/HTML output | Native iOS/macOS apps |
 
 ---
 
-**The syntax highlighting system in SwiftMarkdownParser provides professional-grade code block rendering with modern language support, beautiful themes, and excellent performance.** 🎨✨ 
+**The syntax highlighting system in SwiftMarkdownParser provides professional-grade code block rendering for HTML output with modern language support, beautiful themes, and excellent performance. For SwiftUI applications, basic monospace code blocks are provided without syntax highlighting.** 🎨✨ 

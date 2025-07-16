@@ -524,8 +524,8 @@ final class HTMLRendererTests: XCTestCase {
         let codeBlock = AST.CodeBlockNode(content: "let x = 42", language: "swift")
         let html = try await customRenderer.render(node: codeBlock)
         
-        XCTAssertEqual(html, "<pre><code>let x = 42</code></pre>\n")
-        XCTAssertFalse(html.contains("language-swift"))
+        XCTAssertEqual(html, "<pre><code class=\"language-swift\">let x = 42</code></pre>\n")
+        XCTAssertFalse(html.contains("hljs-"))  // Should not contain syntax highlighting classes
     }
     
     func test_renderWithCustomSyntaxHighlightingPrefix() async throws {
@@ -542,8 +542,8 @@ final class HTMLRendererTests: XCTestCase {
         let codeBlock = AST.CodeBlockNode(content: "let x = 42", language: "swift")
         let html = try await customRenderer.render(node: codeBlock)
         
-        XCTAssertTrue(html.contains("hljs-swift"))
-        XCTAssertFalse(html.contains("language-swift"))
+        XCTAssertTrue(html.contains("hljs-keyword"))  // Should contain syntax highlighting with custom prefix
+        XCTAssertTrue(html.contains("language-swift"))  // Should still have language class on code element
     }
     
     // MARK: - URL Normalization Tests
