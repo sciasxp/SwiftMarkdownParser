@@ -708,6 +708,12 @@ public final class MarkdownTokenizer {
         let startLocation = currentLocation
         var content = ""
         
+        // Only consider numbered lists if we're at the actual start of a line
+        // or after specific indentation (not just any whitespace)
+        if !isAtActualLineStart() {
+            return nil
+        }
+        
         // Read digits
         while !isAtEnd && currentChar.isNumber && content.count < 9 {
             content.append(currentChar)
@@ -736,6 +742,35 @@ public final class MarkdownTokenizer {
         }
         
         return Token(type: .listMarker, content: content, location: startLocation)
+    }
+    
+    /// Check if we're at the actual start of a line (column 1) or after valid list indentation
+    private func isAtActualLineStart() -> Bool {
+        // If we're at column 1, this is definitely line start
+        if column == 1 {
+            return true
+        }
+        
+        // For list markers, we need to be more careful about indentation
+        // Check if all characters before this on the current line are whitespace
+        // and we have a valid indentation amount (0-3 spaces for list markers)
+        var spaceCount = 0
+        var pos = position - 1
+        
+        while pos >= 0 && characters[pos] != "\n" && characters[pos] != "\r" {
+            if characters[pos] == " " {
+                spaceCount += 1
+            } else if characters[pos] == "\t" {
+                spaceCount += 4 // Treat tab as 4 spaces
+            } else {
+                // Non-whitespace character found before current position on this line
+                return false
+            }
+            pos -= 1
+        }
+        
+        // List markers can be indented by 0-3 spaces
+        return spaceCount <= 3
     }
     
     private func tokenizeThematicBreak() -> Token? {

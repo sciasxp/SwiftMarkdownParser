@@ -26,7 +26,7 @@ public final class InlineParser {
         // Protection mechanisms
         var lastTokenPosition = -1
         var stuckPositionCount = 0
-        let maxStuckPositions = 10 // Prevent infinite loops from position not advancing
+        let maxStuckPositions = 50 // Prevent infinite loops from position not advancing (increased threshold)
         
         let startTime = Date()
         let maxParsingTime = configuration.maxParsingTime
@@ -69,7 +69,7 @@ public final class InlineParser {
         // Protection mechanisms
         var lastTokenPosition = -1
         var stuckPositionCount = 0
-        let maxStuckPositions = 10 // Prevent infinite loops from position not advancing
+        let maxStuckPositions = 50 // Prevent infinite loops from position not advancing (increased threshold)
         
         let startTime = Date()
         let maxParsingTime = configuration.maxParsingTime
@@ -146,6 +146,9 @@ public final class InlineParser {
             } else {
                 return [AST.TextNode(content: tokenStream.consume().content)]
             }
+        case .htmlTag:
+            // Handle HTML tags - treat as text content when inside code spans or other contexts
+            return [AST.TextNode(content: tokenStream.consume().content)]
         case .autolink:
             // Handle autolinks
             if let autolink = parseAutolink() {
@@ -272,13 +275,18 @@ public final class InlineParser {
     
     private func parseCodeSpan() throws -> AST.CodeSpanNode? {
         let startLocation = tokenStream.current.location
+        let startPosition = tokenStream.currentPosition
         let openingToken = tokenStream.consume()
         let backtickCount = openingToken.content.count
         
         var content = ""
         var foundClosing = false
         
-        while !tokenStream.isAtEnd {
+        // Add protection against infinite loops specifically in code span parsing
+        var iterations = 0
+        let maxIterations = 1000 // Reasonable limit for code span content
+        
+        while !tokenStream.isAtEnd && iterations < maxIterations {
             let token = tokenStream.current
             
             if token.type == .backtick && token.content.count == backtickCount {
@@ -287,12 +295,21 @@ public final class InlineParser {
                 break
             }
             
+            // Accept any token type inside code spans - they should all be treated as literal content
             content += token.content
             tokenStream.advance()
+            iterations += 1
+        }
+        
+        if iterations >= maxIterations {
+            // Fallback: backtrack and treat as regular text
+            tokenStream.setPosition(startPosition)
+            return nil
         }
         
         guard foundClosing else {
-            // No closing backticks, treat as regular text
+            // No closing backticks, backtrack and treat as regular text
+            tokenStream.setPosition(startPosition)
             return nil
         }
         
