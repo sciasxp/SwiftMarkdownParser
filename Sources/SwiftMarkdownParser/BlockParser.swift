@@ -93,7 +93,8 @@ public final class BlockParser {
             if token.content.count >= 3 {
                 return try parseFencedCodeBlock()
             }
-            fallthrough
+            // Single backticks should be treated as part of a paragraph, not as code blocks
+            return try parseParagraph()
             
         case .indentedCodeBlock:
             return try parseIndentedCodeBlock()
@@ -135,27 +136,9 @@ public final class BlockParser {
         // Skip whitespace after #
         skipWhitespace()
         
-        // Parse inline content until end of line
-        var children: [ASTNode] = []
-        var textContent = ""
-        
-        while !tokenStream.isAtEnd && !tokenStream.check(.newline) {
-            let token = tokenStream.consume()
-            if token.type == .text || token.type == .whitespace {
-                textContent += token.content
-            }
-            // TODO: Parse inline elements here
-        }
-        
-        // Remove trailing # characters and whitespace
-        textContent = textContent.trimmingCharacters(in: .whitespacesAndNewlines)
-        if textContent.hasSuffix("#") {
-            textContent = String(textContent.dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        
-        if !textContent.isEmpty {
-            children.append(AST.TextNode(content: textContent, sourceLocation: startLocation))
-        }
+        // Use the inline parser to properly handle the heading content
+        let inlineParser = InlineParser(tokenStream: tokenStream, configuration: configuration)
+        let children = try inlineParser.parseInlines(until: [.newline, .eof])
         
         return AST.HeadingNode(
             level: level,
@@ -182,21 +165,26 @@ public final class BlockParser {
         }
         
         // Check for underline
+
         guard !tokenStream.isAtEnd else {
             tokenStream.setPosition(startPosition)
             return nil
         }
-        
+
         let underlineToken = tokenStream.current
-        let isLevel1 = underlineToken.content.contains("=")
-        let isLevel2 = underlineToken.content.contains("-")
-        
+
+        // A valid setext underline must be at least 3 consecutive '=' or '-' characters
+        // and must not include other characters.
+        let trimmedContent = underlineToken.content.trimmingCharacters(in: .whitespaces)
+        let isLevel1 = trimmedContent.allSatisfy { $0 == "=" } && trimmedContent.count >= 3
+        let isLevel2 = trimmedContent.allSatisfy { $0 == "-" } && trimmedContent.count >= 3
+
         guard isLevel1 || isLevel2 else {
             tokenStream.setPosition(startPosition)
             return nil
         }
-        
-        // Consume underline
+
+        // Consume underline token and any trailing newline
         tokenStream.advance()
         
         // Create heading
@@ -644,33 +632,12 @@ public final class BlockParser {
     
     private func parseParagraph() throws -> AST.ParagraphNode {
         let startLocation = tokenStream.current.location
-        var children: [ASTNode] = []
-        var textContent = ""
         
-        // Collect text until blank line or block element
-        while !tokenStream.isAtEnd && !isBlockBoundary() {
-            let token = tokenStream.consume()
-            
-            switch token.type {
-            case .text, .whitespace:
-                textContent += token.content
-            case .newline:
-                // Single newline becomes space in paragraph
-                if !textContent.isEmpty && !textContent.hasSuffix(" ") {
-                    textContent += " "
-                }
-            default:
-                // TODO: Handle inline elements
-                textContent += token.content
-            }
-        }
+        // Use inline parser to properly handle inline elements like code spans, emphasis, etc.
+        let inlineParser = InlineParser(tokenStream: tokenStream, configuration: configuration)
+        let inlineNodes = try inlineParser.parseInlines(until: [.newline, .eof])
         
-        textContent = textContent.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !textContent.isEmpty {
-            children.append(AST.TextNode(content: textContent, sourceLocation: startLocation))
-        }
-        
-        return AST.ParagraphNode(children: children, sourceLocation: startLocation)
+        return AST.ParagraphNode(children: inlineNodes, sourceLocation: startLocation)
     }
     
     private func isBlockBoundary() -> Bool {
