@@ -1,37 +1,15 @@
-# SwiftUI Renderer Documentation
+# SwiftUI Renderer Guide
 
-Complete guide to using the SwiftMarkdownParser SwiftUI renderer for creating native iOS and macOS markdown views.
+Render Markdown as native SwiftUI views on iOS 17.0+/macOS 14.0+.
 
-## Table of Contents
-
-- [Quick Start](#quick-start)
-- [Requirements](#requirements)
-- [Basic Usage](#basic-usage)
-- [Styling and Theming](#styling-and-theming)
-- [Accessibility](#accessibility)
-- [Interactive Features](#interactive-features)
-- [Performance Optimization](#performance-optimization)
-- [Advanced Integration](#advanced-integration)
-- [Error Handling](#error-handling)
-- [Platform Differences](#platform-differences)
-- [API Reference](#api-reference)
-
-## Quick Start
+## Basic Usage
 
 ```swift
 import SwiftUI
 import SwiftMarkdownParser
 
 struct ContentView: View {
-    let markdown = "# Hello **SwiftUI**!\n\nThis is native SwiftUI rendering."
-    
-    var body: some View {
-        MarkdownView(markdown: markdown)
-    }
-}
-
-struct MarkdownView: View {
-    let markdown: String
+    let markdown = "# Hello **SwiftUI**!"
     @State private var content: AnyView?
     
     var body: some View {
@@ -59,19 +37,12 @@ struct MarkdownView: View {
             }
         } catch {
             await MainActor.run {
-                self.content = AnyView(Text("Error: \(error.localizedDescription)"))
+                self.content = AnyView(Text("Error loading markdown"))
             }
         }
     }
 }
 ```
-
-## Requirements
-
-- **iOS 17.0+** or **macOS 14.0+**
-- **Swift 6.0+**
-- **Xcode 16.0+**
-- **SwiftUI framework**
 
 ## Basic Usage
 
@@ -700,7 +671,7 @@ struct RobustMarkdownView: View {
                 self.renderState = .success(view)
             }
         } catch {
-            await MainActor.run {
+            await MainActor.run {  
                 self.renderState = .failure(error)
             }
         }
@@ -874,7 +845,3 @@ All CommonMark and GFM elements are fully supported:
 - **Task Lists**: Checkboxes with custom styling
 - **Block Quotes**: Styled containers with borders
 - **Thematic Breaks**: Dividers and separators
-
----
-
-**Next Steps**: Check out the [Parser Usage Documentation](ParserUsage.md) for comprehensive AST manipulation and configuration options. 

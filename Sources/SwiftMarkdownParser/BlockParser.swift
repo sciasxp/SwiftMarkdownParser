@@ -414,7 +414,7 @@ public final class BlockParser {
     
     // MARK: - Code Block Parsers
     
-    private func parseFencedCodeBlock() throws -> AST.CodeBlockNode {
+    private func parseFencedCodeBlock() throws -> ASTNode {
         let startLocation = tokenStream.current.location
         let fenceToken = tokenStream.consume()
         let fenceChar = fenceToken.content.first!
@@ -456,6 +456,15 @@ public final class BlockParser {
             tokenStream.advance()
         }
         
+        // Check if this is a Mermaid diagram
+        if let language = language, language.lowercased() == "mermaid" {
+            return AST.MermaidDiagramNode(
+                content: content,
+                sourceLocation: startLocation
+            )
+        }
+        
+        // Regular code block
         return AST.CodeBlockNode(
             content: content,
             language: language,
