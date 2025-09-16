@@ -58,6 +58,13 @@ public struct ASTNodeType: RawRepresentable, Hashable, Sendable {
     // GFM Extensions
     public static let taskListItem = ASTNodeType(rawValue: "taskListItem")
     public static let autolink = ASTNodeType(rawValue: "autolink")
+    
+    // Footnote Support
+    public static let footnoteReference = ASTNodeType(rawValue: "footnoteReference")
+    public static let footnoteDefinition = ASTNodeType(rawValue: "footnoteDefinition")
+    
+    // Mermaid Support
+    public static let mermaidDiagram = ASTNodeType(rawValue: "mermaidDiagram")
 }
 
 // MARK: - Source Location
@@ -534,6 +541,101 @@ public enum AST {
         public init(children: [ASTNode], sourceLocation: SourceLocation? = nil) {
             self.children = children
             self.sourceLocation = sourceLocation
+        }
+    }
+    
+    // MARK: - Footnote Support
+    
+    /// Footnote reference node ([^1])
+    public struct FootnoteReferenceNode: ASTNode, Sendable {
+        public let nodeType: ASTNodeType = .footnoteReference
+        public let children: [ASTNode] = []
+        public let sourceLocation: SourceLocation?
+        
+        /// The footnote identifier
+        public let identifier: String
+        
+        public init(identifier: String, sourceLocation: SourceLocation? = nil) {
+            self.identifier = identifier
+            self.sourceLocation = sourceLocation
+        }
+    }
+    
+    /// Footnote definition node ([^1]: content)
+    public struct FootnoteDefinitionNode: ASTNode, Sendable {
+        public let nodeType: ASTNodeType = .footnoteDefinition
+        public let children: [ASTNode]
+        public let sourceLocation: SourceLocation?
+        
+        /// The footnote identifier
+        public let identifier: String
+        
+        public init(identifier: String, children: [ASTNode], sourceLocation: SourceLocation? = nil) {
+            self.identifier = identifier
+            self.children = children
+            self.sourceLocation = sourceLocation
+        }
+    }
+    
+    // MARK: - Mermaid Support
+    
+    /// Mermaid diagram node for rendering charts and diagrams
+    public struct MermaidDiagramNode: ASTNode, Sendable {
+        public let nodeType: ASTNodeType = .mermaidDiagram
+        public let children: [ASTNode] = []
+        public let sourceLocation: SourceLocation?
+        
+        /// Mermaid diagram definition content
+        public let content: String
+        
+        /// Optional diagram type (flowchart, sequence, gantt, etc.)
+        public let diagramType: String?
+        
+        public init(content: String, diagramType: String? = nil, sourceLocation: SourceLocation? = nil) {
+            self.content = content
+            self.diagramType = Self.detectDiagramType(from: content) ?? diagramType
+            self.sourceLocation = sourceLocation
+        }
+        
+        /// Detect the type of Mermaid diagram from content
+        private static func detectDiagramType(from content: String) -> String? {
+            let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            if trimmed.hasPrefix("graph") || trimmed.hasPrefix("flowchart") {
+                return "flowchart"
+            } else if trimmed.hasPrefix("sequenceDiagram") {
+                return "sequence"
+            } else if trimmed.hasPrefix("gantt") {
+                return "gantt"
+            } else if trimmed.hasPrefix("classDiagram") {
+                return "class"
+            } else if trimmed.hasPrefix("stateDiagram") {
+                return "state"
+            } else if trimmed.hasPrefix("erDiagram") {
+                return "er"
+            } else if trimmed.hasPrefix("journey") {
+                return "journey"
+            } else if trimmed.hasPrefix("gitGraph") {
+                return "git"
+            } else if trimmed.hasPrefix("pie") {
+                return "pie"
+            } else if trimmed.hasPrefix("quadrantChart") {
+                return "quadrant"
+            } else if trimmed.hasPrefix("requirementDiagram") {
+                return "requirement"
+            } else if trimmed.hasPrefix("C4Context") || trimmed.hasPrefix("C4Container") || trimmed.hasPrefix("C4Component") || trimmed.hasPrefix("C4Dynamic") || trimmed.hasPrefix("C4Deployment") {
+                return "c4"
+            } else if trimmed.hasPrefix("mindmap") {
+                return "mindmap"
+            } else if trimmed.hasPrefix("timeline") {
+                return "timeline"
+            } else if trimmed.hasPrefix("zenuml") {
+                return "zenuml"
+            } else if trimmed.hasPrefix("sankey") {
+                return "sankey"
+            }
+            
+            return nil
         }
     }
 }

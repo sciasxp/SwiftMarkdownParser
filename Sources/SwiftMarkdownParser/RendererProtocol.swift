@@ -35,6 +35,9 @@ public struct RenderContext: Sendable {
     /// Custom CSS classes or styling information
     public let styleConfiguration: StyleConfiguration
     
+    /// Configuration for Mermaid diagram rendering
+    public let mermaidConfiguration: MermaidConfiguration
+    
     /// Link reference definitions from the document
     public let linkReferences: [String: LinkReference]
     
@@ -45,12 +48,14 @@ public struct RenderContext: Sendable {
         baseURL: URL? = nil,
         sanitizeHTML: Bool = true,
         styleConfiguration: StyleConfiguration = .default,
+        mermaidConfiguration: MermaidConfiguration = .default,
         linkReferences: [String: LinkReference] = [:],
         depth: Int = 0
     ) {
         self.baseURL = baseURL
         self.sanitizeHTML = sanitizeHTML
         self.styleConfiguration = styleConfiguration
+        self.mermaidConfiguration = mermaidConfiguration
         self.linkReferences = linkReferences
         self.depth = depth
     }
@@ -61,6 +66,7 @@ public struct RenderContext: Sendable {
             baseURL: baseURL,
             sanitizeHTML: sanitizeHTML,
             styleConfiguration: styleConfiguration,
+            mermaidConfiguration: mermaidConfiguration,
             linkReferences: linkReferences,
             depth: depth + 1
         )

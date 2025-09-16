@@ -17,6 +17,24 @@
             "name": "Release TestListParsing",
             "program": "${workspaceFolder:markdown}/.build/release/TestListParsing",
             "preLaunchTask": "swift: Build Release TestListParsing"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:markdown}",
+            "name": "Debug WebViewTest",
+            "program": "${workspaceFolder:markdown}/.build/debug/WebViewTest",
+            "preLaunchTask": "swift: Build Debug WebViewTest"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:markdown}",
+            "name": "Release WebViewTest",
+            "program": "${workspaceFolder:markdown}/.build/release/WebViewTest",
+            "preLaunchTask": "swift: Build Release WebViewTest"
         }
     ]
 }

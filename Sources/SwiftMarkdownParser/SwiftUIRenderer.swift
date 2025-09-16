@@ -6,6 +6,10 @@
 import SwiftUI
 import Foundation
 
+#if canImport(WebKit)
+import WebKit
+#endif
+
 // MARK: - SwiftUIRenderer
 
 /// SwiftUI renderer that converts markdown AST nodes to SwiftUI views
@@ -103,6 +107,10 @@ public struct SwiftUIRenderer: MarkdownRenderer {
             
         case let tableNode as AST.GFMTableNode:
             return try await renderTable(tableNode)
+            
+        // Mermaid Support
+        case let mermaidNode as AST.MermaidDiagramNode:
+            return renderMermaidDiagram(mermaidNode)
             
         default:
             throw RendererError.unsupportedNodeType(node.nodeType)
@@ -792,7 +800,82 @@ extension SwiftUIRenderer {
     }
 }
 
+// MARK: - Mermaid Rendering
 
+@available(iOS 17.0, macOS 14.0, *)
+extension SwiftUIRenderer {
+    
+    /// Render Mermaid diagram node
+    private func renderMermaidDiagram(_ node: AST.MermaidDiagramNode) -> AnyView {
+        // For now, always use fallback rendering to avoid MainActor complexity
+        return renderMermaidFallback(node)
+    }
+    
+    /// Fallback rendering for Mermaid when WebView is not available
+    private func renderMermaidFallback(_ node: AST.MermaidDiagramNode) -> AnyView {
+        return AnyView(
+            VStack(alignment: .leading, spacing: 8) {
+                // Header with diagram type
+                HStack {
+                    Image(systemName: "chart.bar.fill")
+                        .foregroundColor(.blue)
+                    Text("Mermaid Diagram")
+                        .font(context.styleConfiguration.codeFont.bold())
+                        .foregroundColor(context.styleConfiguration.textColor)
+                    
+                    if let diagramType = node.diagramType {
+                        Text("(\(diagramType))")
+                            .font(context.styleConfiguration.codeFont)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.horizontal, context.styleConfiguration.codeBlockPadding)
+                .padding(.top, context.styleConfiguration.codeBlockPadding)
+                
+                // Code content
+                ScrollView(.horizontal) {
+                    Text(node.content)
+                        .font(context.styleConfiguration.codeFont)
+                        .foregroundColor(context.styleConfiguration.codeTextColor)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, context.styleConfiguration.codeBlockPadding)
+                        .padding(.bottom, context.styleConfiguration.codeBlockPadding)
+                }
+            }
+            .background(context.styleConfiguration.codeBackgroundColor)
+            .cornerRadius(context.styleConfiguration.codeCornerRadius)
+            .overlay(
+                RoundedRectangle(cornerRadius: context.styleConfiguration.codeCornerRadius)
+                    .stroke(Color.blue.opacity(0.3), lineWidth: 2)
+            )
+            .accessibilityLabel("Mermaid diagram: \(node.diagramType ?? "unknown type")")
+            .accessibilityValue(node.content)
+            .accessibilityAddTraits(.isStaticText)
+        )
+    }
+}
+
+#if canImport(WebKit)
+/// Wrapper view for MermaidWebView that handles MainActor requirements
+@available(iOS 17.0, macOS 14.0, *)
+struct MermaidWebViewWrapper: View {
+    let diagramNode: AST.MermaidDiagramNode
+    let configuration: MermaidConfiguration
+    let styleConfiguration: SwiftUIStyleConfiguration
+    
+    var body: some View {
+        MermaidWebView(
+            diagramNode: diagramNode,
+            configuration: configuration
+        )
+        .frame(minHeight: 200)
+        .background(styleConfiguration.codeBackgroundColor)
+        .cornerRadius(styleConfiguration.codeCornerRadius)
+        .accessibilityLabel("Mermaid diagram: \(diagramNode.diagramType ?? "unknown type")")
+        .accessibilityAddTraits(.isImage)
+    }
+}
+#endif
 
 // MARK: - Async Array Extension
 

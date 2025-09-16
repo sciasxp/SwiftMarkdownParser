@@ -518,6 +518,61 @@ public final class SwiftMarkdownParser: Sendable {
         let htmlRenderer = HTMLRenderer(context: context)
         return try await htmlRenderer.render(document: ast)
     }
+    
+    /// Convenience method to parse Markdown and render to HTML with an enhanced dark Mermaid theme.
+    /// This dark theme includes improved label visibility and contrast.
+    /// 
+    /// - Parameter markdown: The Markdown text to parse
+    /// - Returns: HTML string representation with enhanced dark theme for Mermaid diagrams
+    /// - Throws: `MarkdownParserError` or `RendererError` if parsing or rendering fails
+    public func parseToHTMLWithDarkTheme(_ markdown: String) async throws -> String {
+        let context = RenderContext(mermaidConfiguration: .dark)
+        return try await parseToHTML(markdown, context: context)
+    }
+    
+    /// Convenience method to parse Markdown and render to HTML with a high contrast dark Mermaid theme.
+    /// This theme provides maximum visibility for labels and text elements.
+    /// 
+    /// - Parameter markdown: The Markdown text to parse
+    /// - Returns: HTML string representation with high contrast dark theme for Mermaid diagrams
+    /// - Throws: `MarkdownParserError` or `RendererError` if parsing or rendering fails
+    public func parseToHTMLWithDarkHighContrastTheme(_ markdown: String) async throws -> String {
+        let context = RenderContext(mermaidConfiguration: .darkHighContrast)
+        return try await parseToHTML(markdown, context: context)
+    }
+    
+    /// Convenience method to parse Markdown and render to HTML with a forest Mermaid theme.
+    /// 
+    /// - Parameter markdown: The Markdown text to parse
+    /// - Returns: HTML string representation with forest theme for Mermaid diagrams
+    /// - Throws: `MarkdownParserError` or `RendererError` if parsing or rendering fails
+    public func parseToHTMLWithForestTheme(_ markdown: String) async throws -> String {
+        let mermaidConfig = MermaidConfiguration(theme: .forest)
+        let context = RenderContext(mermaidConfiguration: mermaidConfig)
+        return try await parseToHTML(markdown, context: context)
+    }
+    
+    /// Convenience method to parse Markdown and render to HTML with a neutral Mermaid theme.
+    /// 
+    /// - Parameter markdown: The Markdown text to parse
+    /// - Returns: HTML string representation with neutral theme for Mermaid diagrams
+    /// - Throws: `MarkdownParserError` or `RendererError` if parsing or rendering fails
+    public func parseToHTMLWithNeutralTheme(_ markdown: String) async throws -> String {
+        let mermaidConfig = MermaidConfiguration(theme: .neutral)
+        let context = RenderContext(mermaidConfiguration: mermaidConfig)
+        return try await parseToHTML(markdown, context: context)
+    }
+    
+    /// Convenience method to parse Markdown and render to HTML with a base Mermaid theme.
+    /// 
+    /// - Parameter markdown: The Markdown text to parse
+    /// - Returns: HTML string representation with base theme for Mermaid diagrams
+    /// - Throws: `MarkdownParserError` or `RendererError` if parsing or rendering fails
+    public func parseToHTMLWithBaseTheme(_ markdown: String) async throws -> String {
+        let mermaidConfig = MermaidConfiguration(theme: .base)
+        let context = RenderContext(mermaidConfiguration: mermaidConfig)
+        return try await parseToHTML(markdown, context: context)
+    }
 }
 
 // MARK: - Parser Errors
@@ -566,12 +621,77 @@ public struct HTMLRenderer: MarkdownRenderer {
     
     public func render(document: AST.DocumentNode) async throws -> String {
         var html = ""
+        var mermaidDiagrams: [(node: AST.MermaidDiagramNode, id: String)] = []
         
+        // First pass: collect all Mermaid diagrams
+        collectMermaidDiagrams(from: document, into: &mermaidDiagrams)
+        
+        // Add Mermaid initialization if there are diagrams
+        if !mermaidDiagrams.isEmpty && context.mermaidConfiguration.enabled {
+            // Add Mermaid script and initialization
+            html += generateMermaidInitializationScript()
+        }
+        
+        // Render all nodes
         for child in document.children {
             html += try await render(node: child)
         }
         
+        // Add Mermaid rendering trigger at the end
+        if !mermaidDiagrams.isEmpty && context.mermaidConfiguration.enabled {
+            html += """
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                if (typeof mermaid !== 'undefined') {
+                    mermaid.init();
+                }
+            });
+            </script>
+            """
+        }
+        
         return html
+    }
+    
+    private func collectMermaidDiagrams(from node: ASTNode, into diagrams: inout [(node: AST.MermaidDiagramNode, id: String)]) {
+        if let mermaidNode = node as? AST.MermaidDiagramNode {
+            let id = MermaidUtils.generateSafeId(from: mermaidNode.content)
+            diagrams.append((node: mermaidNode, id: id))
+        }
+        
+        for child in node.children {
+            collectMermaidDiagrams(from: child, into: &diagrams)
+        }
+    }
+    
+    private func generateMermaidInitializationScript() -> String {
+        switch context.mermaidConfiguration.renderMode {
+        case .embedded:
+            return """
+            <script>
+            \(MermaidRenderer.embeddedMermaidJS)
+            </script>
+            <script>
+            \(context.mermaidConfiguration.generateInitScript())
+            </script>
+            """
+            
+        case .cdn(let version):
+            return """
+            <script src="https://cdn.jsdelivr.net/npm/mermaid@\(version)/dist/mermaid.min.js"></script>
+            <script>
+            \(context.mermaidConfiguration.generateInitScript())
+            </script>
+            """
+            
+        case .custom(let url):
+            return """
+            <script src="\(url)"></script>
+            <script>
+            \(context.mermaidConfiguration.generateInitScript())
+            </script>
+            """
+        }
     }
     
     public func render(node: ASTNode) async throws -> String {
@@ -804,9 +924,50 @@ public struct HTMLRenderer: MarkdownRenderer {
         case let taskListItemNode as AST.GFMTaskListItemNode:
             return try await renderGFMTaskListItem(taskListItemNode)
             
+        // Mermaid Support
+        case let mermaidNode as AST.MermaidDiagramNode:
+            return renderMermaidDiagram(mermaidNode)
+            
+        // Footnote Support
+        case let footnoteRefNode as AST.FootnoteReferenceNode:
+            return renderFootnoteReference(footnoteRefNode)
+            
+        case let footnoteDefNode as AST.FootnoteDefinitionNode:
+            return try await renderFootnoteDefinition(footnoteDefNode)
+            
         default:
             throw RendererError.unsupportedNodeType(node.nodeType)
         }
+    }
+    
+    private func renderMermaidDiagram(_ mermaidNode: AST.MermaidDiagramNode) -> String {
+        let mermaidRenderer = MermaidRenderer(configuration: context.mermaidConfiguration)
+        return mermaidRenderer.renderMermaidDiagram(mermaidNode)
+    }
+    
+    private func renderFootnoteReference(_ footnoteRefNode: AST.FootnoteReferenceNode) -> String {
+        let attributes = RendererUtils.htmlAttributes(
+            for: .footnoteReference,
+            sourceLocation: footnoteRefNode.sourceLocation,
+            styleConfig: context.styleConfiguration
+        )
+        
+        return "<a href=\"#fn\(footnoteRefNode.identifier)\" class=\"footnote\" id=\"fnref\(footnoteRefNode.identifier)\"\(RendererUtils.formatHTMLAttributes(attributes))>\(footnoteRefNode.identifier)</a>"
+    }
+    
+    private func renderFootnoteDefinition(_ footnoteDefNode: AST.FootnoteDefinitionNode) async throws -> String {
+        var content = ""
+        for child in footnoteDefNode.children {
+            content += try await render(node: child)
+        }
+        
+        let attributes = RendererUtils.htmlAttributes(
+            for: .footnoteDefinition,
+            sourceLocation: footnoteDefNode.sourceLocation,
+            styleConfig: context.styleConfiguration
+        )
+        
+        return "<div class=\"footnote-definition\" id=\"fn\(footnoteDefNode.identifier)\"\(RendererUtils.formatHTMLAttributes(attributes))>\(content)<a href=\"#fnref\(footnoteDefNode.identifier)\" class=\"footnote-backref\">↩</a></div>"
     }
     
     private func renderCodeBlock(_ codeBlockNode: AST.CodeBlockNode) async throws -> String {

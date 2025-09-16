@@ -17,6 +17,9 @@ public struct SwiftUIRenderContext: Sendable {
     /// Style configuration for visual appearance
     public let styleConfiguration: SwiftUIStyleConfiguration
     
+    /// Configuration for Mermaid diagram rendering
+    public let mermaidConfiguration: MermaidConfiguration
+    
     /// Link handler for tap actions
     public let linkHandler: (@Sendable (URL) -> Void)?
     
@@ -38,6 +41,7 @@ public struct SwiftUIRenderContext: Sendable {
     public init(
         baseURL: URL? = nil,
         styleConfiguration: SwiftUIStyleConfiguration = SwiftUIStyleConfiguration(),
+        mermaidConfiguration: MermaidConfiguration = .default,
         linkHandler: (@Sendable (URL) -> Void)? = nil,
         imageHandler: (@Sendable (URL) -> AnyView)? = nil,
         maxDepth: Int = 50,
@@ -47,6 +51,7 @@ public struct SwiftUIRenderContext: Sendable {
     ) {
         self.baseURL = baseURL
         self.styleConfiguration = styleConfiguration
+        self.mermaidConfiguration = mermaidConfiguration
         self.linkHandler = linkHandler
         self.imageHandler = imageHandler
         self.maxDepth = maxDepth
@@ -60,6 +65,7 @@ public struct SwiftUIRenderContext: Sendable {
         SwiftUIRenderContext(
             baseURL: baseURL,
             styleConfiguration: styleConfiguration,
+            mermaidConfiguration: mermaidConfiguration,
             linkHandler: linkHandler,
             imageHandler: imageHandler,
             maxDepth: maxDepth,

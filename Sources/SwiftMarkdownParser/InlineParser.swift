@@ -223,7 +223,27 @@ public final class InlineParser {
                     tokenStream.advance()
                 }
                 
-                // Strong emphasis (2+ delimiters)
+                // Handle triple asterisks for bold+italic (***text***)
+                if delimiterCount >= 3 && closingCount >= 3 {
+                    // Put back extra delimiters
+                    let extraDelimiters = closingCount - 3
+                    if extraDelimiters > 0 {
+                        tokenStream.setPosition(tokenStream.currentPosition - 1)
+                    }
+                    
+                    // Create nested strong and emphasis nodes
+                    let emphasisNode = AST.EmphasisNode(
+                        children: content,
+                        sourceLocation: startLocation
+                    )
+                    
+                    return AST.StrongEmphasisNode(
+                        children: [emphasisNode],
+                        sourceLocation: startLocation
+                    )
+                }
+                
+                // Strong emphasis (2 delimiters)
                 if delimiterCount >= 2 && closingCount >= 2 {
                     // Put back extra delimiters
                     let extraDelimiters = closingCount - 2

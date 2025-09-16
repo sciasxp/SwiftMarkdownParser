@@ -13,6 +13,9 @@ let package = Package(
         .library(
             name: "SwiftMarkdownParser",
             targets: ["SwiftMarkdownParser"]),
+        .executable(
+            name: "WebViewTest",
+            targets: ["WebViewTest"]),
     ],
     dependencies: [
         // No external dependencies
@@ -23,6 +26,11 @@ let package = Package(
         .target(
             name: "SwiftMarkdownParser",
             dependencies: []),
+        .executableTarget(
+            name: "WebViewTest",
+            dependencies: ["SwiftMarkdownParser"],
+            path: "Examples",
+            sources: ["WebViewTest.swift"]),
         .testTarget(
             name: "SwiftMarkdownParserTests",
             dependencies: ["SwiftMarkdownParser"]),
