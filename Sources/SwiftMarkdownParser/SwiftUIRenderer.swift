@@ -855,14 +855,14 @@ extension SwiftUIRenderer {
     }
 }
 
-#if canImport(WebKit)
+#if os(macOS)
 /// Wrapper view for MermaidWebView that handles MainActor requirements
 @available(iOS 17.0, macOS 14.0, *)
 struct MermaidWebViewWrapper: View {
     let diagramNode: AST.MermaidDiagramNode
     let configuration: MermaidConfiguration
     let styleConfiguration: SwiftUIStyleConfiguration
-    
+
     var body: some View {
         MermaidWebView(
             diagramNode: diagramNode,

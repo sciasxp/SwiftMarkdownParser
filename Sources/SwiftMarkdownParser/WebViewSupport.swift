@@ -9,6 +9,8 @@ import WebKit
 
 // MARK: - WebView Support for SwiftUI
 
+#if os(macOS)
+
 /// SwiftUI view for displaying general markdown content in a WebView
 @available(iOS 17.0, macOS 14.0, *)
 public struct MarkdownWebView: View {
@@ -183,7 +185,8 @@ struct MarkdownWebViewRepresentable: NSViewRepresentable {
     
     @MainActor
     func updateNSView(_ webView: WKWebView, context: Context) {
-        Task {
+        context.coordinator.loadTask?.cancel()
+        context.coordinator.loadTask = Task {
             await loadMarkdownContent(in: webView)
         }
     }
@@ -206,18 +209,17 @@ struct MarkdownWebViewRepresentable: NSViewRepresentable {
             
             webView.loadHTMLString(html, baseURL: nil)
         } catch {
-            DispatchQueue.main.async {
-                self.isLoading = false
-                self.error = error
-                self.onRender?(.failure(error))
-            }
+            self.isLoading = false
+            self.error = error
+            self.onRender?(.failure(error))
         }
     }
     
+    @MainActor
     class MarkdownCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         let parent: MarkdownWebViewRepresentable
-        
-        @MainActor
+        var loadTask: Task<Void, Never>?
+
         init(parent: MarkdownWebViewRepresentable) {
             self.parent = parent
         }
@@ -287,10 +289,10 @@ struct MermaidWebViewRepresentable: NSViewRepresentable {
         webView.loadHTMLString(html, baseURL: nil)
     }
     
+    @MainActor
     class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         let parent: MermaidWebViewRepresentable
-        
-        @MainActor
+
         init(parent: MermaidWebViewRepresentable) {
             self.parent = parent
         }
@@ -315,6 +317,8 @@ struct MermaidWebViewRepresentable: NSViewRepresentable {
         }
     }
 }
+
+#endif // os(macOS)
 
 // MARK: - WebView HTML Generator
 
