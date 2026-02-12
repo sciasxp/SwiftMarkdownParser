@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "filepath=$(cat - | jq -r '.tool_input.file_path') && [[ \"$filepath\" == *.swift ]] && swiftlint lint --quiet \"$filepath\" || true",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
