@@ -767,24 +767,8 @@ public enum WebViewSupport {
     
     /// Generate math rendering support with KaTeX
     private static func generateMathSupport() -> String {
-        return """
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
-        <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            renderMathInElement(document.body, {
-                delimiters: [
-                    {left: "$$", right: "$$", display: true},
-                    {left: "$", right: "$", display: false},
-                    {left: "\\\\(", right: "\\\\)", display: false},
-                    {left: "\\\\[", right: "\\\\]", display: true}
-                ],
-                throwOnError: false
-            });
-        });
-        </script>
-        """
+        let renderer = KaTeXRenderer(configuration: .default)
+        return renderer.generateKaTeXHeadContent()
     }
     
     /// Generate footnote support script

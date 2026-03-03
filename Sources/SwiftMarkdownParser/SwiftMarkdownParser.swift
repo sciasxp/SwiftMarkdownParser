@@ -564,13 +564,37 @@ public final class SwiftMarkdownParser: Sendable {
     }
     
     /// Convenience method to parse Markdown and render to HTML with a base Mermaid theme.
-    /// 
+    ///
     /// - Parameter markdown: The Markdown text to parse
     /// - Returns: HTML string representation with base theme for Mermaid diagrams
     /// - Throws: `MarkdownParserError` or `RendererError` if parsing or rendering fails
     public func parseToHTMLWithBaseTheme(_ markdown: String) async throws -> String {
         let mermaidConfig = MermaidConfiguration(theme: .base)
         let context = RenderContext(mermaidConfiguration: mermaidConfig)
+        return try await parseToHTML(markdown, context: context)
+    }
+
+    /// Convenience method to parse Markdown and render to HTML with KaTeX math rendering support.
+    ///
+    /// Uses default KaTeX configuration (CDN v0.16.21, throwOnError: false).
+    ///
+    /// - Parameter markdown: The Markdown text to parse
+    /// - Returns: HTML string with KaTeX CSS/JS injected when math nodes are present
+    /// - Throws: `MarkdownParserError` or `RendererError` if parsing or rendering fails
+    public func parseToHTMLWithMath(_ markdown: String) async throws -> String {
+        let context = RenderContext(katexConfiguration: .default)
+        return try await parseToHTML(markdown, context: context)
+    }
+
+    /// Convenience method to parse Markdown and render to HTML with custom KaTeX configuration.
+    ///
+    /// - Parameters:
+    ///   - markdown: The Markdown text to parse
+    ///   - katexConfiguration: Custom KaTeX configuration
+    /// - Returns: HTML string with KaTeX CSS/JS injected when math nodes are present
+    /// - Throws: `MarkdownParserError` or `RendererError` if parsing or rendering fails
+    public func parseToHTMLWithMath(_ markdown: String, katexConfiguration: KaTeXConfiguration) async throws -> String {
+        let context = RenderContext(katexConfiguration: katexConfiguration)
         return try await parseToHTML(markdown, context: context)
     }
 }
@@ -622,21 +646,28 @@ public struct HTMLRenderer: MarkdownRenderer {
     public func render(document: AST.DocumentNode) async throws -> String {
         var html = ""
         var mermaidDiagrams: [(node: AST.MermaidDiagramNode, id: String)] = []
-        
+
         // First pass: collect all Mermaid diagrams
         collectMermaidDiagrams(from: document, into: &mermaidDiagrams)
-        
+
         // Add Mermaid initialization if there are diagrams
         if !mermaidDiagrams.isEmpty && context.mermaidConfiguration.enabled {
             // Add Mermaid script and initialization
             html += generateMermaidInitializationScript()
         }
-        
+
+        // Add KaTeX head content if math nodes are present
+        let hasMath = containsMathNodes(document)
+        if hasMath && context.katexConfiguration.enabled {
+            let katexRenderer = KaTeXRenderer(configuration: context.katexConfiguration)
+            html += katexRenderer.generateKaTeXHeadContent()
+        }
+
         // Render all nodes
         for child in document.children {
             html += try await render(node: child)
         }
-        
+
         // Add Mermaid rendering trigger at the end
         if !mermaidDiagrams.isEmpty && context.mermaidConfiguration.enabled {
             html += """
@@ -649,10 +680,22 @@ public struct HTMLRenderer: MarkdownRenderer {
             </script>
             """
         }
-        
+
         return html
     }
     
+    private func containsMathNodes(_ node: ASTNode) -> Bool {
+        if node is AST.MathBlockNode || node is AST.InlineMathNode {
+            return true
+        }
+        for child in node.children {
+            if containsMathNodes(child) {
+                return true
+            }
+        }
+        return false
+    }
+
     private func collectMermaidDiagrams(from node: ASTNode, into diagrams: inout [(node: AST.MermaidDiagramNode, id: String)]) {
         if let mermaidNode = node as? AST.MermaidDiagramNode {
             let id = MermaidUtils.generateSafeId(from: mermaidNode.content)
@@ -931,10 +974,19 @@ public struct HTMLRenderer: MarkdownRenderer {
         // Footnote Support
         case let footnoteRefNode as AST.FootnoteReferenceNode:
             return renderFootnoteReference(footnoteRefNode)
-            
+
         case let footnoteDefNode as AST.FootnoteDefinitionNode:
             return try await renderFootnoteDefinition(footnoteDefNode)
-            
+
+        // Math Support
+        case let mathBlockNode as AST.MathBlockNode:
+            let katexRenderer = KaTeXRenderer(configuration: context.katexConfiguration)
+            return katexRenderer.renderMathBlock(mathBlockNode)
+
+        case let inlineMathNode as AST.InlineMathNode:
+            let katexRenderer = KaTeXRenderer(configuration: context.katexConfiguration)
+            return katexRenderer.renderInlineMath(inlineMathNode)
+
         default:
             throw RendererError.unsupportedNodeType(node.nodeType)
         }

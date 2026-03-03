@@ -37,18 +37,22 @@ public struct RenderContext: Sendable {
     
     /// Configuration for Mermaid diagram rendering
     public let mermaidConfiguration: MermaidConfiguration
-    
+
+    /// Configuration for KaTeX math rendering
+    public let katexConfiguration: KaTeXConfiguration
+
     /// Link reference definitions from the document
     public let linkReferences: [String: LinkReference]
-    
+
     /// Current rendering depth (for nested elements)
     public let depth: Int
-    
+
     public init(
         baseURL: URL? = nil,
         sanitizeHTML: Bool = true,
         styleConfiguration: StyleConfiguration = .default,
         mermaidConfiguration: MermaidConfiguration = .default,
+        katexConfiguration: KaTeXConfiguration = .default,
         linkReferences: [String: LinkReference] = [:],
         depth: Int = 0
     ) {
@@ -56,10 +60,11 @@ public struct RenderContext: Sendable {
         self.sanitizeHTML = sanitizeHTML
         self.styleConfiguration = styleConfiguration
         self.mermaidConfiguration = mermaidConfiguration
+        self.katexConfiguration = katexConfiguration
         self.linkReferences = linkReferences
         self.depth = depth
     }
-    
+
     /// Create a new context with incremented depth
     public func incrementingDepth() -> RenderContext {
         RenderContext(
@@ -67,6 +72,7 @@ public struct RenderContext: Sendable {
             sanitizeHTML: sanitizeHTML,
             styleConfiguration: styleConfiguration,
             mermaidConfiguration: mermaidConfiguration,
+            katexConfiguration: katexConfiguration,
             linkReferences: linkReferences,
             depth: depth + 1
         )

@@ -111,7 +111,14 @@ public struct SwiftUIRenderer: MarkdownRenderer {
         // Mermaid Support
         case let mermaidNode as AST.MermaidDiagramNode:
             return renderMermaidDiagram(mermaidNode)
-            
+
+        // Math Support
+        case let mathBlockNode as AST.MathBlockNode:
+            return renderMathBlock(mathBlockNode)
+
+        case let inlineMathNode as AST.InlineMathNode:
+            return renderInlineMath(inlineMathNode)
+
         default:
             throw RendererError.unsupportedNodeType(node.nodeType)
         }
@@ -211,6 +218,7 @@ extension SwiftUIRenderer {
         switch node {
         case _ as AST.TextNode,
              _ as AST.CodeSpanNode,
+             _ as AST.InlineMathNode,
              _ as AST.LineBreakNode,
              _ as AST.SoftBreakNode,
              _ as AST.HTMLInlineNode:
@@ -277,7 +285,12 @@ extension SwiftUIRenderer {
             return Text(codeSpanNode.content)
                 .font(context.styleConfiguration.codeFont)
                 .foregroundColor(context.styleConfiguration.codeTextColor)
-            
+
+        case let inlineMathNode as AST.InlineMathNode:
+            return Text(inlineMathNode.content)
+                .font(context.styleConfiguration.codeFont)
+                .foregroundColor(context.styleConfiguration.codeTextColor)
+
         case let strikethroughNode as AST.StrikethroughNode:
             let childText = try await createCombinedText(from: strikethroughNode.children)
             return childText
@@ -800,11 +813,49 @@ extension SwiftUIRenderer {
     }
 }
 
+// MARK: - Math Rendering
+
+@available(iOS 17.0, macOS 14.0, *)
+extension SwiftUIRenderer {
+
+    /// Render math block node (display math)
+    private func renderMathBlock(_ node: AST.MathBlockNode) -> AnyView {
+        return AnyView(
+            ScrollView(.horizontal, showsIndicators: true) {
+                Text(node.content)
+                    .font(context.styleConfiguration.codeFont)
+                    .foregroundColor(context.styleConfiguration.codeTextColor)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(context.styleConfiguration.codeBlockPadding)
+            }
+            .background(context.styleConfiguration.codeBackgroundColor)
+            .cornerRadius(context.styleConfiguration.codeCornerRadius)
+            .accessibilityLabel("Math expression")
+            .accessibilityValue(node.content)
+            .accessibilityAddTraits(.isStaticText)
+        )
+    }
+
+    /// Render inline math node
+    private func renderInlineMath(_ node: AST.InlineMathNode) -> AnyView {
+        return AnyView(
+            Text(node.content)
+                .font(context.styleConfiguration.codeFont)
+                .foregroundColor(context.styleConfiguration.codeTextColor)
+                .padding(.horizontal, context.styleConfiguration.codeSpanPadding)
+                .background(context.styleConfiguration.codeBackgroundColor)
+                .cornerRadius(context.styleConfiguration.codeCornerRadius)
+                .accessibilityLabel("Math: \(node.content)")
+                .accessibilityAddTraits(.isStaticText)
+        )
+    }
+}
+
 // MARK: - Mermaid Rendering
 
 @available(iOS 17.0, macOS 14.0, *)
 extension SwiftUIRenderer {
-    
+
     /// Render Mermaid diagram node
     private func renderMermaidDiagram(_ node: AST.MermaidDiagramNode) -> AnyView {
         // For now, always use fallback rendering to avoid MainActor complexity

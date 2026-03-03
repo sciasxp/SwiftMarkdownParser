@@ -65,6 +65,10 @@ public struct ASTNodeType: RawRepresentable, Hashable, Sendable {
     
     // Mermaid Support
     public static let mermaidDiagram = ASTNodeType(rawValue: "mermaidDiagram")
+
+    // Math Support
+    public static let mathBlock = ASTNodeType(rawValue: "mathBlock")
+    public static let inlineMath = ASTNodeType(rawValue: "inlineMath")
 }
 
 // MARK: - Source Location
@@ -636,6 +640,37 @@ public enum AST {
             }
             
             return nil
+        }
+    }
+    // MARK: - Math Support
+
+    /// Math block node for display math ($$...$$)
+    public struct MathBlockNode: ASTNode, Sendable {
+        public let nodeType: ASTNodeType = .mathBlock
+        public let children: [ASTNode] = []
+        public let sourceLocation: SourceLocation?
+
+        /// Math content
+        public let content: String
+
+        public init(content: String, sourceLocation: SourceLocation? = nil) {
+            self.content = content
+            self.sourceLocation = sourceLocation
+        }
+    }
+
+    /// Inline math node for inline math ($...$)
+    public struct InlineMathNode: ASTNode, Sendable {
+        public let nodeType: ASTNodeType = .inlineMath
+        public let children: [ASTNode] = []
+        public let sourceLocation: SourceLocation?
+
+        /// Math content
+        public let content: String
+
+        public init(content: String, sourceLocation: SourceLocation? = nil) {
+            self.content = content
+            self.sourceLocation = sourceLocation
         }
     }
 }

@@ -89,6 +89,9 @@ public enum TokenType: String, CaseIterable, Sendable, Equatable {
     case hardBreak            // two spaces + newline
     case softBreak            // single newline
     
+    // Math
+    case dollarSign            // $
+
     // Special
     case eof                  // End of file
 }
@@ -109,6 +112,9 @@ public final class MarkdownTokenizer {
     private var fenceCharacter: Character? = nil
     private var fenceLength: Int = 0
     private var fenceStartColumn: Int = 0
+
+    // State tracking for math blocks
+    private var inMathBlock: Bool = false
     
     /// Initialize tokenizer with markdown text
     public init(_ input: String) {
@@ -173,7 +179,16 @@ public final class MarkdownTokenizer {
             // Otherwise, treat everything as text inside the code block
             return tokenizeTextInCodeBlock()
         }
-        
+
+        // Check for math block state
+        if inMathBlock {
+            if let closingMath = checkClosingMathBlock() {
+                inMathBlock = false
+                return closingMath
+            }
+            return tokenizeTextInCodeBlock()  // Reuse existing method
+        }
+
         // Check for line-start patterns (headers, lists, block quotes, etc.)
         if column == 1 || isAfterWhitespace() {
             if let lineStartToken = checkLineStartPatterns() {
@@ -217,6 +232,8 @@ public final class MarkdownTokenizer {
             return Token(type: .pipe, content: "|", location: startLocation)
         case "\\":
             return tokenizeBackslash()
+        case "$":
+            return tokenizeDollarSign()
         case "&":
             return tokenizeEntity()
         case "<":
@@ -324,7 +341,14 @@ public final class MarkdownTokenizer {
                 return fenceToken
             }
         }
-        
+
+        // Check for math blocks ($$)
+        if currentChar == "$" {
+            if let mathToken = tokenizeMathBlock() {
+                return mathToken
+            }
+        }
+
         return nil
     }
     
@@ -359,7 +383,7 @@ public final class MarkdownTokenizer {
     }
     
     private func isSpecialCharacter(_ char: Character) -> Bool {
-        return "*_#`~[]()!>|\\&<-+".contains(char) || char.isWhitespace
+        return "*_#`~[]()!>|\\&<-+$".contains(char) || char.isWhitespace
     }
     
     private func tokenizeAsterisk() -> Token {
@@ -923,6 +947,67 @@ public final class MarkdownTokenizer {
         return Token(type: .text, content: content, location: startLocation)
     }
     
+    private func tokenizeDollarSign() -> Token {
+        let startLocation = currentLocation
+        advance()
+        return Token(type: .dollarSign, content: "$", location: startLocation)
+    }
+
+    private func tokenizeMathBlock() -> Token? {
+        let startLocation = currentLocation
+
+        // Count $ characters
+        var count = 0
+        var pos = position
+        while pos < characters.count && characters[pos] == "$" {
+            count += 1
+            pos += 1
+        }
+
+        // Must be exactly 2 for a math block
+        guard count == 2 else { return nil }
+
+        // Consume both $ characters
+        advance()
+        advance()
+
+        inMathBlock = true
+        return Token(type: .dollarSign, content: "$$", location: startLocation)
+    }
+
+    private func checkClosingMathBlock() -> Token? {
+        let startLocation = currentLocation
+
+        guard currentChar == "$" else { return nil }
+
+        // Check for $$
+        var count = 0
+        var pos = position
+        while pos < characters.count && characters[pos] == "$" {
+            count += 1
+            pos += 1
+        }
+
+        guard count >= 2 else {
+            return nil
+        }
+
+        // Check that $$ is followed by only whitespace or end of line
+        var tempPos = position + 2
+        while tempPos < characters.count && characters[tempPos] != "\n" && characters[tempPos] != "\r" {
+            if !characters[tempPos].isWhitespace {
+                return nil
+            }
+            tempPos += 1
+        }
+
+        // Consume both $ characters
+        advance()
+        advance()
+
+        return Token(type: .dollarSign, content: "$$", location: startLocation)
+    }
+
     /// Attempt to detect a closing code fence that may be indented by up to three leading spaces.
     /// This ensures that we can preserve whitespace inside code blocks while still correctly
     /// terminating the fenced block when the specification allows indentation.
