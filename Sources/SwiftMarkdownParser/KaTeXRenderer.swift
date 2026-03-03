@@ -20,14 +20,24 @@ public struct KaTeXRenderer {
 
     /// Render a math block node to HTML with KaTeX container
     public func renderMathBlock(_ node: AST.MathBlockNode) -> String {
-        let escaped = RendererUtils.escapeHTML(node.content)
-        return "<div class=\"math math-display\">\(escaped)</div>\n"
+        return renderMath(content: node.content, isDisplay: true)
     }
 
     /// Render an inline math node to HTML
     public func renderInlineMath(_ node: AST.InlineMathNode) -> String {
-        let escaped = RendererUtils.escapeHTML(node.content)
-        return "<span class=\"math math-inline\">\(escaped)</span>"
+        return renderMath(content: node.content, isDisplay: false)
+    }
+
+    /// Render math content to HTML with appropriate container element and CSS classes
+    private func renderMath(content: String, isDisplay: Bool) -> String {
+        let escaped = RendererUtils.escapeHTML(content)
+        let displayClass = isDisplay ? KaTeXCSS.mathDisplay : KaTeXCSS.mathInline
+        let cssClasses = "\(KaTeXCSS.mathBase) \(displayClass)"
+        if isDisplay {
+            return "<div class=\"\(cssClasses)\">\(escaped)</div>\n"
+        } else {
+            return "<span class=\"\(cssClasses)\">\(escaped)</span>"
+        }
     }
 
     /// Generate all KaTeX head content (CSS + JS + init script)

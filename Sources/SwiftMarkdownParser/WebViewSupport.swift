@@ -765,10 +765,12 @@ public enum WebViewSupport {
         """
     }
     
+    /// Cached default KaTeX head content (always identical for .default config)
+    private static let defaultMathSupportHTML: String = KaTeXRenderer(configuration: .default).generateKaTeXHeadContent()
+
     /// Generate math rendering support with KaTeX
     private static func generateMathSupport() -> String {
-        let renderer = KaTeXRenderer(configuration: .default)
-        return renderer.generateKaTeXHeadContent()
+        return defaultMathSupportHTML
     }
     
     /// Generate footnote support script

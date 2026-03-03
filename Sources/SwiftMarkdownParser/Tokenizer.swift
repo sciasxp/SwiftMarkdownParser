@@ -382,8 +382,10 @@ public final class MarkdownTokenizer {
         return Token(type: .text, content: content, location: startLocation)
     }
     
+    private static let specialCharacters: Set<Character> = Set("*_#`~[]()!>|\\&<-+$")
+
     private func isSpecialCharacter(_ char: Character) -> Bool {
-        return "*_#`~[]()!>|\\&<-+$".contains(char) || char.isWhitespace
+        return Self.specialCharacters.contains(char) || char.isWhitespace
     }
     
     private func tokenizeAsterisk() -> Token {

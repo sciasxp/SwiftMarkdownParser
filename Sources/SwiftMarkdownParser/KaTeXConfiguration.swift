@@ -5,6 +5,15 @@
 
 import Foundation
 
+// MARK: - KaTeX CSS Class Names
+
+/// Shared CSS class name constants used by both the Swift renderer and the KaTeX init script
+public enum KaTeXCSS {
+    public static let mathBase = "math"
+    public static let mathDisplay = "math-display"
+    public static let mathInline = "math-inline"
+}
+
 // MARK: - KaTeX Configuration
 
 /// Configuration for KaTeX math rendering
@@ -76,9 +85,9 @@ public struct KaTeXConfiguration: Sendable {
         var script = """
         document.addEventListener("DOMContentLoaded", function() {
             if (typeof katex === 'undefined') { return; }
-            var mathElements = document.querySelectorAll('.math');
+            var mathElements = document.querySelectorAll('.\(KaTeXCSS.mathBase)');
             mathElements.forEach(function(el) {
-                var isDisplay = el.classList.contains('math-display');
+                var isDisplay = el.classList.contains('\(KaTeXCSS.mathDisplay)');
                 var text = el.textContent;
                 try {
                     katex.render(text, el, {displayMode: isDisplay, \(optionsString)});
@@ -106,27 +115,23 @@ public struct KaTeXConfiguration: Sendable {
         return script
     }
 
-    /// Generate the KaTeX CSS stylesheet link tag
-    public func generateStylesheetLink() -> String {
-        let baseURL: String
+    /// Resolved base URL for KaTeX assets
+    private var resolvedBaseURL: String {
         switch renderMode {
         case .cdn(let version):
-            baseURL = "https://cdn.jsdelivr.net/npm/katex@\(version)/dist"
+            return "https://cdn.jsdelivr.net/npm/katex@\(version)/dist"
         case .custom(let url):
-            return "<link rel=\"stylesheet\" href=\"\(url)/katex.min.css\">"
+            return url
         }
-        return "<link rel=\"stylesheet\" href=\"\(baseURL)/katex.min.css\">"
+    }
+
+    /// Generate the KaTeX CSS stylesheet link tag
+    public func generateStylesheetLink() -> String {
+        return "<link rel=\"stylesheet\" href=\"\(resolvedBaseURL)/katex.min.css\">"
     }
 
     /// Generate the KaTeX JavaScript script tags
     public func generateScriptTags() -> String {
-        let baseURL: String
-        switch renderMode {
-        case .cdn(let version):
-            baseURL = "https://cdn.jsdelivr.net/npm/katex@\(version)/dist"
-        case .custom(let url):
-            return "<script defer src=\"\(url)/katex.min.js\"></script>"
-        }
-        return "<script defer src=\"\(baseURL)/katex.min.js\"></script>"
+        return "<script defer src=\"\(resolvedBaseURL)/katex.min.js\"></script>"
     }
 }
