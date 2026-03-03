@@ -95,6 +95,12 @@ public final class BlockParser {
             }
             // Single backticks should be treated as part of a paragraph, not as code blocks
             return try parseParagraph()
+
+        case .dollarSign:
+            if token.content == "$$" {
+                return try parseMathBlock()
+            }
+            return try parseParagraph()
             
         case .indentedCodeBlock:
             return try parseIndentedCodeBlock()
@@ -473,6 +479,41 @@ public final class BlockParser {
         )
     }
     
+    private func parseMathBlock() throws -> AST.MathBlockNode {
+        let startLocation = tokenStream.current.location
+
+        // Consume opening $$
+        tokenStream.advance()
+
+        // Skip newline after opening $$
+        _ = tokenStream.match(.newline)
+
+        // Collect content
+        var content = ""
+
+        while !tokenStream.isAtEnd {
+            // Check for closing $$
+            if tokenStream.check(.dollarSign) && tokenStream.current.content == "$$" {
+                tokenStream.advance()
+                break
+            }
+
+            if tokenStream.check(.newline) {
+                content += "\n"
+            } else {
+                content += tokenStream.current.content
+            }
+            tokenStream.advance()
+        }
+
+        // Strip trailing newline from content
+        if content.hasSuffix("\n") {
+            content = String(content.dropLast())
+        }
+
+        return AST.MathBlockNode(content: content, sourceLocation: startLocation)
+    }
+
     private func parseIndentedCodeBlock() throws -> AST.CodeBlockNode {
         let startLocation = tokenStream.current.location
         var content = ""
@@ -544,7 +585,7 @@ public final class BlockParser {
         // Simple approach: collect a few lines and check if they form a table
         var lines: [String] = []
         var lineCount = 0
-        let maxLines = 10 // Limit to prevent infinite loops
+        let maxLines = 100 // Limit to prevent infinite loops
         
         // Collect up to maxLines or until we hit a clear boundary
         while !tokenStream.isAtEnd && lineCount < maxLines {

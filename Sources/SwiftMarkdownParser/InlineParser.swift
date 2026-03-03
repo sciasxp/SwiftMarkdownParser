@@ -156,6 +156,13 @@ public final class InlineParser {
             } else {
                 return [AST.TextNode(content: tokenStream.consume().content)]
             }
+        case .dollarSign:
+            // Handle inline math
+            if let inlineMath = try parseInlineMath() {
+                return [inlineMath]
+            } else {
+                return [AST.TextNode(content: tokenStream.consume().content)]
+            }
         case .backslash:
             // Handle escaped characters
             if let escaped = parseEscapedCharacter() {
@@ -208,6 +215,11 @@ public final class InlineParser {
         var content: [ASTNode] = []
         
         while !tokenStream.isAtEnd {
+            // Stop at newlines - emphasis shouldn't span line boundaries
+            if tokenStream.current.type == .newline {
+                break
+            }
+
             // Check for closing delimiters
             if (tokenStream.current.type == .asterisk || tokenStream.current.type == .underscore) &&
                tokenStream.current.content.first == delimiterChar {
@@ -341,22 +353,124 @@ public final class InlineParser {
         return AST.CodeSpanNode(content: content, sourceLocation: startLocation)
     }
     
+    // MARK: - Inline Math
+
+    private func parseInlineMath() throws -> AST.InlineMathNode? {
+        let startPosition = tokenStream.currentPosition
+        let startLocation = tokenStream.current.location
+
+        // Must be a single $, not $$
+        guard tokenStream.current.content == "$" else {
+            return nil
+        }
+
+        // Consume opening $
+        tokenStream.advance()
+
+        // Reject if next token is whitespace (space after opening $ = not math)
+        if tokenStream.current.type == .whitespace {
+            tokenStream.setPosition(startPosition)
+            return nil
+        }
+
+        var content = ""
+        var foundClosing = false
+
+        while !tokenStream.isAtEnd {
+            let token = tokenStream.current
+
+            // Inline math cannot span lines
+            if token.type == .newline {
+                break
+            }
+
+            // Check for closing $
+            if token.type == .dollarSign && token.content == "$" {
+                tokenStream.advance()
+                foundClosing = true
+                break
+            }
+
+            content += token.content
+            tokenStream.advance()
+        }
+
+        guard foundClosing else {
+            tokenStream.setPosition(startPosition)
+            return nil
+        }
+
+        // Reject if content is empty
+        guard !content.isEmpty else {
+            tokenStream.setPosition(startPosition)
+            return nil
+        }
+
+        // Reject if content ends with space
+        if content.hasSuffix(" ") {
+            tokenStream.setPosition(startPosition)
+            return nil
+        }
+
+        return AST.InlineMathNode(content: content, sourceLocation: startLocation)
+    }
+
     // MARK: - Links and Images
-    
+
     private func parseLinkOrImage() throws -> ASTNode? {
         let startLocation = tokenStream.current.location
-        
+        let linkStartPosition = tokenStream.currentPosition
+
         // Check if this is an image (preceded by !)
-        let isImage = tokenStream.currentPosition > 0 && 
+        let isImage = tokenStream.currentPosition > 0 &&
                      tokenStream.peek(-1).type == .exclamation
-        
+
         guard tokenStream.match(.leftBracket) else { return parseText() }
-        
-        // Parse link text/alt text
+
+        let afterBracketPosition = tokenStream.currentPosition
+
+        // Scan ahead to find the matching ] tracking bracket depth
+        var bracketDepth = 1
+        var rightBracketPosition: Int?
+        while !tokenStream.isAtEnd {
+            let token = tokenStream.current
+            if token.type == .newline || token.type == .eof {
+                break
+            }
+            if token.type == .leftBracket {
+                bracketDepth += 1
+            } else if token.type == .rightBracket {
+                bracketDepth -= 1
+                if bracketDepth == 0 {
+                    rightBracketPosition = tokenStream.currentPosition
+                    break
+                }
+            }
+            tokenStream.advance()
+        }
+
+        // If no matching ] found, restore and treat [ as text
+        guard let rbPos = rightBracketPosition else {
+            tokenStream.setPosition(linkStartPosition)
+            return parseText()
+        }
+
+        // Restore to after [ and parse link text with bounded loop
+        tokenStream.setPosition(afterBracketPosition)
+
         var linkText: [ASTNode] = []
-        
-        while !tokenStream.isAtEnd && !tokenStream.check(.rightBracket) {
+
+        while !tokenStream.isAtEnd && tokenStream.currentPosition < rbPos {
+            let posBeforeInline = tokenStream.currentPosition
             let inlineNodes = try parseInline()
+
+            // If parseInline() consumed past the ] boundary, backtrack and consume as text
+            if tokenStream.currentPosition > rbPos {
+                tokenStream.setPosition(posBeforeInline)
+                linkText.append(AST.TextNode(content: tokenStream.consume().content))
+                continue
+            }
+
             for inline in inlineNodes {
                 if let fragment = inline as? AST.FragmentNode {
                     linkText.append(contentsOf: fragment.children)
@@ -365,7 +479,7 @@ public final class InlineParser {
                 }
             }
         }
-        
+
         guard tokenStream.match(.rightBracket) else {
             // No closing bracket, treat as text - reconstruct the original content
             let linkTextContent = linkText.compactMap { node in
