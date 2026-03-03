@@ -1,7 +1,7 @@
 # SwiftMarkdownParser
 
 [![CI](https://github.com/sciasxp/SwiftMarkdownParser/actions/workflows/ci.yml/badge.svg)](https://github.com/sciasxp/SwiftMarkdownParser/actions/workflows/ci.yml)
-[![Swift 6.0+](https://img.shields.io/badge/Swift-6.0+-orange.svg)](https://swift.org)
+[![Swift 6.2+](https://img.shields.io/badge/Swift-6.2+-orange.svg)](https://swift.org)
 [![iOS 17.0+](https://img.shields.io/badge/iOS-17.0+-blue.svg)](https://developer.apple.com/ios/)
 [![macOS 14.0+](https://img.shields.io/badge/macOS-14.0+-blue.svg)](https://developer.apple.com/macos/)
 [![SPM Compatible](https://img.shields.io/badge/SPM-Compatible-brightgreen.svg)](https://swift.org/package-manager/)
@@ -18,12 +18,13 @@ A Swift-native Markdown parser with AST generation, HTML rendering, and SwiftUI 
 - **Zero dependencies** - pure Swift implementation
 - **Async/await** support with Swift 6 concurrency
 - **Mermaid diagram** support for both HTML and SwiftUI output
+- **KaTeX math** rendering for inline and display math expressions
 
 ## Requirements
 
-- **Swift 6.0+**
-- **iOS 17.0+** (SwiftUI renderer) or **iOS 13.0+** (HTML only)
-- **macOS 14.0+** (SwiftUI renderer) or **macOS 10.15+** (HTML only)
+- **Swift 6.2+**
+- **iOS 17.0+**
+- **macOS 14.0+**
 
 ## Installation
 
@@ -208,8 +209,14 @@ func render(document: AST.DocumentNode) async throws -> Output
 
 ## Documentation
 
+- [HTML Renderer Guide](Docs/HTMLRenderer.md) — HTML output with syntax highlighting and theming
+- [SwiftUI Renderer Guide](Docs/SwiftUIRenderer.md) — native SwiftUI rendering
+- [Syntax Highlighting Guide](Docs/SyntaxHighlighting.md) — code syntax highlighting details
+- [Parser Usage Guide](Docs/ParserUsage.md) — AST generation and custom processing
+- [Mermaid Diagrams Guide](Docs/MermaidUsage.md) — interactive chart and diagram support
+- [KaTeX Math Guide](Docs/KaTeXUsage.md) — math expression rendering
 - See [`Examples/`](Examples/) directory for complete working examples
-- Check [`Tests/`](Tests/) directory for comprehensive usage patterns  
+- Check [`Tests/`](Tests/) directory for comprehensive usage patterns
 - Review [`CONTRIBUTING.md`](CONTRIBUTING.md) for development guidelines
 
 ## Testing

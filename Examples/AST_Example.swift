@@ -66,11 +66,12 @@ struct ASTExample {
             let customHTML = try await customRenderer.render(document: ast)
             print(customHTML)
             
-            // Future: SwiftUI renderer example
-            print("\n📱 Future SwiftUI Renderer:")
-            print("// This will render the same AST to SwiftUI Views")
+            // SwiftUI rendering is also available via SwiftUIRenderer
+            // See SwiftUIRenderer.swift for native iOS/macOS rendering
+            print("\n📱 SwiftUI Renderer:")
+            print("// Use SwiftUIRenderer from the library for native SwiftUI output:")
             print("// let swiftUIRenderer = SwiftUIRenderer()")
-            print("// let views = try await swiftUIRenderer.render(document: ast)")
+            print("// let view = try await swiftUIRenderer.render(document: ast)")
             
         } catch {
             print("❌ Error: \(error)")
@@ -132,55 +133,6 @@ struct ASTExample {
     }
 }
 
-// MARK: - Future SwiftUI Renderer Preview
-
-#if canImport(SwiftUI)
-import SwiftUI
-
-/// Preview of how a SwiftUI renderer might work
-@available(iOS 18.0, macOS 15.0, *)
-struct SwiftUIRenderer: MarkdownRenderer {
-    typealias Output = AnyView
-    
-    func render(document: DocumentNode) async throws -> AnyView {
-        // This would render the AST to SwiftUI Views
-        return AnyView(
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(0..<document.children.count, id: \.self) { index in
-                    // Render each child node as a SwiftUI View
-                    Text("SwiftUI rendering of node \(index)")
-                        .font(.body)
-                }
-            }
-        )
-    }
-    
-    func render(node: ASTNode) async throws -> AnyView {
-        switch node {
-        case let heading as HeadingNode:
-            return AnyView(
-                Text("Heading Level \(heading.level)")
-                    .font(.system(size: CGFloat(24 - heading.level * 2), weight: .bold))
-            )
-            
-        case let paragraph as ParagraphNode:
-            return AnyView(
-                Text("Paragraph content")
-                    .font(.body)
-            )
-            
-        case let text as TextNode:
-            return AnyView(
-                Text(text.content)
-                    .font(.body)
-            )
-            
-        default:
-            return AnyView(
-                Text("Unsupported node: \(node.nodeType)")
-                    .foregroundColor(.red)
-            )
-        }
-    }
-}
-#endif 
+// MARK: - SwiftUI Rendering
+// SwiftUI rendering is provided by `SwiftUIRenderer` in the SwiftMarkdownParser library.
+// See Docs/SwiftUIRenderer.md for usage details. 

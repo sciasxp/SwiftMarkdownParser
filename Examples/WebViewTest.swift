@@ -57,7 +57,7 @@ struct WebViewTest {
             )
             
             // Save the generated HTML to a file for inspection
-            let outputURL = URL(fileURLWithPath: "/Users/lucianonunes/Projects/markdown/test_output.html")
+            let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent("test_output.html")
             try htmlDocument.write(to: outputURL, atomically: true, encoding: String.Encoding.utf8)
             
             print("✅ Successfully generated HTML document")
