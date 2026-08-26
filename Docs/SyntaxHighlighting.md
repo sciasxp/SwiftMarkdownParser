@@ -1,16 +1,17 @@
 # Syntax Highlighting Guide
 
-SwiftMarkdownParser includes professional-grade syntax highlighting for code blocks with support for multiple programming languages, built-in themes, and extensible architecture.
+SwiftMarkdownParser includes semantic syntax highlighting for HTML code blocks
+through one actor-isolated module.
 
 ## 🌟 Features
 
 - **6 Programming Languages**: JavaScript, TypeScript, Swift, Kotlin, Python, Bash
-- **3 Built-in Themes**: GitHub, Xcode, VS Code Dark (HTML renderer only)
 - **25+ Token Types**: Keywords, strings, comments, operators, types, functions, and more
 - **Modern Language Features**: ES6+, async/await, generics, coroutines, decorators
-- **Performance Optimized**: Actor-based engine registry with LRU caching
+- **Truthful Discovery**: Supported identifiers come directly from six built-in adapters
+- **Bounded Reuse**: Selection, fallback, token validation, and LRU caching share one owner
 - **Thread-Safe**: Built with Swift 6 concurrency patterns
-- **HTML Renderer**: Full syntax highlighting with CSS classes and themes
+- **HTML Renderer**: Escaped semantic spans with caller-configurable CSS classes
 - **SwiftUI Renderer**: Basic code blocks with monospace styling (no syntax highlighting)
 
 ## 🚀 Quick Start
@@ -235,9 +236,12 @@ if [ $USER_COUNT -gt 100 ]; then
 fi
 ```
 
-## 🎨 Built-in Themes
+## 🎨 Theme Values
 
-**Important**: Themes are only available for the HTML renderer. The SwiftUI renderer uses basic monospace styling without syntax highlighting.
+`SyntaxHighlightingTheme` provides GitHub, Xcode, and VS Code Dark color
+palettes for caller-owned presentation. `HTMLRenderer` emits semantic CSS
+classes and does not select one of these palettes automatically. Supply CSS for
+the configured prefix when a particular visual theme is required.
 
 ### GitHub Theme
 Clean, professional styling matching GitHub's code blocks:
@@ -293,9 +297,9 @@ let context = SwiftUIRenderOptions(
 )
 ```
 
-## 🎨 Custom Themes
+## 🎨 Custom Token CSS
 
-### Creating Custom Themes (HTML Renderer Only)
+### Styling HTML Tokens
 
 ```swift
 // Custom CSS classes for HTML output
@@ -331,7 +335,7 @@ let customStyle = SwiftUIStyleConfiguration(
 let context = SwiftUIRenderOptions(styleConfiguration: customStyle)
 ```
 
-### Theme Color Mapping
+### Token Color Mapping
 
 The syntax highlighting system supports 25+ token types:
 
@@ -361,93 +365,61 @@ The syntax highlighting system supports 25+ token types:
 
 ## ⚡ Performance
 
-### Caching System
+### Highlighting Module
 
-The syntax highlighting system includes an intelligent caching mechanism:
+`SyntaxHighlighter` is the public semantic interface. Its supported-language
+set is derived from installed adapters, and its bounded cache is automatic:
 
 ```swift
-// Access the registry for performance monitoring
-let registry = SyntaxHighlightingRegistry()
+let highlighter = SyntaxHighlighter()
+let supportedLanguages = await highlighter.supportedLanguages
 
-// Get cache statistics
-let cache = SyntaxHighlightingCache()
-let stats = await cache.getStatistics()
-print("Cache entries: \(stats["entryCount"] ?? 0)")
-print("Total hits: \(stats["totalHits"] ?? 0)")
-
-// Clear cache if needed
-await cache.clearCache()
+if let tokens = await highlighter.highlight(
+    "let answer = 42",
+    language: "swift"
+) {
+    // Every token range belongs to the exact source string passed above.
+    print(tokens)
+}
 ```
 
 ### Performance Features
 
-- **LRU Cache**: Least Recently Used eviction policy
+- **LRU Cache**: Bounded least-recently-used eviction owned by each highlighter
 - **Actor-based**: Thread-safe concurrent access
-- **Lazy Loading**: Engines loaded only when needed
+- **Best-effort Fallback**: Unsupported languages or adapter failures return `nil`
 - **Efficient Parsing**: Single-pass tokenization
-- **Memory Efficient**: Minimal allocations during highlighting
-
-### Benchmarks
-
-Performance characteristics for different code block sizes (HTML renderer):
-
-| Lines of Code | Highlighting Time | Memory Usage |
-|---------------|-------------------|--------------|
-| 10-50 lines   | < 1ms            | < 10KB       |
-| 100-500 lines | < 5ms            | < 50KB       |
-| 1000+ lines   | < 20ms           | < 200KB      |
+- **Portable Cache Entries**: Cached offsets are rebound to the current source string
 
 **Note**: SwiftUI renderer performance is simpler as it doesn't perform syntax highlighting.
 
 ## 🔧 Advanced Usage
 
-### Direct Engine Access
+### Direct Semantic Highlighting
 
 ```swift
-// Use engines directly for custom processing
-let jsEngine = JavaScriptSyntaxEngine()
-let tokens = try await jsEngine.highlight(
+let highlighter = SyntaxHighlighter()
+let tokens = await highlighter.highlight(
     "const x = 42;",
     language: "javascript"
 )
 
-// Process tokens for HTML output
-for token in tokens {
+for token in tokens ?? [] {
     print("\(token.content): \(token.tokenType)")
 }
 ```
 
-### Custom Engine Registration
-
-```swift
-// Register a custom engine
-struct MyLanguageEngine: SyntaxHighlightingEngine {
-    func highlight(_ code: String, language: String) async throws -> [SyntaxToken] {
-        // Custom highlighting logic
-        return []
-    }
-
-    func supportedLanguages() -> Set<String> {
-        return ["mylang"]
-    }
-}
-
-let registry = SyntaxHighlightingRegistry()
-await registry.register(engine: MyLanguageEngine(), for: ["mylang"])
-```
+The six language adapters are implementation details. This keeps aliases,
+support discovery, fallback, and caching behind the same interface.
 
 ### Error Handling
 
 ```swift
-do {
-    let tokens = try await engine.highlight(code, language: "swift")
-    // Process tokens
-} catch SyntaxHighlightingError.unsupportedLanguage(let lang) {
-    print("Language not supported: \(lang)")
-} catch SyntaxHighlightingError.parsingError(let message) {
-    print("Parsing error: \(message)")
-} catch {
-    print("Unknown error: \(error)")
+let highlighter = SyntaxHighlighter()
+if let tokens = await highlighter.highlight(code, language: "swift") {
+    consume(tokens)
+} else {
+    consumePlainText(code)
 }
 ```
 
@@ -460,10 +432,11 @@ The syntax highlighting system includes comprehensive tests:
 ```bash
 # Run all syntax highlighting tests
 swift test --filter SyntaxHighlightingEngineTests
+swift test --filter SyntaxHighlighterTests
 
 # Run specific language tests
-swift test --filter test_swiftEngine
-swift test --filter test_javascriptEngine
+swift test --filter swiftEngine
+swift test --filter javascriptEngine
 
 # Run integration tests (HTML renderer)
 swift test --filter SyntaxHighlightingIntegrationTests
@@ -473,8 +446,8 @@ swift test --filter SyntaxHighlightingIntegrationTests
 
 - **Engine Tests**: Each language engine has dedicated tests
 - **Theme Tests**: Color theme functionality (HTML only)
-- **Registry Tests**: Engine registration and caching
-- **Performance Tests**: Large code block handling
+- **Module Tests**: Support truth, aliases, fallback, validation, and LRU behavior
+- **Integration Tests**: Cache reuse and gap-preserving HTML token assembly
 - **Edge Cases**: Malformed code, empty blocks, special characters
 
 ## 📚 Examples
@@ -605,7 +578,7 @@ struct SwiftUICodeExample: View {
 | Feature | HTML Renderer | SwiftUI Renderer |
 |---------|---------------|------------------|
 | Syntax Highlighting | ✅ Full support | ❌ Not supported |
-| Themes | ✅ 3 built-in themes | ❌ Basic styling only |
+| Themes | Caller CSS via semantic classes | Basic styling only |
 | Token-level styling | ✅ 25+ token types | ❌ Plain text only |
 | Custom CSS classes | ✅ Configurable | ❌ N/A |
 | Performance | ✅ Cached highlighting | ✅ Simple rendering |
@@ -613,4 +586,5 @@ struct SwiftUICodeExample: View {
 
 ---
 
-**The syntax highlighting system in SwiftMarkdownParser provides professional-grade code block rendering for HTML output with modern language support, beautiful themes, and excellent performance. For SwiftUI applications, basic monospace code blocks are provided without syntax highlighting.** 🎨✨
+The HTML renderer provides cached semantic highlighting for its six built-in
+languages. SwiftUI output continues to use plain monospace code blocks.

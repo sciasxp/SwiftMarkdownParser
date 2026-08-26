@@ -52,63 +52,6 @@ import Testing
         #expect(expectedTypes == actualTypes, "All token types should be defined")
     }
 
-    // MARK: - Registry Tests
-
-    @Test func syntaxHighlightingRegistry_initialization() async throws {
-        let registry = SyntaxHighlightingRegistry()
-        let supportedLanguages = await registry.supportedLanguages()
-
-        // Should support all primary languages
-        let expectedLanguages: Set<String> = [
-            "javascript", "js", "jsx", "typescript", "ts", "tsx",
-            "swift", "kotlin", "kt", "python", "py",
-            "bash", "sh", "shell", "zsh"
-        ]
-
-        for language in expectedLanguages {
-            #expect(supportedLanguages.contains(language), "Should support \(language)")
-        }
-    }
-
-    @Test func syntaxHighlightingRegistry_engineRetrieval() async throws {
-        let registry = SyntaxHighlightingRegistry()
-
-        // Test engine retrieval for each language
-        let testCases: [(String, SyntaxHighlightingEngine.Type)] = [
-            ("javascript", JavaScriptSyntaxEngine.self),
-            ("typescript", TypeScriptSyntaxEngine.self),
-            ("swift", SwiftSyntaxEngine.self),
-            ("kotlin", KotlinSyntaxEngine.self),
-            ("python", PythonSyntaxEngine.self),
-            ("bash", BashSyntaxEngine.self)
-        ]
-
-        for (language, expectedType) in testCases {
-            let engine = await registry.engine(for: language)
-            #expect(engine != nil, "Should have engine for \(language)")
-            #expect(type(of: engine!) == expectedType, "Should return correct engine type for \(language)")
-        }
-
-        // Test unsupported language
-        let unsupportedEngine = await registry.engine(for: "unsupported")
-        #expect(unsupportedEngine == nil, "Should return nil for unsupported language")
-    }
-
-    // MARK: - Error Handling Tests
-
-    @Test func syntaxHighlightingError_types() async throws {
-        let errors: [SyntaxHighlightingError] = [
-            .unsupportedLanguage("test"),
-            .parsingError("test"),
-            .cacheError("test"),
-            .engineRegistrationError("test")
-        ]
-
-        for error in errors {
-            #expect(error.errorDescription != nil, "Error should have description")
-        }
-    }
-
     @Test func engine_unsupportedLanguage_throwsError() async throws {
         let engine = JavaScriptSyntaxEngine()
 

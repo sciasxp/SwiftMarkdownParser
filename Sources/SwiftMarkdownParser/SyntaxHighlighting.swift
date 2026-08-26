@@ -1,28 +1,6 @@
-/// Syntax highlighting engine and infrastructure for code blocks
-/// 
-/// This file defines the core syntax highlighting system that allows the parser
-/// to highlight code blocks in various programming languages with rich token-based
-/// highlighting and theming support.
+/// Public semantic token and theme types used by syntax highlighting.
 
-import Foundation
 import SwiftUI
-import CryptoKit
-
-// MARK: - Core Protocol
-
-/// Protocol for syntax highlighting engines
-public protocol SyntaxHighlightingEngine: Sendable {
-    /// Highlight code and return syntax tokens
-    /// - Parameters:
-    ///   - code: The source code to highlight
-    ///   - language: The programming language identifier
-    /// - Returns: Array of syntax tokens with type and position information
-    func highlight(_ code: String, language: String) async throws -> [SyntaxToken]
-    
-    /// Get the set of languages supported by this engine
-    /// - Returns: Set of language identifiers (e.g., "swift", "javascript")
-    func supportedLanguages() -> Set<String>
-}
 
 // MARK: - Syntax Token
 
@@ -30,13 +8,13 @@ public protocol SyntaxHighlightingEngine: Sendable {
 public struct SyntaxToken: Sendable, Equatable {
     /// The text content of this token
     public let content: String
-    
+
     /// The type of syntax element this token represents
     public let tokenType: SyntaxTokenType
-    
+
     /// The range of this token in the original source code
     public let range: Range<String.Index>
-    
+
     public init(content: String, tokenType: SyntaxTokenType, range: Range<String.Index>) {
         self.content = content
         self.tokenType = tokenType
@@ -57,7 +35,7 @@ public enum SyntaxTokenType: String, CaseIterable, Sendable {
     case `operator`     // +, -, *, /, =, ==, !=, &&, ||, ??, etc.
     case punctuation    // (, ), [, ], {, }, :, ;, ,, .
     case plain          // default text
-    
+
     // Language-specific elements
     case type           // String, Int, Array<T>, interface names
     case function       // function definitions and calls
@@ -86,16 +64,16 @@ public enum SyntaxTokenType: String, CaseIterable, Sendable {
 public struct SyntaxHighlightingTheme: Sendable, Equatable {
     /// Theme name
     public let name: String
-    
+
     /// Background color for code blocks
     public let backgroundColor: Color
-    
+
     /// Default text color
     public let textColor: Color
-    
+
     /// Colors for different token types
     public let tokenColors: [SyntaxTokenType: Color]
-    
+
     public init(name: String, backgroundColor: Color, textColor: Color, tokenColors: [SyntaxTokenType: Color]) {
         self.name = name
         self.backgroundColor = backgroundColor
@@ -108,7 +86,7 @@ public struct SyntaxHighlightingTheme: Sendable, Equatable {
 
 @available(iOS 17.0, macOS 14.0, *)
 public extension SyntaxHighlightingTheme {
-    
+
     /// GitHub-style light theme
     static let github = SyntaxHighlightingTheme(
         name: "GitHub",
@@ -137,7 +115,7 @@ public extension SyntaxHighlightingTheme {
             .escape: Color(red: 0.82, green: 0.10, blue: 0.26)             // #d73a49
         ]
     )
-    
+
     /// Xcode-style light theme
     static let xcode = SyntaxHighlightingTheme(
         name: "Xcode",
@@ -166,7 +144,7 @@ public extension SyntaxHighlightingTheme {
             .escape: Color(red: 0.67, green: 0.18, blue: 0.55)             // #aa0d91
         ]
     )
-    
+
     /// VS Code dark theme
     static let vsCodeDark = SyntaxHighlightingTheme(
         name: "VS Code Dark",
@@ -196,186 +174,3 @@ public extension SyntaxHighlightingTheme {
         ]
     )
 }
-
-// MARK: - Error Types
-
-/// Errors that can occur during syntax highlighting
-public enum SyntaxHighlightingError: Error, LocalizedError, Sendable {
-    case unsupportedLanguage(String)
-    case parsingError(String)
-    case cacheError(String)
-    case engineRegistrationError(String)
-    
-    public var errorDescription: String? {
-        switch self {
-        case .unsupportedLanguage(let language):
-            return "Unsupported language: \(language)"
-        case .parsingError(let message):
-            return "Parsing error: \(message)"
-        case .cacheError(let message):
-            return "Cache error: \(message)"
-        case .engineRegistrationError(let message):
-            return "Engine registration error: \(message)"
-        }
-    }
-}
-
-// MARK: - Registry
-
-/// Registry for managing syntax highlighting engines
-public actor SyntaxHighlightingRegistry {
-    private var engines: [String: SyntaxHighlightingEngine] = [:]
-    
-    public init() {
-        // Register all built-in engines
-        self.engines["javascript"] = JavaScriptSyntaxEngine()
-        self.engines["js"] = JavaScriptSyntaxEngine()
-        self.engines["jsx"] = JavaScriptSyntaxEngine()
-        self.engines["typescript"] = TypeScriptSyntaxEngine()
-        self.engines["ts"] = TypeScriptSyntaxEngine()
-        self.engines["tsx"] = TypeScriptSyntaxEngine()
-        self.engines["swift"] = SwiftSyntaxEngine()
-        self.engines["kotlin"] = KotlinSyntaxEngine()
-        self.engines["kt"] = KotlinSyntaxEngine()
-        self.engines["python"] = PythonSyntaxEngine()
-        self.engines["py"] = PythonSyntaxEngine()
-        self.engines["bash"] = BashSyntaxEngine()
-        self.engines["sh"] = BashSyntaxEngine()
-        self.engines["shell"] = BashSyntaxEngine()
-        self.engines["zsh"] = BashSyntaxEngine()
-    }
-    
-    /// Register a syntax highlighting engine for specific languages
-    /// - Parameters:
-    ///   - engine: The engine to register
-    ///   - languages: Array of language identifiers this engine supports
-    public func register(engine: SyntaxHighlightingEngine, for languages: [String]) {
-        for language in languages {
-            engines[language.lowercased()] = engine
-        }
-    }
-    
-    /// Get the engine for a specific language
-    /// - Parameter language: The language identifier
-    /// - Returns: The engine for the language, or nil if not supported
-    public func engine(for language: String) -> SyntaxHighlightingEngine? {
-        return engines[language.lowercased()]
-    }
-    
-    /// Get all supported languages
-    /// - Returns: Set of all supported language identifiers
-    public func supportedLanguages() -> Set<String> {
-        return Set(engines.keys)
-    }
-    
-    /// Remove engine registration for a language
-    /// - Parameter language: The language identifier to unregister
-    public func unregister(language: String) {
-        engines.removeValue(forKey: language.lowercased())
-    }
-}
-
-// MARK: - Cache
-
-/// Cache for syntax highlighting results
-public actor SyntaxHighlightingCache {
-    private var cache: [String: CacheEntry] = [:]
-    private var accessOrder: [String] = []
-    private let maxSize: Int
-    
-    private struct CacheEntry {
-        let tokens: [SyntaxToken]
-        let timestamp: Date
-        var hitCount: Int
-        let language: String
-    }
-    
-    public init(maxSize: Int = 1000) {
-        self.maxSize = maxSize
-    }
-    
-    /// Get cached tokens for code and language
-    /// - Parameters:
-    ///   - code: The source code
-    ///   - language: The programming language
-    /// - Returns: Cached tokens if available, nil otherwise
-    public func getCachedTokens(for code: String, language: String) -> [SyntaxToken]? {
-        let key = cacheKey(code: code, language: language)
-        
-        if var entry = cache[key] {
-            // Update access order and hit count
-            accessOrder.removeAll { $0 == key }
-            accessOrder.append(key)
-            
-            entry.hitCount += 1
-            cache[key] = entry
-            
-            return entry.tokens
-        }
-        
-        return nil
-    }
-    
-    /// Cache tokens for code and language
-    /// - Parameters:
-    ///   - tokens: The syntax tokens to cache
-    ///   - code: The source code
-    ///   - language: The programming language
-    public func cacheTokens(_ tokens: [SyntaxToken], for code: String, language: String) {
-        let key = cacheKey(code: code, language: language)
-        
-        cache[key] = CacheEntry(
-            tokens: tokens,
-            timestamp: Date(),
-            hitCount: 1,
-            language: language
-        )
-        accessOrder.append(key)
-        
-        // Implement LRU eviction
-        while cache.count > maxSize {
-            let oldestKey = accessOrder.removeFirst()
-            cache.removeValue(forKey: oldestKey)
-        }
-    }
-    
-    /// Clear all cached entries
-    public func clearCache() {
-        cache.removeAll()
-        accessOrder.removeAll()
-    }
-    
-    /// Get cache statistics
-    /// - Returns: Dictionary with cache statistics
-    public func getStatistics() -> [String: Any] {
-        let totalHits = cache.values.reduce(0) { $0 + $1.hitCount }
-        return [
-            "entryCount": cache.count,
-            "totalHits": totalHits,
-            "maxSize": maxSize
-        ]
-    }
-    
-    private func cacheKey(code: String, language: String) -> String {
-        // Use a stable SHA-256 hash to avoid process-seeded hashValue instability and to greatly
-        // reduce the chance of collisions. This makes cache keys deterministic across launches and
-        // platforms while keeping them reasonably compact.
-        let digest = SHA256.hash(data: Data(code.utf8))
-        let hex = digest.map { String(format: "%02x", $0) }.joined()
-        return "\(language):\(hex)"
-    }
-}
-
-// MARK: - Placeholder Engine Implementations
-
-// JavaScript engine is now in its own file
-
-// TypeScript engine is now in its own file
-
-// Swift engine is now in its own file
-
-// Kotlin engine is now in its own file
-
-// Python engine is now in its own file
-
-// Bash engine is now in its own file 

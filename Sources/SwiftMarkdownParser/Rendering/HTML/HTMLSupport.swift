@@ -87,28 +87,15 @@ public struct HTMLSyntaxHighlightingOptions: Sendable {
     /// CSS class prefix for syntax highlighting
     public let cssPrefix: String
 
-    /// Supported languages for highlighting
-    public let supportedLanguages: Set<String>
-
     public init(
         enabled: Bool = false,
-        cssPrefix: String = "language-",
-        supportedLanguages: Set<String> = Self.commonLanguages
+        cssPrefix: String = "language-"
     ) {
         self.enabled = enabled
         self.cssPrefix = cssPrefix
-        self.supportedLanguages = supportedLanguages
     }
 
     public static let `default` = HTMLSyntaxHighlightingOptions()
-
-    /// Common programming languages for syntax highlighting
-    public static let commonLanguages: Set<String> = [
-        "swift", "objective-c", "javascript", "typescript", "python", "java",
-        "kotlin", "c", "cpp", "csharp", "go", "rust", "php", "ruby", "scala",
-        "html", "css", "xml", "json", "yaml", "markdown", "bash", "shell",
-        "sql", "r", "matlab", "perl", "lua", "dart", "elixir", "haskell"
-    ]
 }
 
 // MARK: - Renderer Error Types

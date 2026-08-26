@@ -23,89 +23,26 @@ import Testing
         renderer = HTMLRenderer(options: context)
     }
 
-    // MARK: - Theme Integration Tests
+    @Test(
+        "Highlights representative built-in language tokens",
+        arguments: [
+            ("javascript", "const message = 1;", "hljs-keyword"),
+            ("javascript", "const message = \"Hello\";", "hljs-string"),
+            ("swift", "func greet() {}", "hljs-keyword"),
+            ("typescript", "interface User { name: string }", "hljs-type"),
+        ]
+    )
+    func htmlRenderer_highlightsBuiltInLanguage(
+        language: String,
+        source: String,
+        expectedClass: String
+    ) async throws {
+        let markdown = "```\(language)\n\(source)\n```"
+        let document = try parser.parse(markdown)
 
-    // GitHub theme test
-    @Test func htmlRenderer_appliesGitHubTheme() async throws {
-        let context = HTMLRenderOptions(
-            styleConfiguration: HTMLStyleConfiguration(
-                syntaxHighlighting: HTMLSyntaxHighlightingOptions(
-                    enabled: true,
-                    cssPrefix: "hljs-"
-                )
-            )
-        )
-        let renderer = HTMLRenderer(options: context)
+        let html = try await renderer.renderFragment(document)
 
-        let markdown = """
-        ```javascript
-        const message = "Hello World";
-        ```
-        """
-
-        let ast = try parser.parse(markdown)
-        let html = try await renderer.renderFragment(ast)
-
-        // Verify theme-specific styling
-        #expect(html.contains("class=\"hljs-string\""), "Should highlight strings")
-        #expect(html.contains("class=\"hljs-keyword\""), "Should highlight keywords")
-    }
-
-    // Xcode theme test
-    @Test func htmlRenderer_appliesXcodeTheme() async throws {
-        let context = HTMLRenderOptions(
-            styleConfiguration: HTMLStyleConfiguration(
-                syntaxHighlighting: HTMLSyntaxHighlightingOptions(
-                    enabled: true,
-                    cssPrefix: "hljs-"
-                )
-            )
-        )
-        let renderer = HTMLRenderer(options: context)
-
-        let markdown = """
-        ```swift
-        func test() -> String {
-            return "Hello"
-        }
-        ```
-        """
-
-        let ast = try parser.parse(markdown)
-        let html = try await renderer.renderFragment(ast)
-
-        // Verify theme is applied
-        #expect(html.contains("class=\"hljs-string\""), "Should highlight strings")
-        #expect(html.contains("class=\"hljs-keyword\""), "Should highlight keywords")
-    }
-
-    // VS Code Dark theme test
-    @Test func htmlRenderer_appliesVSCodeDarkTheme() async throws {
-        let context = HTMLRenderOptions(
-            styleConfiguration: HTMLStyleConfiguration(
-                syntaxHighlighting: HTMLSyntaxHighlightingOptions(
-                    enabled: true,
-                    cssPrefix: "hljs-"
-                )
-            )
-        )
-        let renderer = HTMLRenderer(options: context)
-
-        let markdown = """
-        ```typescript
-        interface User {
-            name: string;
-            age: number;
-        }
-        ```
-        """
-
-        let ast = try parser.parse(markdown)
-        let html = try await renderer.renderFragment(ast)
-
-        // Verify theme-specific styling
-        #expect(html.contains("class=\"hljs-keyword\""), "Should highlight keywords")
-        #expect(html.contains("class=\"hljs-type\""), "Should highlight types")
+        #expect(html.contains("class=\"\(expectedClass)\""))
     }
 
     // MARK: - End-to-End Integration Tests
@@ -270,5 +207,113 @@ import Testing
         #expect(!html.contains("class=\"hljs-keyword\""), "Should not have keyword highlighting")
         #expect(!html.contains("class=\"hljs-string\""), "Should not have string highlighting")
         #expect(html.contains("<pre><code"), "Should still render as code block")
+    }
+
+    @Test("Preserves source gaps around semantic tokens")
+    func htmlRenderer_preservesSourceGaps() async throws {
+        let options = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
+                syntaxHighlighting: HTMLSyntaxHighlightingOptions(
+                    enabled: true,
+                    cssPrefix: "hljs-"
+                )
+            )
+        )
+        let highlighter = SyntaxHighlighter(
+            engines: [IntegrationSyntaxEngine(outcome: .middleToken)]
+        )
+        let renderer = HTMLRenderer(
+            options: options,
+            assetLoader: PackageBrowserAssetLoader(),
+            syntaxHighlighter: highlighter
+        )
+        let document = try parser.parse("""
+        ```fixture
+        before keyword after
+        ```
+        """)
+
+        let html = try await renderer.renderFragment(document)
+
+        #expect(html.contains("before <span class=\"hljs-keyword\">keyword</span> after"))
+    }
+
+    @Test("Reuses highlighting across repeated code blocks")
+    func htmlRenderer_reusesHighlighting() async throws {
+        let counter = IntegrationInvocationCounter()
+        let highlighter = SyntaxHighlighter(
+            engines: [IntegrationSyntaxEngine(outcome: .wholeSource, counter: counter)],
+            cacheCapacity: 2
+        )
+        let options = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
+                syntaxHighlighting: HTMLSyntaxHighlightingOptions(enabled: true)
+            )
+        )
+        let renderer = HTMLRenderer(
+            options: options,
+            assetLoader: PackageBrowserAssetLoader(),
+            syntaxHighlighter: highlighter
+        )
+        let document = try parser.parse("""
+        ```fixture
+        repeated source
+        ```
+
+        ```fixture
+        repeated source
+        ```
+        """)
+
+        _ = try await renderer.renderFragment(document)
+        let invocationCount = await counter.value
+
+        #expect(invocationCount == 1)
+    }
+}
+
+private actor IntegrationInvocationCounter {
+    private(set) var value = 0
+
+    func increment() {
+        value += 1
+    }
+}
+
+private struct IntegrationSyntaxEngine: SyntaxHighlightingEngine {
+    enum Outcome: Sendable {
+        case middleToken
+        case wholeSource
+    }
+
+    let outcome: Outcome
+    let counter: IntegrationInvocationCounter?
+
+    init(
+        outcome: Outcome,
+        counter: IntegrationInvocationCounter? = nil
+    ) {
+        self.outcome = outcome
+        self.counter = counter
+    }
+
+    func supportedLanguages() -> Set<String> {
+        ["fixture"]
+    }
+
+    func highlight(_ code: String, language: String) async throws -> [SyntaxToken] {
+        await counter?.increment()
+
+        switch outcome {
+        case .middleToken:
+            guard let range = code.range(of: "keyword") else { return [] }
+            return [SyntaxToken(content: "keyword", tokenType: .keyword, range: range)]
+        case .wholeSource:
+            return [SyntaxToken(
+                content: code,
+                tokenType: .plain,
+                range: code.startIndex..<code.endIndex
+            )]
+        }
     }
 }

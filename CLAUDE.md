@@ -37,6 +37,8 @@ Markdown Source
 
 **HTML output seam:** `HTMLRenderer` owns HTML escaping, GFM, syntax highlighting, Mermaid, KaTeX, CSS, scripts, and complete-document composition. Configure it with `HTMLRenderOptions`; callers render only complete `DocumentNode` values. `BrowserDocumentAssembler` discovers runtime requirements during body rendering, deduplicates assets, and emits one readiness/failure bootstrap. Configuration values stay data-only.
 
+**Syntax-highlighting seam:** `SyntaxHighlighter` accepts code plus a language identifier and returns optional semantic tokens. It owns built-in adapter selection, aliases, support discovery, token validation, best-effort fallback, and bounded LRU caching. The six `*SyntaxEngine` adapters and cache representation are internal; `HTMLCodeBlockRenderer` owns only safe token-to-HTML presentation.
+
 **SwiftUI output seam:** `SwiftUIRenderer` is `@MainActor`, accepts `SwiftUIRenderOptions`, and produces `AnyView` from a complete `DocumentNode`. `MarkdownWebView` is an HTML presentation adapter and also accepts a document rather than Markdown source.
 
 ## Key Source Directories
@@ -47,7 +49,7 @@ Markdown Source
   - HTML output: `Rendering/HTML/`
   - Native SwiftUI output: `Rendering/SwiftUI/`
   - GFM table utilities: `GFMExtensions.swift`
-  - Syntax highlighting: `SyntaxHighlighting.swift` + one `*SyntaxEngine.swift` per language (JS, TS, Swift, Kotlin, Python, Bash)
+  - Syntax highlighting: `SyntaxHighlighter.swift`, public semantic types in `SyntaxHighlighting.swift`, and one internal `*SyntaxEngine.swift` adapter per language
 - `Tests/SwiftMarkdownParserTests/` — Swift Testing suites and repository-owned fixtures
 - `Examples/` — `WebViewTest.swift`, `AST_Example.swift`
 - `Docs/` — usage guides for HTML rendering, SwiftUI rendering, syntax highlighting, Mermaid, KaTeX
@@ -58,7 +60,7 @@ Markdown Source
 - **AST rewriting is bottom-up and one-shot** — a visit observes rewritten descendants, while replacement nodes are not revisited in the same pass.
 - **Test at document-level seams** — construction tests use Source → Document; output tests use Document → HTML/AnyView. Direct token or node-render tests are reserved for internal invariants.
 - **Tests use Swift Testing** — use `@Test` with `#expect`/`#require`; add `async` only when the test performs asynchronous work.
-- **`SyntaxHighlightingRegistry`/`Cache` are actors** — interactions require `await`.
+- **Syntax support has one source of truth** — ask `await SyntaxHighlighter.supportedLanguages`; HTML options only enable highlighting and choose the CSS prefix.
 - **SwiftUI output requires `@MainActor`** — create and call `SwiftUIRenderer` and `MarkdownWebView` on the main actor.
 - **Bundled browser assets are real package resources** — `.bundled` inlines pinned Mermaid 10.9.1 or KaTeX 0.16.21 assets; `.cdn` keeps documents small, and `.custom` accepts validated HTTPS or file URLs.
 - **Browser readiness is semantic** — `MarkdownWebView.onRender` succeeds after required runtimes initialize, not merely after WebKit navigation finishes.

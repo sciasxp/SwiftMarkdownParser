@@ -5,15 +5,22 @@ import Foundation
 public struct HTMLRenderer: Sendable {
     let options: HTMLRenderOptions
     private let assetLoader: any BrowserAssetLoading
+    private let syntaxHighlighter: SyntaxHighlighter
 
     public init(options: HTMLRenderOptions = .init()) {
         self.options = options
         self.assetLoader = PackageBrowserAssetLoader()
+        self.syntaxHighlighter = SyntaxHighlighter()
     }
 
-    init(options: HTMLRenderOptions = .init(), assetLoader: any BrowserAssetLoading) {
+    init(
+        options: HTMLRenderOptions = .init(),
+        assetLoader: any BrowserAssetLoading,
+        syntaxHighlighter: SyntaxHighlighter = SyntaxHighlighter()
+    ) {
         self.options = options
         self.assetLoader = assetLoader
+        self.syntaxHighlighter = syntaxHighlighter
     }
 
     /// Produces a self-contained embeddable fragment.
@@ -62,6 +69,13 @@ public struct HTMLRenderer: Sendable {
 
     private var browserDocumentAssembler: BrowserDocumentAssembler {
         BrowserDocumentAssembler(options: options, assetLoader: assetLoader)
+    }
+
+    private var codeBlockRenderer: HTMLCodeBlockRenderer {
+        HTMLCodeBlockRenderer(
+            styleConfiguration: options.styleConfiguration,
+            highlighter: syntaxHighlighter
+        )
     }
 
     func render(
@@ -157,7 +171,7 @@ public struct HTMLRenderer: Sendable {
             return html
 
         case let codeBlockNode as AST.CodeBlockNode:
-            return try await renderCodeBlock(codeBlockNode)
+            return await codeBlockRenderer.render(codeBlockNode)
 
         case let thematicBreakNode as AST.ThematicBreakNode:
             let attributes = RendererUtils.htmlAttributes(
@@ -363,80 +377,4 @@ public struct HTMLRenderer: Sendable {
         return "<div class=\"footnote-definition\" id=\"fn\(footnoteDefNode.identifier)\"\(RendererUtils.formatHTMLAttributes(attributes))>\(content)<a href=\"#fnref\(footnoteDefNode.identifier)\" class=\"footnote-backref\">↩</a></div>"
     }
 
-    private func renderCodeBlock(_ codeBlockNode: AST.CodeBlockNode) async throws -> String {
-        let language = codeBlockNode.language
-        let content = codeBlockNode.content
-
-        // Check if syntax highlighting is enabled and we have a language
-        if let language = language,
-           options.styleConfiguration.syntaxHighlighting.enabled,
-           options.styleConfiguration.syntaxHighlighting.supportedLanguages.contains(language.lowercased()) {
-
-            // Use syntax highlighting engine
-            let registry = SyntaxHighlightingRegistry()
-            if let engine = await registry.engine(for: language) {
-                do {
-                    let tokens = try await engine.highlight(content, language: language)
-                    let highlightedHTML = renderSyntaxTokensToHTML(tokens, originalCode: content, cssPrefix: options.styleConfiguration.syntaxHighlighting.cssPrefix)
-
-                    var codeAttributes: [String: String] = [:]
-                    codeAttributes["class"] = "language-" + language
-
-                    let preAttributes = RendererUtils.htmlAttributes(
-                        for: .codeBlock,
-                        sourceLocation: codeBlockNode.sourceLocation,
-                        styleConfig: options.styleConfiguration
-                    )
-
-                    return "<pre\(RendererUtils.formatHTMLAttributes(preAttributes))><code\(RendererUtils.formatHTMLAttributes(codeAttributes))>\(highlightedHTML)</code></pre>\n"
-                } catch {
-                    // Fall back to plain rendering if highlighting fails
-                }
-            }
-        }
-
-        // Fall back to plain code block rendering
-        let escapedContent = RendererUtils.escapeHTML(content)
-        var codeAttributes: [String: String] = [:]
-
-        if let language = language {
-            codeAttributes["class"] = "language-" + language
-        }
-
-        let preAttributes = RendererUtils.htmlAttributes(
-            for: .codeBlock,
-            sourceLocation: codeBlockNode.sourceLocation,
-            styleConfig: options.styleConfiguration
-        )
-
-        return "<pre\(RendererUtils.formatHTMLAttributes(preAttributes))><code\(RendererUtils.formatHTMLAttributes(codeAttributes))>\(escapedContent)</code></pre>\n"
-    }
-
-    private func renderSyntaxTokensToHTML(_ tokens: [SyntaxToken], originalCode: String, cssPrefix: String) -> String {
-        var html = ""
-        var lastEndIndex: String.Index?
-
-        for token in tokens {
-            let escapedContent = RendererUtils.escapeHTML(token.content)
-
-            // Add any whitespace that was skipped between tokens
-            if let lastEnd = lastEndIndex, lastEnd < token.range.lowerBound {
-                // Extract the whitespace between tokens from the original code
-                let whitespace = String(originalCode[lastEnd..<token.range.lowerBound])
-                html += RendererUtils.escapeHTML(whitespace)
-            }
-
-            let cssClass = cssPrefix + token.tokenType.rawValue
-            html += "<span class=\"\(cssClass)\">\(escapedContent)</span>"
-            lastEndIndex = token.range.upperBound
-        }
-
-        // Add any remaining content after the last token
-        if let lastEnd = lastEndIndex, lastEnd < originalCode.endIndex {
-            let remaining = String(originalCode[lastEnd..<originalCode.endIndex])
-            html += RendererUtils.escapeHTML(remaining)
-        }
-
-        return html
-    }
 }
