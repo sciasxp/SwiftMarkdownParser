@@ -97,6 +97,7 @@ struct ContentView: View {
 ```swift
 // Custom Mermaid themes and settings
 let config = MermaidConfiguration(
+    assetSource: .bundled,
     theme: .dark,
     securityLevel: .strict
 )
@@ -105,3 +106,8 @@ let document = try parser.parse(markdown)
 let options = HTMLRenderOptions(mermaidConfiguration: config)
 let html = try await HTMLRenderer(options: options).renderFragment(document)
 ```
+
+`assetSource` accepts `.bundled`, `.cdn(version:)`, or
+`.custom(scriptURL:)`. Bundled mode inlines the pinned Mermaid runtime and
+works without network access. Diagram source is HTML-escaped before entering
+the DOM; Mermaid receives the original text through the `<pre>` element.

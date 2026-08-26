@@ -27,11 +27,10 @@ let html = try await HTMLRenderer().renderDocument(
 ```swift
 let configuration = KaTeXConfiguration(
     enabled: true,
-    renderMode: .cdn(version: "0.16.21"),
+    assetSource: .bundled,
     throwOnError: false,
     errorColor: "#cc0000",
     minRuleThickness: nil,
-    displayMode: false,
     customCSS: ".math-display { padding: 1em; }"
 )
 
@@ -39,9 +38,10 @@ let options = HTMLRenderOptions(katexConfiguration: configuration)
 let html = try await HTMLRenderer(options: options).renderDocument(document)
 ```
 
-`renderMode` accepts `.cdn(version:)` or `.custom(url:)`. Setting `enabled` to
-`false` omits the KaTeX resources. Resources are included only when the document
-actually contains math.
+`assetSource` accepts `.bundled`, `.cdn(version:)`, or `.custom(baseURL:)`.
+Bundled mode inlines KaTeX, its stylesheet, and WOFF2 fonts so the document
+remains portable and works offline. Setting `enabled` to `false` omits KaTeX.
+Resources are included once and only when the document contains math.
 
 ## AST nodes
 

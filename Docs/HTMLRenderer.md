@@ -41,7 +41,7 @@ let options = HTMLRenderOptions(
     ),
     mermaidConfiguration: MermaidConfiguration(theme: .dark),
     katexConfiguration: KaTeXConfiguration(
-        renderMode: .cdn(version: "0.16.21"),
+        assetSource: .cdn(version: "0.16.21"),
         throwOnError: false
     )
 )
@@ -52,6 +52,11 @@ let html = try await HTMLRenderer(options: options).renderFragment(document)
 Mermaid themes are selected through `MermaidConfiguration.Theme`: `.default`,
 `.dark`, `.forest`, `.neutral`, and `.base`. Use
 `MermaidConfiguration.darkHighContrast` for the high-contrast preset.
+
+Both browser runtimes support `.bundled`, `.cdn(version:)`, and caller-owned
+custom URLs. Bundled resources are inlined into the result for deterministic,
+offline HTML. The default remains a pinned CDN source to keep ordinary output
+small.
 
 ## WebView presentation
 
@@ -67,3 +72,5 @@ MarkdownWebView(
 
 Parsing stays outside the view, so callers can parse once and reuse the same
 document for HTML, native SwiftUI, traversal, rewriting, and export.
+`onRender` succeeds only after every required browser runtime reports ready;
+navigation or subresource failures are returned through the same callback.

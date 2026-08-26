@@ -19,19 +19,21 @@ enum KaTeXCSS {
 /// Configuration for KaTeX math rendering
 public struct KaTeXConfiguration: Sendable {
 
-    /// KaTeX rendering mode for loading the library
-    public enum RenderMode: Sendable {
+    /// Source used to load the KaTeX browser runtime.
+    public enum AssetSource: Sendable, Equatable {
+        /// Inline the KaTeX resources shipped with this package.
+        case bundled
         /// Use CDN-hosted KaTeX (requires internet connection)
         case cdn(version: String)
-        /// Use custom KaTeX URL (local or alternative CDN)
-        case custom(url: String)
+        /// Use a caller-owned KaTeX distribution base URL.
+        case custom(baseURL: URL)
     }
 
     /// Whether KaTeX rendering is enabled
     public let enabled: Bool
 
-    /// Rendering mode (CDN or custom URL)
-    public let renderMode: RenderMode
+    /// Source used to load KaTeX assets.
+    public let assetSource: AssetSource
 
     /// Whether to throw on KaTeX rendering errors
     public let throwOnError: Bool
@@ -42,9 +44,6 @@ public struct KaTeXConfiguration: Sendable {
     /// Minimum thickness of fraction lines and similar elements (in em)
     public let minRuleThickness: Double?
 
-    /// Default display mode (overridden per-element by CSS class detection)
-    public let displayMode: Bool
-
     /// Custom CSS to inject for math elements
     public let customCSS: String?
 
@@ -54,84 +53,18 @@ public struct KaTeXConfiguration: Sendable {
     /// Initialize with custom settings
     public init(
         enabled: Bool = true,
-        renderMode: RenderMode = .cdn(version: "0.16.21"),
+        assetSource: AssetSource = .cdn(version: "0.16.21"),
         throwOnError: Bool = false,
         errorColor: String = "#cc0000",
         minRuleThickness: Double? = nil,
-        displayMode: Bool = false,
         customCSS: String? = nil
     ) {
         self.enabled = enabled
-        self.renderMode = renderMode
+        self.assetSource = assetSource
         self.throwOnError = throwOnError
         self.errorColor = errorColor
         self.minRuleThickness = minRuleThickness
-        self.displayMode = displayMode
         self.customCSS = customCSS
     }
 
-    /// Generate the KaTeX initialization script that renders math elements on page load
-    func generateInitScript() -> String {
-        var options: [String] = []
-        options.append("throwOnError: \(throwOnError ? "true" : "false")")
-        options.append("errorColor: '\(errorColor)'")
-
-        if let minRuleThickness = minRuleThickness {
-            options.append("minRuleThickness: \(minRuleThickness)")
-        }
-
-        let optionsString = options.joined(separator: ", ")
-
-        var script = """
-        document.addEventListener("DOMContentLoaded", function() {
-            if (typeof katex === 'undefined') { return; }
-            var mathElements = document.querySelectorAll('.\(KaTeXCSS.mathBase)');
-            mathElements.forEach(function(el) {
-                var isDisplay = el.classList.contains('\(KaTeXCSS.mathDisplay)');
-                var text = el.textContent;
-                try {
-                    katex.render(text, el, {displayMode: isDisplay, \(optionsString)});
-                } catch (e) {
-                    if (\(throwOnError ? "true" : "false")) { throw e; }
-                    el.style.color = '\(errorColor)';
-                }
-            });
-        });
-        """
-
-        // Add custom CSS injection if provided
-        if let customCSS = customCSS, !customCSS.isEmpty {
-            script += """
-
-            // Inject custom CSS for math elements
-            document.addEventListener('DOMContentLoaded', function() {
-                var style = document.createElement('style');
-                style.textContent = `\(customCSS)`;
-                document.head.appendChild(style);
-            });
-            """
-        }
-
-        return script
-    }
-
-    /// Resolved base URL for KaTeX assets
-    private var resolvedBaseURL: String {
-        switch renderMode {
-        case .cdn(let version):
-            return "https://cdn.jsdelivr.net/npm/katex@\(version)/dist"
-        case .custom(let url):
-            return url
-        }
-    }
-
-    /// Generate the KaTeX CSS stylesheet link tag
-    func generateStylesheetLink() -> String {
-        return "<link rel=\"stylesheet\" href=\"\(resolvedBaseURL)/katex.min.css\">"
-    }
-
-    /// Generate the KaTeX JavaScript script tags
-    func generateScriptTags() -> String {
-        return "<script defer src=\"\(resolvedBaseURL)/katex.min.js\"></script>"
-    }
 }

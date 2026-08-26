@@ -35,7 +35,7 @@ Markdown Source
 
 **AST operations:** `depthFirst()` in `ASTTraversal.swift` is the shared lazy preorder seam for generic scans. `DocumentNode.rewriting(_:)` in `ASTRewriter.swift` is a bottom-up, one-shot immutable rewrite; built-in metadata is preserved, and custom containers adopt `ASTRewritableNode` to support rewritten descendants.
 
-**HTML output seam:** `HTMLRenderer` owns HTML escaping, GFM, syntax highlighting, Mermaid, KaTeX, CSS, scripts, and complete-document composition. Configure it with `HTMLRenderOptions`; callers render only complete `DocumentNode` values.
+**HTML output seam:** `HTMLRenderer` owns HTML escaping, GFM, syntax highlighting, Mermaid, KaTeX, CSS, scripts, and complete-document composition. Configure it with `HTMLRenderOptions`; callers render only complete `DocumentNode` values. `BrowserDocumentAssembler` discovers runtime requirements during body rendering, deduplicates assets, and emits one readiness/failure bootstrap. Configuration values stay data-only.
 
 **SwiftUI output seam:** `SwiftUIRenderer` is `@MainActor`, accepts `SwiftUIRenderOptions`, and produces `AnyView` from a complete `DocumentNode`. `MarkdownWebView` is an HTML presentation adapter and also accepts a document rather than Markdown source.
 
@@ -60,6 +60,8 @@ Markdown Source
 - **Tests use Swift Testing** — use `@Test` with `#expect`/`#require`; add `async` only when the test performs asynchronous work.
 - **`SyntaxHighlightingRegistry`/`Cache` are actors** — interactions require `await`.
 - **SwiftUI output requires `@MainActor`** — create and call `SwiftUIRenderer` and `MarkdownWebView` on the main actor.
+- **Bundled browser assets are real package resources** — `.bundled` inlines pinned Mermaid 10.9.1 or KaTeX 0.16.21 assets; `.cdn` keeps documents small, and `.custom` accepts validated HTTPS or file URLs.
+- **Browser readiness is semantic** — `MarkdownWebView.onRender` succeeds after required runtimes initialize, not merely after WebKit navigation finishes.
 - **HTML entity decoding is not implemented** — entities like `&amp;` pass through as-is.
 
 ## Code Style

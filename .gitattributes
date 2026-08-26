@@ -1,0 +1,2 @@
+# Preserve vendored, minified browser runtimes byte-for-byte.
+Sources/SwiftMarkdownParser/Resources/Browser/*.min.js -whitespace

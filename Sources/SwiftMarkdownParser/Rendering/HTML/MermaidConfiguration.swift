@@ -19,14 +19,14 @@ public struct MermaidConfiguration: Sendable {
         case base = "base"
     }
 
-    /// Mermaid rendering mode
-    public enum RenderMode: Sendable {
-        /// Use embedded Mermaid.js (no external dependencies)
-        case embedded
+    /// Source used to load the Mermaid browser runtime.
+    public enum AssetSource: Sendable, Equatable {
+        /// Inline the Mermaid.js resource shipped with this package.
+        case bundled
         /// Use CDN-hosted Mermaid.js (requires internet connection)
         case cdn(version: String)
-        /// Use custom Mermaid.js URL
-        case custom(url: String)
+        /// Use a caller-owned Mermaid.js URL.
+        case custom(scriptURL: URL)
     }
 
     /// Security level for Mermaid rendering
@@ -43,8 +43,8 @@ public struct MermaidConfiguration: Sendable {
     /// Mermaid theme to use
     public let theme: Theme
 
-    /// Rendering mode (embedded, CDN, or custom)
-    public let renderMode: RenderMode
+    /// Source used to load Mermaid.js.
+    public let assetSource: AssetSource
 
     /// Security level for rendering
     public let securityLevel: SecurityLevel
@@ -166,7 +166,7 @@ public struct MermaidConfiguration: Sendable {
     public init(
         enabled: Bool = true,
         theme: Theme = .default,
-        renderMode: RenderMode = .embedded,
+        assetSource: AssetSource = .cdn(version: "10.9.1"),
         securityLevel: SecurityLevel = .strict,
         startOnLoad: Bool = true,
         fontFamily: String = "\"Trebuchet MS\", verdana, arial, sans-serif",
@@ -182,7 +182,7 @@ public struct MermaidConfiguration: Sendable {
     ) {
         self.enabled = enabled
         self.theme = theme
-        self.renderMode = renderMode
+        self.assetSource = assetSource
         self.securityLevel = securityLevel
         self.startOnLoad = startOnLoad
         self.fontFamily = fontFamily
@@ -197,60 +197,6 @@ public struct MermaidConfiguration: Sendable {
         self.sequence = sequence
     }
 
-    /// Generate Mermaid initialization JavaScript
-    func generateInitScript() -> String {
-        let config = """
-        {
-            startOnLoad: \(startOnLoad ? "true" : "false"),
-            theme: '\(theme.rawValue)',
-            securityLevel: '\(securityLevel.rawValue)',
-            fontFamily: '\(fontFamily)',
-            fontSize: \(fontSize),
-            maxTextSize: \(maxTextSize),
-            useMaxWidth: \(useMaxWidth ? "true" : "false"),
-            htmlLabels: true,
-            displayMode: 'iframe',
-            logLevel: \(logLevel),
-            flowchart: {
-                curve: '\(flowchart.curve.rawValue)',
-                padding: \(flowchart.padding),
-                nodeSpacing: \(flowchart.nodeSpacing),
-                rankSpacing: \(flowchart.rankSpacing),
-                useMaxWidth: \(flowchart.useMaxWidth ? "true" : "false")
-            },
-            sequence: {
-                showSequenceNumbers: \(sequence.showNumbers ? "true" : "false"),
-                actorMargin: \(sequence.actorMargin),
-                noteMargin: \(sequence.noteMargin),
-                messageMargin: \(sequence.messageMargin),
-                mirrorActors: \(sequence.mirrorActors ? "true" : "false"),
-                useMaxWidth: \(sequence.useMaxWidth ? "true" : "false")
-            }
-        }
-        """
-
-        var scriptContent = """
-        window.mermaidConfig = \(config);
-        if (typeof mermaid !== 'undefined') {
-            mermaid.initialize(window.mermaidConfig);
-        }
-        """
-
-        // Add custom CSS if provided
-        if let customCSS = customCSS, !customCSS.isEmpty {
-            scriptContent += """
-
-            // Inject custom CSS for enhanced theme support
-            document.addEventListener('DOMContentLoaded', function() {
-                const style = document.createElement('style');
-                style.textContent = `\(customCSS)`;
-                document.head.appendChild(style);
-            });
-            """
-        }
-
-        return scriptContent
-    }
 }
 
 // MARK: - Flowchart Configuration

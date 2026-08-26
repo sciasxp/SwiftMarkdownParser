@@ -30,11 +30,9 @@ import Foundation
         #expect(html.contains("mermaid-container"))
         #expect(html.contains("class=\"mermaid\""))
 
-        // The malicious content is preserved within the Mermaid diagram definition
-        // This is safe because Mermaid.js will parse and sanitize it during rendering
-        #expect(html.contains("<script>alert('XSS')</script>"))
-
-        // But it should be within a mermaid pre tag, not as executable HTML
+        // The diagram source is preserved as text without creating executable DOM nodes.
+        #expect(html.contains("&lt;script&gt;alert(&#39;XSS&#39;)&lt;/script&gt;"))
+        #expect(!html.contains("<script>alert('XSS')</script>"))
         #expect(html.contains("<pre class=\"mermaid\""))
     }
 
@@ -52,15 +50,11 @@ import Foundation
         #expect(html.contains("mermaid-container"))
         #expect(html.contains("class=\"mermaid\""))
 
-        // The malicious content is preserved within the Mermaid diagram definition
-        // This is safe because it's contained within a <pre> element and will be
-        // processed by Mermaid.js, which has its own security handling
         #expect(html.contains("<pre class=\"mermaid\""))
-
-        // Verify the dangerous content is contained within the Mermaid pre block, not as executable HTML
-        // The HTML should contain the malicious strings but they should be inside the mermaid pre tag
-        #expect(html.contains("&lt;img src=x onerror=alert(1)&gt;") ||
-                html.contains("<img src=x onerror=alert(1)>"))
+        #expect(html.contains("&lt;img src=x onerror=alert(1)&gt;"))
+        #expect(html.contains("&lt;iframe src=&#39;javascript:alert(1)&#39;&gt;"))
+        #expect(!html.contains("<img src=x onerror=alert(1)>"))
+        #expect(!html.contains("<iframe"))
     }
 
     @Test func mermaidJavaScriptInjection() async throws {
@@ -77,9 +71,8 @@ import Foundation
         #expect(html.contains("class=\"mermaid\""))
 
         // JavaScript code should be safely contained within diagram definition
-        // (Mermaid.js itself will handle the content safely)
         #expect(html.contains("javascript:alert(1)"))
-        #expect(html.contains("onclick='alert(1)'"))
+        #expect(html.contains("onclick=&#39;alert(1)&#39;"))
     }
 
     // MARK: - Content Size and DoS Prevention
@@ -337,8 +330,8 @@ import Foundation
         #expect(html.contains("mermaid-container"))
         #expect(html.contains("class=\"mermaid\""))
 
-        #expect(html.contains("securityLevel: 'strict'"))
-        #expect(!html.contains("displayErrors: true"))
+        #expect(html.contains("\"securityLevel\":\"strict\""))
+        #expect(html.contains("\"suppressErrorRendering\":true"))
     }
 
     @Test func mermaidRendererDisabledSecurely() async throws {

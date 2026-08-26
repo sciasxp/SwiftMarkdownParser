@@ -26,6 +26,7 @@ let package = Package(
         .target(
             name: "SwiftMarkdownParser",
             dependencies: [],
+            resources: [.copy("Resources/Browser")],
             swiftSettings: [
                 .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
             ]),

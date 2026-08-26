@@ -116,11 +116,20 @@ public struct HTMLSyntaxHighlightingOptions: Sendable {
 /// Errors raised at the HTML output seam.
 public enum HTMLRenderingError: Error, LocalizedError, Sendable {
     case unsupportedNodeType(ASTNodeType)
+    case bundledAssetUnavailable(String)
+    case invalidAssetURL(feature: String, value: String)
+    case browserConfigurationEncodingFailed
 
     public var errorDescription: String? {
         switch self {
         case .unsupportedNodeType(let type):
             return "Unsupported AST node type: \(type)"
+        case .bundledAssetUnavailable(let name):
+            return "Bundled browser asset is unavailable: \(name)"
+        case let .invalidAssetURL(feature, value):
+            return "Invalid \(feature) browser asset URL: \(value)"
+        case .browserConfigurationEncodingFailed:
+            return "Browser runtime configuration could not be encoded."
         }
     }
 }
@@ -214,7 +223,10 @@ enum RendererUtils {
 
 extension HTMLRenderer {
     /// Render GFM table
-    func renderGFMTable(_ node: AST.GFMTableNode) async throws -> String {
+    func renderGFMTable(
+        _ node: AST.GFMTableNode,
+        requirements: inout BrowserRequirements
+    ) async throws -> String {
         var html = "<table"
 
         let attributes = RendererUtils.htmlAttributes(
@@ -234,7 +246,11 @@ extension HTMLRenderer {
         if !headerRows.isEmpty {
             html += "<thead>\n"
             for headerRow in headerRows {
-                html += try await renderTableRow(headerRow, alignments: node.alignments)
+                html += try await renderTableRow(
+                    headerRow,
+                    alignments: node.alignments,
+                    requirements: &requirements
+                )
             }
             html += "</thead>\n"
         }
@@ -243,7 +259,11 @@ extension HTMLRenderer {
         if !bodyRows.isEmpty {
             html += "<tbody>\n"
             for bodyRow in bodyRows {
-                html += try await renderTableRow(bodyRow, alignments: node.alignments)
+                html += try await renderTableRow(
+                    bodyRow,
+                    alignments: node.alignments,
+                    requirements: &requirements
+                )
             }
             html += "</tbody>\n"
         }
@@ -253,7 +273,11 @@ extension HTMLRenderer {
     }
 
     /// Render table row
-    private func renderTableRow(_ row: AST.GFMTableRowNode, alignments: [GFMTableAlignment]) async throws -> String {
+    private func renderTableRow(
+        _ row: AST.GFMTableRowNode,
+        alignments: [GFMTableAlignment],
+        requirements: inout BrowserRequirements
+    ) async throws -> String {
         var html = "<tr"
 
         let attributes = RendererUtils.htmlAttributes(
@@ -266,7 +290,11 @@ extension HTMLRenderer {
         html += ">\n"
 
         for (index, cell) in row.cells.enumerated() {
-            html += try await renderTableCell(cell, alignment: index < alignments.count ? alignments[index] : .none)
+            html += try await renderTableCell(
+                cell,
+                alignment: index < alignments.count ? alignments[index] : .none,
+                requirements: &requirements
+            )
         }
 
         html += "</tr>\n"
@@ -274,7 +302,11 @@ extension HTMLRenderer {
     }
 
     /// Render table cell
-    private func renderTableCell(_ cell: AST.GFMTableCellNode, alignment: GFMTableAlignment) async throws -> String {
+    private func renderTableCell(
+        _ cell: AST.GFMTableCellNode,
+        alignment: GFMTableAlignment,
+        requirements: inout BrowserRequirements
+    ) async throws -> String {
         let tag = cell.isHeader ? "th" : "td"
         var html = "<\(tag)"
 
@@ -301,7 +333,7 @@ extension HTMLRenderer {
         // Render inline content if available, otherwise use plain text
         if !cell.children.isEmpty {
             for child in cell.children {
-                html += try await render(node: child)
+                html += try await render(node: child, requirements: &requirements)
             }
         } else {
             html += RendererUtils.escapeHTML(cell.content)
@@ -313,7 +345,10 @@ extension HTMLRenderer {
     }
 
     /// Render GFM task list item
-    func renderGFMTaskListItem(_ node: AST.GFMTaskListItemNode) async throws -> String {
+    func renderGFMTaskListItem(
+        _ node: AST.GFMTaskListItemNode,
+        requirements: inout BrowserRequirements
+    ) async throws -> String {
         var html = "<li"
 
         // Add CSS class for task list item
@@ -399,7 +434,7 @@ extension HTMLRenderer {
 
         // Render task content
         for child in node.children {
-            html += try await render(node: child)
+            html += try await render(node: child, requirements: &requirements)
         }
 
         html += "</span>"

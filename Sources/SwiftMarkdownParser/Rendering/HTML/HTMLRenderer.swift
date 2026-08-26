@@ -4,15 +4,26 @@ import Foundation
 /// escaping, feature assets, styling, and document composition.
 public struct HTMLRenderer: Sendable {
     let options: HTMLRenderOptions
+    private let assetLoader: any BrowserAssetLoading
 
     public init(options: HTMLRenderOptions = .init()) {
         self.options = options
+        self.assetLoader = PackageBrowserAssetLoader()
+    }
+
+    init(options: HTMLRenderOptions = .init(), assetLoader: any BrowserAssetLoading) {
+        self.options = options
+        self.assetLoader = assetLoader
     }
 
     /// Produces a self-contained embeddable fragment.
     public func renderFragment(_ document: AST.DocumentNode) async throws -> String {
-        let parts = try await renderParts(document)
-        return parts.head + parts.body + parts.trailingBody
+        var requirements = BrowserRequirements()
+        let body = try await renderBody(document, requirements: &requirements)
+        return try browserDocumentAssembler.renderFragment(
+            body: body,
+            requirements: requirements
+        )
     }
 
     /// Produces a complete HTML document with resources placed in the correct section.
@@ -20,53 +31,24 @@ public struct HTMLRenderer: Sendable {
         _ document: AST.DocumentNode,
         metadata: HTMLDocumentMetadata = .init()
     ) async throws -> String {
-        let parts = try await renderParts(document)
-        return HTMLDocumentTemplate.render(
-            head: parts.head,
-            body: parts.body,
-            trailingBody: parts.trailingBody,
+        var requirements = BrowserRequirements()
+        let body = try await renderBody(document, requirements: &requirements)
+        return try browserDocumentAssembler.renderDocument(
+            body: body,
+            requirements: requirements,
             metadata: metadata
         )
     }
 
-    private func renderParts(_ document: AST.DocumentNode) async throws -> HTMLRenderParts {
-        var hasMermaid = false
-        var hasMath = false
-
-        for visit in document.depthFirst() {
-            hasMermaid = hasMermaid || visit.node is AST.MermaidDiagramNode
-            if !hasMath && (visit.node is AST.MathBlockNode || visit.node is AST.InlineMathNode) {
-                hasMath = true
-            }
-        }
-
-        var head = ""
-        if hasMermaid && options.mermaidConfiguration.enabled {
-            head += mermaidRenderer.generateHeadContent()
-        }
-        if hasMath && options.katexConfiguration.enabled {
-            head += katexRenderer.generateKaTeXHeadContent()
-        }
-
+    private func renderBody(
+        _ document: AST.DocumentNode,
+        requirements: inout BrowserRequirements
+    ) async throws -> String {
         var body = ""
         for child in document.children {
-            body += try await render(node: child)
+            body += try await render(node: child, requirements: &requirements)
         }
-
-        var trailingBody = ""
-        if hasMermaid && options.mermaidConfiguration.enabled {
-            trailingBody = """
-            <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                if (typeof mermaid !== 'undefined') {
-                    mermaid.init();
-                }
-            });
-            </script>
-            """
-        }
-
-        return HTMLRenderParts(head: head, body: body, trailingBody: trailingBody)
+        return body
     }
 
     /// Shared KaTeX renderer instance, created once per HTMLRenderer
@@ -78,7 +60,14 @@ public struct HTMLRenderer: Sendable {
         MermaidRenderer(configuration: options.mermaidConfiguration)
     }
 
-    func render(node: ASTNode) async throws -> String {
+    private var browserDocumentAssembler: BrowserDocumentAssembler {
+        BrowserDocumentAssembler(options: options, assetLoader: assetLoader)
+    }
+
+    func render(
+        node: ASTNode,
+        requirements: inout BrowserRequirements
+    ) async throws -> String {
         switch node {
         case let textNode as AST.TextNode:
             return RendererUtils.escapeHTML(textNode.content)
@@ -86,7 +75,7 @@ public struct HTMLRenderer: Sendable {
         case let paragraphNode as AST.ParagraphNode:
             var content = ""
             for child in paragraphNode.children {
-                content += try await render(node: child)
+                content += try await render(node: child, requirements: &requirements)
             }
             let attributes = RendererUtils.htmlAttributes(
                 for: .paragraph,
@@ -98,7 +87,7 @@ public struct HTMLRenderer: Sendable {
         case let headingNode as AST.HeadingNode:
             var content = ""
             for child in headingNode.children {
-                content += try await render(node: child)
+                content += try await render(node: child, requirements: &requirements)
             }
             let attributes = RendererUtils.htmlAttributes(
                 for: .heading,
@@ -110,7 +99,7 @@ public struct HTMLRenderer: Sendable {
         case let blockQuoteNode as AST.BlockQuoteNode:
             var content = ""
             for child in blockQuoteNode.children {
-                content += try await render(node: child)
+                content += try await render(node: child, requirements: &requirements)
             }
             let attributes = RendererUtils.htmlAttributes(
                 for: .blockQuote,
@@ -122,7 +111,7 @@ public struct HTMLRenderer: Sendable {
         case let listNode as AST.ListNode:
             var content = ""
             for child in listNode.children {
-                content += try await render(node: child)
+                content += try await render(node: child, requirements: &requirements)
             }
 
             let tagName = listNode.isOrdered ? "ol" : "ul"
@@ -161,7 +150,7 @@ public struct HTMLRenderer: Sendable {
 
             // Render content
             for child in listItemNode.children {
-                html += try await render(node: child)
+                html += try await render(node: child, requirements: &requirements)
             }
 
             html += "</li>\n"
@@ -181,7 +170,7 @@ public struct HTMLRenderer: Sendable {
         case let emphasisNode as AST.EmphasisNode:
             var content = ""
             for child in emphasisNode.children {
-                content += try await render(node: child)
+                content += try await render(node: child, requirements: &requirements)
             }
             let attributes = RendererUtils.htmlAttributes(
                 for: .emphasis,
@@ -193,7 +182,7 @@ public struct HTMLRenderer: Sendable {
         case let strongNode as AST.StrongEmphasisNode:
             var content = ""
             for child in strongNode.children {
-                content += try await render(node: child)
+                content += try await render(node: child, requirements: &requirements)
             }
             let attributes = RendererUtils.htmlAttributes(
                 for: .strongEmphasis,
@@ -205,7 +194,7 @@ public struct HTMLRenderer: Sendable {
         case let strikethroughNode as AST.StrikethroughNode:
             var content = ""
             for child in strikethroughNode.children {
-                content += try await render(node: child)
+                content += try await render(node: child, requirements: &requirements)
             }
             let attributes = RendererUtils.htmlAttributes(
                 for: .strikethrough,
@@ -217,7 +206,7 @@ public struct HTMLRenderer: Sendable {
         case let linkNode as AST.LinkNode:
             var content = ""
             for child in linkNode.children {
-                content += try await render(node: child)
+                content += try await render(node: child, requirements: &requirements)
             }
 
             guard let normalizedURL = RendererUtils.normalizeURL(linkNode.url, baseURL: options.baseURL) else {
@@ -302,27 +291,39 @@ public struct HTMLRenderer: Sendable {
 
         // GFM Extensions
         case let tableNode as AST.GFMTableNode:
-            return try await renderGFMTable(tableNode)
+            return try await renderGFMTable(tableNode, requirements: &requirements)
 
         case let taskListItemNode as AST.GFMTaskListItemNode:
-            return try await renderGFMTaskListItem(taskListItemNode)
+            requirements.require(.taskLists)
+            return try await renderGFMTaskListItem(taskListItemNode, requirements: &requirements)
 
         // Mermaid Support
         case let mermaidNode as AST.MermaidDiagramNode:
+            if options.mermaidConfiguration.enabled {
+                requirements.require(.mermaid)
+            }
             return renderMermaidDiagram(mermaidNode)
 
         // Footnote Support
         case let footnoteRefNode as AST.FootnoteReferenceNode:
+            requirements.require(.footnotes)
             return renderFootnoteReference(footnoteRefNode)
 
         case let footnoteDefNode as AST.FootnoteDefinitionNode:
-            return try await renderFootnoteDefinition(footnoteDefNode)
+            requirements.require(.footnotes)
+            return try await renderFootnoteDefinition(footnoteDefNode, requirements: &requirements)
 
         // Math Support
         case let mathBlockNode as AST.MathBlockNode:
+            if options.katexConfiguration.enabled {
+                requirements.require(.katex)
+            }
             return katexRenderer.renderMathBlock(mathBlockNode)
 
         case let inlineMathNode as AST.InlineMathNode:
+            if options.katexConfiguration.enabled {
+                requirements.require(.katex)
+            }
             return katexRenderer.renderInlineMath(inlineMathNode)
 
         default:
@@ -331,8 +332,7 @@ public struct HTMLRenderer: Sendable {
     }
 
     private func renderMermaidDiagram(_ mermaidNode: AST.MermaidDiagramNode) -> String {
-        let mermaidRenderer = MermaidRenderer(configuration: options.mermaidConfiguration)
-        return mermaidRenderer.renderMermaidDiagram(mermaidNode)
+        mermaidRenderer.render(mermaidNode)
     }
 
     private func renderFootnoteReference(_ footnoteRefNode: AST.FootnoteReferenceNode) -> String {
@@ -345,10 +345,13 @@ public struct HTMLRenderer: Sendable {
         return "<a href=\"#fn\(footnoteRefNode.identifier)\" class=\"footnote\" id=\"fnref\(footnoteRefNode.identifier)\"\(RendererUtils.formatHTMLAttributes(attributes))>\(footnoteRefNode.identifier)</a>"
     }
 
-    private func renderFootnoteDefinition(_ footnoteDefNode: AST.FootnoteDefinitionNode) async throws -> String {
+    private func renderFootnoteDefinition(
+        _ footnoteDefNode: AST.FootnoteDefinitionNode,
+        requirements: inout BrowserRequirements
+    ) async throws -> String {
         var content = ""
         for child in footnoteDefNode.children {
-            content += try await render(node: child)
+            content += try await render(node: child, requirements: &requirements)
         }
 
         let attributes = RendererUtils.htmlAttributes(
@@ -436,10 +439,4 @@ public struct HTMLRenderer: Sendable {
 
         return html
     }
-}
-
-private struct HTMLRenderParts {
-    let head: String
-    let body: String
-    let trailingBody: String
 }
