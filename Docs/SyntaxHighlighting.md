@@ -45,7 +45,7 @@ let context = RenderContext(
 )
 
 let parser = SwiftMarkdownParser()
-let ast = try await parser.parseToAST(codeMarkdown)
+let ast = try parser.parse(codeMarkdown)
 
 let renderer = HTMLRenderer(context: context)
 let highlightedHTML = try await renderer.render(document: ast)
@@ -67,7 +67,7 @@ struct CodeExampleView: View {
         return await response.json()
     ```
     """
-    
+
     var body: some View {
         ScrollView {
             MarkdownView(markdown: markdown)
@@ -79,7 +79,7 @@ struct CodeExampleView: View {
 struct MarkdownView: View {
     let markdown: String
     @State private var renderedView: AnyView?
-    
+
     var body: some View {
         Group {
             if let view = renderedView {
@@ -92,20 +92,20 @@ struct MarkdownView: View {
             await renderMarkdown()
         }
     }
-    
+
     private func renderMarkdown() async {
         do {
             let parser = SwiftMarkdownParser()
-            let ast = try await parser.parseToAST(markdown)
-            
+            let ast = try parser.parse(markdown)
+
             // Use a predefined SwiftUI style - NO syntax highlighting available
             let context = SwiftUIRenderContext(
                 styleConfiguration: SwiftUIStyleConfiguration.github
             )
-            
+
             let renderer = SwiftUIRenderer(context: context)
             let view = try await renderer.render(document: ast)
-            
+
             await MainActor.run {
                 self.renderedView = view
             }
@@ -159,7 +159,7 @@ interface User {
 })
 class UserList<T extends User> {
     users: T[] = [];
-    
+
     async loadUsers(): Promise<void> {
         this.users = await this.userService.getUsers<T>();
     }
@@ -412,7 +412,7 @@ Performance characteristics for different code block sizes (HTML renderer):
 // Use engines directly for custom processing
 let jsEngine = JavaScriptSyntaxEngine()
 let tokens = try await jsEngine.highlight(
-    "const x = 42;", 
+    "const x = 42;",
     language: "javascript"
 )
 
@@ -431,7 +431,7 @@ struct MyLanguageEngine: SyntaxHighlightingEngine {
         // Custom highlighting logic
         return []
     }
-    
+
     func supportedLanguages() -> Set<String> {
         return ["mylang"]
     }
@@ -528,8 +528,8 @@ struct App {
 
 async func generateHighlightedHTML() throws -> String {
     let parser = SwiftMarkdownParser()
-    let ast = try await parser.parseToAST(multiLanguageMarkdown)
-    
+    let ast = try parser.parse(multiLanguageMarkdown)
+
     let context = RenderContext(
         styleConfiguration: StyleConfiguration(
             syntaxHighlighting: SyntaxHighlightingConfig(
@@ -542,7 +542,7 @@ async func generateHighlightedHTML() throws -> String {
             ]
         )
     )
-    
+
     let renderer = HTMLRenderer(context: context)
     return try await renderer.render(document: ast)
 }
@@ -565,9 +565,9 @@ struct SwiftUICodeExample: View {
     print(message)
     ```
     """
-    
+
     @State private var renderedView: AnyView?
-    
+
     var body: some View {
         VStack {
             if let view = renderedView {
@@ -580,12 +580,12 @@ struct SwiftUICodeExample: View {
             await renderCode()
         }
     }
-    
+
     private func renderCode() async {
         do {
             let parser = SwiftMarkdownParser()
-            let ast = try await parser.parseToAST(codeMarkdown)
-            
+            let ast = try parser.parse(codeMarkdown)
+
             // SwiftUI basic styling - no syntax highlighting
             let context = SwiftUIRenderContext(
                 styleConfiguration: SwiftUIStyleConfiguration(
@@ -594,10 +594,10 @@ struct SwiftUICodeExample: View {
                     codeBackgroundColor: Color.gray.opacity(0.1)
                 )
             )
-            
+
             let renderer = SwiftUIRenderer(context: context)
             let view = try await renderer.render(document: ast)
-            
+
             await MainActor.run {
                 self.renderedView = view
             }
@@ -623,4 +623,4 @@ struct SwiftUICodeExample: View {
 
 ---
 
-**The syntax highlighting system in SwiftMarkdownParser provides professional-grade code block rendering for HTML output with modern language support, beautiful themes, and excellent performance. For SwiftUI applications, basic monospace code blocks are provided without syntax highlighting.** 🎨✨ 
+**The syntax highlighting system in SwiftMarkdownParser provides professional-grade code block rendering for HTML output with modern language support, beautiful themes, and excellent performance. For SwiftUI applications, basic monospace code blocks are provided without syntax highlighting.** 🎨✨

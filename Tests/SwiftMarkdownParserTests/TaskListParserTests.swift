@@ -10,21 +10,14 @@ import Testing
     let parser: SwiftMarkdownParser
 
     init() async throws {
-        let configuration = SwiftMarkdownParser.Configuration(
-            enableGFMExtensions: true,
-            strictMode: false,
-            maxNestingDepth: 100,
-            trackSourceLocations: true,
-            maxParsingTime: 30.0
-        )
-        parser = SwiftMarkdownParser(configuration: configuration)
+        parser = SwiftMarkdownParser()
     }
 
     // MARK: - Basic Task List Parsing
 
     @Test func parser_parsesCheckedTaskListItem() async throws {
         let markdown = "- [x] Completed task"
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         // Should create a document with a single list containing a task list item
         #expect(ast.children.count == 1)
@@ -53,7 +46,7 @@ import Testing
 
     @Test func parser_parsesUncheckedTaskListItem() async throws {
         let markdown = "- [ ] Incomplete task"
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         // Navigate to the task list item
         guard let listNode = ast.children[0] as? AST.ListNode,
@@ -89,7 +82,7 @@ import Testing
         ]
 
         for (markdown, expectedChecked) in testCases {
-            let ast = try await parser.parseToAST(markdown)
+            let ast = try parser.parse(markdown)
 
             // Navigate to the task list item
             guard let listNode = ast.children[0] as? AST.ListNode,
@@ -114,7 +107,7 @@ import Testing
         ]
 
         for (markdown, expectedChecked) in testCases {
-            let ast = try await parser.parseToAST(markdown)
+            let ast = try parser.parse(markdown)
 
             // Navigate to the task list item
             guard let listNode = ast.children[0] as? AST.ListNode,
@@ -136,7 +129,7 @@ import Testing
         - [X] Third task
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let listNode = try #require(ast.children[0] as? AST.ListNode, "Expected ListNode")
 
@@ -175,7 +168,7 @@ import Testing
         - Another regular item
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let listNode = try #require(ast.children[0] as? AST.ListNode, "Expected ListNode")
 
@@ -202,7 +195,7 @@ import Testing
           - [ ] Child task 2
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let listNode = try #require(ast.children[0] as? AST.ListNode, "Expected ListNode")
 
@@ -258,7 +251,7 @@ import Testing
 
     @Test func parser_parsesTaskListWithInlineFormatting() async throws {
         let markdown = "- [x] Task with **bold** and *italic* text"
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         // Navigate to the task list item
         guard let listNode = ast.children[0] as? AST.ListNode,
@@ -288,7 +281,7 @@ import Testing
           of content
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         // Navigate to the task list item
         guard let listNode = ast.children[0] as? AST.ListNode,
@@ -324,7 +317,7 @@ import Testing
         ]
 
         for markdown in testCases {
-            let ast = try await parser.parseToAST(markdown)
+            let ast = try parser.parse(markdown)
 
             // Should create a regular list, not a task list
             guard let listNode = ast.children[0] as? AST.ListNode else {
@@ -346,7 +339,7 @@ import Testing
         ]
 
         for markdown in edgeCases {
-            let ast = try await parser.parseToAST(markdown)
+            let ast = try parser.parse(markdown)
 
             // These might create paragraphs instead of lists
             if let listNode = ast.children[0] as? AST.ListNode {
@@ -365,7 +358,7 @@ import Testing
 
     @Test func parser_providesCorrectSourceLocations() async throws {
         let markdown = "- [x] Task"
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         // Navigate to the task list item
         guard let listNode = ast.children[0] as? AST.ListNode,

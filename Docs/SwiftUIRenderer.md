@@ -28,7 +28,7 @@ struct ContentView: View {
     private func loadMarkdown() async {
         do {
             let parser = SwiftMarkdownParser()
-            let ast = try await parser.parseToAST(markdown)
+            let ast = try parser.parse(markdown)
             let renderer = SwiftUIRenderer()
             let view = try await renderer.render(document: ast)
             
@@ -46,41 +46,26 @@ struct ContentView: View {
 
 ## Basic Usage
 
-### Parser Configuration
+### Parser Resource Limits
 
-For SwiftUI rendering, parser configuration affects both parsing performance and rendering behavior:
+The Supported Dialect is fixed. Parser policy only controls deterministic resource use:
 
 ```swift
-// Default configuration suitable for most SwiftUI apps
-let defaultConfig = SwiftMarkdownParser.Configuration(
-    enableGFMExtensions: true,      // Tables, task lists, etc.
-    strictMode: false,              // Relaxed parsing
-    maxNestingDepth: 100,          // Prevent stack overflow
-    trackSourceLocations: false,   // Not needed for SwiftUI rendering
-    maxParsingTime: 30.0           // 30 second timeout
+let limits = SwiftMarkdownParser.ResourceLimits(
+    maximumSourceLength: 2_000_000,
+    maximumNestingDepth: 100,
+    maximumWork: 25_000_000
 )
 
-// Configuration for real-time preview (like in a markdown editor)
-let previewConfig = SwiftMarkdownParser.Configuration(
-    enableGFMExtensions: true,
-    maxParsingTime: 2.0            // Quick timeout for responsive UI
-)
-
-// Configuration for large documents
-let largeDocConfig = SwiftMarkdownParser.Configuration(
-    enableGFMExtensions: true,
-    maxParsingTime: 60.0           // Extended timeout for complex documents
-)
-
-let parser = SwiftMarkdownParser(configuration: defaultConfig)
+let parser = SwiftMarkdownParser(resourceLimits: limits)
 ```
 
 #### Performance Considerations for SwiftUI
 
-- **Timeout Settings**: Use shorter timeouts (2-5 seconds) for interactive editing to keep the UI responsive
-- **Source Locations**: Usually not needed for SwiftUI rendering, disable to improve performance
-- **GFM Extensions**: Enable for rich content, but may increase parsing time for complex tables
-- **Nesting Depth**: Default is sufficient for most content, but may need adjustment for deeply nested lists
+- Parse outside UI update paths and reuse the completed document.
+- Source ranges are always present and can drive selection or diagnostics.
+- Tune work and source limits for the trust boundary of the application.
+- Measure rendering latency with benchmarks rather than CI wall-clock thresholds.
 
 ### Creating a SwiftUI Renderer
 
@@ -103,7 +88,7 @@ let renderer = SwiftUIRenderer(context: context)
 ```swift
 // Parse and render
 let parser = SwiftMarkdownParser()
-let ast = try await parser.parseToAST(markdown)
+let ast = try parser.parse(markdown)
 let view = try await renderer.render(document: ast)
 
 // Use in SwiftUI
@@ -428,7 +413,7 @@ struct MarkdownSectionView: View {
     private func renderSection() async {
         // Render only when section becomes visible
         let parser = SwiftMarkdownParser()
-        let ast = try? await parser.parseToAST(markdown)
+        let ast = try? await parser.parse(markdown)
         let renderer = SwiftUIRenderer()
         let view = try? await renderer.render(document: ast!)
         
@@ -468,7 +453,7 @@ struct EfficientMarkdownView: View {
         task = Task {
             do {
                 let parser = SwiftMarkdownParser()
-                let ast = try await parser.parseToAST(markdown)
+                let ast = try parser.parse(markdown)
                 
                 // Check if task was cancelled
                 guard !Task.isCancelled else { return }
@@ -663,7 +648,7 @@ struct RobustMarkdownView: View {
     private func renderMarkdown() async {
         do {
             let parser = SwiftMarkdownParser()
-            let ast = try await parser.parseToAST(markdown)
+            let ast = try parser.parse(markdown)
             let renderer = SwiftUIRenderer()
             let view = try await renderer.render(document: ast)
             

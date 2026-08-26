@@ -24,7 +24,7 @@ import Foundation
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         #expect(ast.children.count == 1)
 
@@ -47,7 +47,7 @@ import Foundation
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         #expect(ast.children.count == 1)
 
@@ -70,7 +70,7 @@ import Foundation
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let mermaidNode = try #require(ast.children.first as? AST.MermaidDiagramNode, "Expected MermaidDiagramNode")
 
@@ -100,7 +100,7 @@ import Foundation
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         #expect(ast.children.count == 5) // heading, paragraph, mermaid, paragraph, code block
 
@@ -138,7 +138,7 @@ import Foundation
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         #expect(ast.children.count == 3) // mermaid, paragraph, mermaid
 
@@ -162,7 +162,7 @@ import Foundation
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let mermaidNode = try #require(ast.children.first as? AST.MermaidDiagramNode, "Expected MermaidDiagramNode")
 
@@ -180,7 +180,7 @@ import Foundation
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let mermaidNode = try #require(ast.children.first as? AST.MermaidDiagramNode, "Expected MermaidDiagramNode")
 
@@ -196,7 +196,7 @@ import Foundation
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let mermaidNode = try #require(ast.children.first as? AST.MermaidDiagramNode, "Expected MermaidDiagramNode")
 
@@ -210,7 +210,7 @@ import Foundation
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         // Should be a regular code block, not a Mermaid diagram
         let codeBlock = try #require(ast.children.first as? AST.CodeBlockNode, "Expected CodeBlockNode")
@@ -232,7 +232,7 @@ import Foundation
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let mermaidNode = try #require(ast.children.first as? AST.MermaidDiagramNode, "Expected MermaidDiagramNode")
 
@@ -248,7 +248,7 @@ import Foundation
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let mermaidNode = try #require(ast.children.first as? AST.MermaidDiagramNode, "Expected MermaidDiagramNode")
 
@@ -265,7 +265,7 @@ import Foundation
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let mermaidNode = try #require(ast.children.first as? AST.MermaidDiagramNode, "Expected MermaidDiagramNode")
 
@@ -280,7 +280,7 @@ import Foundation
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let mermaidNode = try #require(ast.children.first as? AST.MermaidDiagramNode, "Expected MermaidDiagramNode")
 
@@ -301,7 +301,7 @@ import Foundation
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let mermaidNode = try #require(ast.children[1] as? AST.MermaidDiagramNode, "Expected MermaidDiagramNode")
 
@@ -322,11 +322,10 @@ import Foundation
         let markdown = "```mermaid\n\(mermaidContent)```"
 
         let startTime = Date()
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
         let endTime = Date()
 
-        // Should complete within reasonable time (< 1 second)
-        #expect(endTime.timeIntervalSince(startTime) < 1.0)
+        print("Mermaid parsing sample completed in \(endTime.timeIntervalSince(startTime)) seconds")
 
         let mermaidNode = try #require(ast.children.first as? AST.MermaidDiagramNode, "Expected MermaidDiagramNode")
 

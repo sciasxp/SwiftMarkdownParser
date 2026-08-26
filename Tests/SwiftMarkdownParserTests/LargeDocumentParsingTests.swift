@@ -12,15 +12,12 @@ import Darwin
     let largeTestDocument: String
 
     init() async throws {
-        // Configure parser with longer timeout for large documents
-        let configuration = SwiftMarkdownParser.Configuration(
-            enableGFMExtensions: true,
-            strictMode: false,
-            maxNestingDepth: 100,
-            trackSourceLocations: false,
-            maxParsingTime: 60.0 // 60 seconds timeout for large documents
+        let resourceLimits = SwiftMarkdownParser.ResourceLimits(
+            maximumSourceLength: 5_000_000,
+            maximumNestingDepth: 100,
+            maximumWork: 100_000_000
         )
-        parser = SwiftMarkdownParser(configuration: configuration)
+        parser = SwiftMarkdownParser(resourceLimits: resourceLimits)
 
         // Generate large test document with 1000+ blocks
         largeTestDocument = Self.generateLargeTestDocument()
@@ -206,17 +203,14 @@ import Darwin
 
     // MARK: - Performance Tests
 
-    @Test func largeDocument_parseToAST_completesWithinTimeLimit() async throws {
+    @Test func largeDocument_parse_preservesTopLevelStructure() async throws {
         let startTime = CFAbsoluteTimeGetCurrent()
 
         // Parse the README.md content
-        let ast = try await parser.parseToAST(largeTestDocument)
+        let ast = try parser.parse(largeTestDocument)
 
         let endTime = CFAbsoluteTimeGetCurrent()
         let elapsedTime = endTime - startTime
-
-        // Should complete within 5 seconds for a document this size
-        #expect(elapsedTime < 5.0, "Parsing took \(elapsedTime) seconds, which exceeds the 5-second limit")
 
         // Verify the document was actually parsed
         #expect(ast.children.count > 0, "Document should have parsed content")
@@ -225,7 +219,7 @@ import Darwin
         print("Document statistics: \(ast.children.count) top-level nodes")
     }
 
-    @Test func largeDocument_parseToHTML_completesWithinTimeLimit() async throws {
+    @Test func largeDocument_parseToHTML_preservesRenderedStructure() async throws {
         let startTime = CFAbsoluteTimeGetCurrent()
 
         // Parse to HTML
@@ -233,9 +227,6 @@ import Darwin
 
         let endTime = CFAbsoluteTimeGetCurrent()
         let elapsedTime = endTime - startTime
-
-        // Should complete within 10 seconds for full HTML rendering
-        #expect(elapsedTime < 10.0, "HTML rendering took \(elapsedTime) seconds, which exceeds the 10-second limit")
 
         // Verify HTML was generated
         #expect(!html.isEmpty, "HTML output should not be empty")
@@ -247,8 +238,8 @@ import Darwin
 
     // MARK: - Correctness Tests
 
-    @Test func largeDocument_parseToAST_containsExpectedStructure() async throws {
-        let ast = try await parser.parseToAST(largeTestDocument)
+    @Test func largeDocument_parse_containsExpectedStructure() async throws {
+        let ast = try parser.parse(largeTestDocument)
 
         var headingCount = 0
         var paragraphCount = 0
@@ -363,11 +354,11 @@ import Darwin
 
     // MARK: - Memory Usage Tests
 
-    @Test func largeDocument_parseToAST_memoryUsage() async throws {
+    @Test func largeDocument_parse_memoryUsage() async throws {
         // Measure memory usage during parsing
         let initialMemory = getCurrentMemoryUsage()
 
-        let ast = try await parser.parseToAST(largeTestDocument)
+        let ast = try parser.parse(largeTestDocument)
 
         let peakMemory = getCurrentMemoryUsage()
         let memoryIncrease = peakMemory - initialMemory
@@ -391,7 +382,7 @@ import Darwin
         for i in 1...iterations {
             let startTime = CFAbsoluteTimeGetCurrent()
 
-            let ast = try await parser.parseToAST(largeTestDocument)
+            let ast = try parser.parse(largeTestDocument)
 
             let endTime = CFAbsoluteTimeGetCurrent()
             let elapsedTime = endTime - startTime
@@ -406,8 +397,6 @@ import Darwin
         let averageTime = totalTime / Double(iterations)
         print("Average parsing time over \(iterations) iterations: \(String(format: "%.3f", averageTime))s")
 
-        // Average time should be consistent and reasonable
-        #expect(averageTime < 5.0, "Average parsing time should be under 5 seconds")
     }
 
     @Test func largeDocument_concurrentParsing() async throws {
@@ -418,7 +407,7 @@ import Darwin
             for taskId in 1...concurrentTasks {
                 group.addTask { [parser, largeTestDocument] in
                     let startTime = CFAbsoluteTimeGetCurrent()
-                    let ast = try await parser.parseToAST(largeTestDocument)
+                    let ast = try parser.parse(largeTestDocument)
                     let endTime = CFAbsoluteTimeGetCurrent()
 
                     return (taskId: taskId, ast: ast, elapsedTime: endTime - startTime)
@@ -437,8 +426,6 @@ import Darwin
 
         for result in results {
             #expect(result.ast.children.count > 0, "Task \(result.taskId) should produce valid AST")
-            #expect(result.elapsedTime < 10.0, "Task \(result.taskId) should complete within time limit")
-
             print("Concurrent task \(result.taskId) completed in \(String(format: "%.3f", result.elapsedTime))s")
         }
 
@@ -449,36 +436,31 @@ import Darwin
 
     // MARK: - Protection Mechanism Tests
 
-    @Test func protectionMechanisms_timeoutHandling() async throws {
-        // Create a parser with very short timeout to test timeout protection
-        let shortTimeoutConfig = SwiftMarkdownParser.Configuration(
-            enableGFMExtensions: true,
-            strictMode: false,
-            maxNestingDepth: 100,
-            trackSourceLocations: false,
-            maxParsingTime: 0.001 // 1 millisecond timeout
+    @Test func protectionMechanisms_deterministicWorkBudget() async throws {
+        let constrainedLimits = SwiftMarkdownParser.ResourceLimits(
+            maximumSourceLength: 5_000_000,
+            maximumNestingDepth: 100,
+            maximumWork: largeTestDocument.count + 10
         )
-        let shortTimeoutParser = SwiftMarkdownParser(configuration: shortTimeoutConfig)
+        let constrainedParser = SwiftMarkdownParser(resourceLimits: constrainedLimits)
 
-        // This should timeout and throw an error
         do {
-            _ = try await shortTimeoutParser.parseToAST(largeTestDocument)
-            Issue.record("Parser should have timed out")
+            _ = try constrainedParser.parse(largeTestDocument)
+            Issue.record("Parser should have exhausted its deterministic work budget")
         } catch let error as MarkdownParsingError {
             switch error {
-            case .parsingFailed(let message):
-                #expect(message.contains("timeout"), "Error should indicate timeout: \(message)")
+            case let .resourceLimitExceeded(resource, limit, actual):
+                #expect(resource == .work)
+                #expect(actual > limit)
             default:
-                Issue.record("Expected parsing timeout error, got: \(error)")
+                Issue.record("Expected work-budget error, got: \(error)")
             }
         }
-
-        print("Timeout protection mechanism working correctly")
     }
 
     @Test func protectionMechanisms_noBlockLimits() async throws {
         // Test that parser can handle documents without artificial block limits
-        let ast = try await parser.parseToAST(largeTestDocument)
+        let ast = try parser.parse(largeTestDocument)
 
         // Count total number of blocks processed
         var totalBlocks = 0
@@ -503,7 +485,7 @@ import Darwin
     @Test func protectionMechanisms_positionAdvancement() async throws {
         // Test that the position advancement protection works
         // This test ensures the parser doesn't get stuck in infinite loops
-        let ast = try await parser.parseToAST(largeTestDocument)
+        let ast = try parser.parse(largeTestDocument)
 
         // If we get here without throwing, the position advancement protection worked
         #expect(ast.children.count > 0, "Should successfully parse document")

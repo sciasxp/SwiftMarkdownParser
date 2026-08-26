@@ -12,7 +12,7 @@ A Swift-native Markdown parser with AST generation, HTML rendering, and SwiftUI 
 ## Features
 
 - **CommonMark 0.30** compliant with **GitHub Flavored Markdown** extensions
-- **HTML rendering** with syntax highlighting for 6+ programming languages  
+- **HTML rendering** with syntax highlighting for 6+ programming languages
 - **SwiftUI rendering** for native iOS/macOS apps (requires iOS 17.0+/macOS 14.0+)
 - **AST generation** for custom processing and analysis
 - **Zero dependencies** - pure Swift implementation
@@ -69,7 +69,7 @@ import SwiftMarkdownParser
 struct MarkdownView: View {
     let markdown: String
     @State private var renderedView: AnyView?
-    
+
     var body: some View {
         Group {
             if let view = renderedView {
@@ -82,15 +82,15 @@ struct MarkdownView: View {
             await renderMarkdown()
         }
     }
-    
+
     private func renderMarkdown() async {
         do {
             let parser = SwiftMarkdownParser()
-            let ast = try await parser.parseToAST(markdown)
-            
+            let ast = try parser.parse(markdown)
+
             let renderer = SwiftUIRenderer()
             let view = try await renderer.render(document: ast)
-            
+
             await MainActor.run {
                 self.renderedView = view
             }
@@ -109,7 +109,7 @@ struct MarkdownView: View {
 import SwiftMarkdownParser
 
 let parser = SwiftMarkdownParser()
-let ast = try await parser.parseToAST(markdown)
+let ast = try parser.parse(markdown)
 
 // Analyze the AST structure
 func analyzeMarkdown(_ node: ASTNode) {
@@ -125,7 +125,7 @@ func analyzeMarkdown(_ node: ASTNode) {
     default:
         break
     }
-    
+
     for child in node.children {
         analyzeMarkdown(child)
     }
@@ -151,20 +151,20 @@ let html = try await parser.parseToHTML(codeMarkdown)
 // Returns HTML with syntax highlighting applied
 ```
 
-### Custom Configuration
+### Deterministic Resource Limits
 
 ```swift
-// Parser configuration
-let config = SwiftMarkdownParser.Configuration(
-    enableGFMExtensions: true,
-    strictMode: false,
-    maxNestingDepth: 100,
-    trackSourceLocations: false,
-    maxParsingTime: 30.0
+let limits = SwiftMarkdownParser.ResourceLimits(
+    maximumSourceLength: 2_000_000,
+    maximumNestingDepth: 100,
+    maximumWork: 25_000_000
 )
 
-let parser = SwiftMarkdownParser(configuration: config)
+let parser = SwiftMarkdownParser(resourceLimits: limits)
 ```
+
+The Supported Dialect is fixed: CommonMark 0.30, GFM, math, and Mermaid are
+always recognized. Every parser-produced node includes a precise source range.
 
 ### Mermaid Diagrams
 
@@ -190,17 +190,17 @@ let html = try await parser.parseToHTML(diagramMarkdown)
 ### Core Classes
 
 - `SwiftMarkdownParser` - Main parser class
-- `SwiftMarkdownParser.Configuration` - Parser configuration options
-- `HTMLRenderer` - Renders AST to HTML with syntax highlighting  
+- `SwiftMarkdownParser.ResourceLimits` - Deterministic source, nesting, and work limits
+- `HTMLRenderer` - Renders AST to HTML with syntax highlighting
 - `SwiftUIRenderer` - Renders AST to SwiftUI views (iOS 17.0+/macOS 14.0+)
 
 ### Main Methods
 
 ```swift
-// Parse to AST
-func parseToAST(_ markdown: String) async throws -> AST.DocumentNode
+// Build a complete Markdown Document synchronously
+func parse(_ markdown: String) throws -> AST.DocumentNode
 
-// Parse directly to HTML  
+// Parse directly to HTML
 func parseToHTML(_ markdown: String, context: RenderContext = RenderContext()) async throws -> String
 
 // Render AST with custom renderer
@@ -234,4 +234,4 @@ swift test
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details. 
+MIT License - see [LICENSE](LICENSE) file for details.

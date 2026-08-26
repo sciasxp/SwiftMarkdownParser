@@ -25,32 +25,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Custom font configuration support
   - Accessible code block presentation
   - Theme integration with SwiftUI color system
-- **New Configuration Option**: Added `maxParsingTime` parameter to `SwiftMarkdownParser.Configuration`
-  - Configurable timeout for parsing operations (default: 30.0 seconds)
-  - Set to 0.0 to disable timeout (use with caution)
-  - Provides protection against maliciously crafted documents and infinite loops
-- **Enhanced Protection Mechanisms**: Implemented intelligent parser protection systems
-  - Time-based protection with configurable timeout
-  - Position tracking to detect infinite loops when parser gets stuck
-  - Consecutive nil block detection to prevent empty block parsing loops
-  - Improved error messages for timeout scenarios
+- **Deterministic Resource Limits**: Added source-length, nesting-depth, and work budgets
+  - The same Markdown Source and limits now produce the same result or structured error
+  - Wall-clock time no longer changes parser correctness
+- **Complete Source Ranges**: Parser-produced nodes now carry half-open start/end ranges
+- **Atomic Document Construction**: References, tables, task lists, and inline GFM semantics are resolved before `parse(_:)` returns
 - **Large Document Support**: Added comprehensive test suite for large document parsing
   - Performance testing with real-world documents (README.md as test case)
   - Validation of protection mechanisms under various conditions
   - Concurrent parsing tests to ensure thread safety
 
 ### Changed
+- **Source-Breaking Parser API**: Replaced async `parseToAST(_:)` and mode-based `Configuration` with synchronous `parse(_:)` and `ResourceLimits`
+  - The Supported Dialect is fixed to CommonMark 0.30, GFM, math, and Mermaid
+  - Tokenizer, token stream, block parser, inline parser, and grammar utilities are internal
+  - Parser failures use the single `MarkdownParsingError` family
 - **Removed Artificial Block Limits**: Eliminated the hardcoded 100-block limit that was preventing large documents from being fully parsed
   - Parser can now handle documents of any reasonable size
   - Replaced with intelligent protection mechanisms that detect actual problems
   - Improved performance for large technical documentation
-- **Enhanced Error Handling**: Added new error type `MarkdownParserError.parsingTimeout`
-  - Better error messages for timeout scenarios
-  - Improved debugging information for parser issues
 - **Updated Documentation**: Comprehensive documentation updates across all guides
-  - Added configuration examples for different use cases
+  - Added resource-limit examples for different trust boundaries
   - Performance considerations for various scenarios
-  - Security recommendations for user-generated content
+  - Deterministic resource recommendations for user-generated content
 
 ### Fixed
 - **Large Document Parsing**: Fixed issue where parser would stop at 100 blocks, preventing full document parsing
@@ -58,9 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Performance**: Better handling of complex documents with many elements
 
 ### Security
-- **Timeout Protection**: Added configurable timeout protection against malicious documents
-- **Resource Management**: Improved memory and CPU usage protection for large documents
-- **User Content Safety**: Recommendations for shorter timeouts when processing user-generated content
+- **Resource Management**: Added deterministic source, nesting, and work protection for large or hostile documents
+- **User Content Safety**: Resource failures are atomic and never expose a partial document
 
 ## [Previous Releases]
 
@@ -76,4 +72,4 @@ For more details about these changes, see the updated documentation:
 - [Parser Usage Documentation](Docs/ParserUsage.md)
 - [HTML Renderer Documentation](Docs/HTMLRenderer.md)
 - [SwiftUI Renderer Documentation](Docs/SwiftUIRenderer.md)
-- [Syntax Highlighting Documentation](Docs/SyntaxHighlighting.md) 
+- [Syntax Highlighting Documentation](Docs/SyntaxHighlighting.md)

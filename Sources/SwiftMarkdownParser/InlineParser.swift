@@ -1,5 +1,5 @@
 /// Inline parser for converting tokens into inline AST nodes
-/// 
+///
 /// This parser handles inline elements like emphasis, strong emphasis,
 /// links, images, code spans, and other inline formatting.
 import Foundation
@@ -7,213 +7,233 @@ import Foundation
 // MARK: - Inline Parser
 
 /// Parser for inline markdown elements
-public final class InlineParser {
-    
+final class InlineParser {
+
     private let tokenStream: TokenStream
-    private let configuration: SwiftMarkdownParser.Configuration
-    private var linkReferences: [String: LinkReference] = [:]
-    
-    /// Initialize with token stream and configuration
-    public init(tokenStream: TokenStream, configuration: SwiftMarkdownParser.Configuration) {
+    private let budget: ParsingBudget
+    private let linkReferences: [String: LinkReference]
+    private let maximumNestingDepth: Int
+    private var nestingDepth = 0
+
+    init(
+        tokenStream: TokenStream,
+        budget: ParsingBudget,
+        linkReferences: [String: LinkReference],
+        maximumNestingDepth: Int
+    ) {
         self.tokenStream = tokenStream
-        self.configuration = configuration
+        self.budget = budget
+        self.linkReferences = linkReferences
+        self.maximumNestingDepth = maximumNestingDepth
     }
-    
+
     /// Parse inline content from current position until specified boundary
-    public func parseInlines(until boundary: Set<TokenType> = [.newline, .eof]) throws -> [ASTNode] {
+    func parseInlines(until boundary: Set<TokenType> = [.newline, .eof]) throws -> [ASTNode] {
         var nodes: [ASTNode] = []
-        
+
         // Protection mechanisms
         var lastTokenPosition = -1
         var stuckPositionCount = 0
         let maxStuckPositions = 50 // Prevent infinite loops from position not advancing (increased threshold)
-        
-        let startTime = Date()
-        let maxParsingTime = configuration.maxParsingTime
-        
+
         while !tokenStream.isAtEnd && !boundary.contains(tokenStream.current.type) {
-            // Time-based protection
-            if maxParsingTime > 0 && Date().timeIntervalSince(startTime) > maxParsingTime {
-                throw MarkdownParsingError.parsingFailed("Inline parsing timeout: document too complex or infinite loop detected")
-            }
-            
             // Position-based protection (detect if parser is stuck)
             let currentPosition = tokenStream.currentPosition
             if currentPosition == lastTokenPosition {
                 stuckPositionCount += 1
                 if stuckPositionCount >= maxStuckPositions {
-                    throw MarkdownParsingError.parsingFailed("Inline parser stuck: infinite loop detected at token position \(currentPosition)")
+                    throw MarkdownParsingError.internalInvariant(
+                        message: "Inline parser made no progress at token \(currentPosition).",
+                        location: tokenStream.current.location
+                    )
                 }
             } else {
                 stuckPositionCount = 0
                 lastTokenPosition = currentPosition
             }
-            
+
             let parsedNodes = try parseInline()
             nodes.append(contentsOf: parsedNodes)
         }
-        
+
         return nodes
     }
-    
+
     /// Parse inline content from a text string
-    public func parseInlineContent(_ text: String) throws -> [ASTNode] {
-        let inlineTokenizer = MarkdownTokenizer(text)
-        let inlineTokenStream = TokenStream(inlineTokenizer.tokenize())
-        
+    func parseInlineContent(
+        _ text: String,
+        startingAt location: SourceLocation = SourceLocation(line: 1, column: 1, offset: 0)
+    ) throws -> [ASTNode] {
+        let inlineTokenizer = MarkdownTokenizer(
+            text,
+            startingAt: location,
+            budget: budget
+        )
+        let inlineTokenStream = TokenStream(inlineTokenizer.tokenize(), budget: budget)
+
         // Create a single parser instance for the entire text
-        let tempParser = InlineParser(tokenStream: inlineTokenStream, configuration: configuration)
-        
+        let tempParser = InlineParser(
+            tokenStream: inlineTokenStream,
+            budget: budget,
+            linkReferences: linkReferences,
+            maximumNestingDepth: maximumNestingDepth
+        )
+
         var nodes: [ASTNode] = []
-        
+
         // Protection mechanisms
         var lastTokenPosition = -1
         var stuckPositionCount = 0
         let maxStuckPositions = 50 // Prevent infinite loops from position not advancing (increased threshold)
-        
-        let startTime = Date()
-        let maxParsingTime = configuration.maxParsingTime
-        
+
         while !inlineTokenStream.isAtEnd {
-            // Time-based protection
-            if maxParsingTime > 0 && Date().timeIntervalSince(startTime) > maxParsingTime {
-                throw MarkdownParsingError.parsingFailed("Inline content parsing timeout: document too complex or infinite loop detected")
-            }
-            
             // Position-based protection (detect if parser is stuck)
             let currentPosition = inlineTokenStream.currentPosition
             if currentPosition == lastTokenPosition {
                 stuckPositionCount += 1
                 if stuckPositionCount >= maxStuckPositions {
-                    throw MarkdownParsingError.parsingFailed("Inline content parser stuck: infinite loop detected at token position \(currentPosition)")
+                    throw MarkdownParsingError.internalInvariant(
+                        message: "Inline content parser made no progress at token \(currentPosition).",
+                        location: inlineTokenStream.current.location
+                    )
                 }
             } else {
                 stuckPositionCount = 0
                 lastTokenPosition = currentPosition
             }
-            
+
             let parsedNodes = try tempParser.parseInline()
             nodes.append(contentsOf: parsedNodes)
         }
         return nodes
     }
-    
+
     /// Parse a single inline element
     private func parseInline() throws -> [ASTNode] {
+        nestingDepth += 1
+        defer { nestingDepth -= 1 }
+        guard nestingDepth <= maximumNestingDepth else {
+            throw MarkdownParsingError.resourceLimitExceeded(
+                resource: .nestingDepth,
+                limit: maximumNestingDepth,
+                actual: nestingDepth
+            )
+        }
+
         let token = tokenStream.current
         switch token.type {
         case .text, .whitespace:
-            return [AST.TextNode(content: tokenStream.consume().content)]
+            return [parseText()]
         case .asterisk:
             // Handle emphasis and strong emphasis with *
             if let emphasisNode = try parseEmphasisOrStrong(delimiter: "*") {
                 return [emphasisNode]
             } else {
-                return [AST.TextNode(content: tokenStream.consume().content)]
+                return [parseText()]
             }
         case .underscore:
             // Handle emphasis and strong emphasis with _
             if let emphasisNode = try parseEmphasisOrStrong(delimiter: "_") {
                 return [emphasisNode]
             } else {
-                return [AST.TextNode(content: tokenStream.consume().content)]
+                return [parseText()]
             }
         case .backtick:
             // Handle code spans
             if let codeSpan = try parseCodeSpan() {
                 return [codeSpan]
             } else {
-                return [AST.TextNode(content: tokenStream.consume().content)]
+                return [parseText()]
             }
         case .leftBracket:
             // Handle links
             if let link = try parseLinkOrImage() {
                 return [link]
             } else {
-                return [AST.TextNode(content: tokenStream.consume().content)]
+                return [parseText()]
             }
         case .exclamation:
             // Handle images
             if let image = try parseImage() {
                 return [image]
             } else {
-                return [AST.TextNode(content: tokenStream.consume().content)]
+                return [parseText()]
             }
         case .tilde:
             // Handle strikethrough
             if let strikethrough = try parseStrikethrough() {
                 return [strikethrough]
             } else {
-                return [AST.TextNode(content: tokenStream.consume().content)]
+                return [parseText()]
             }
         case .htmlTag:
             // Handle HTML tags - treat as text content when inside code spans or other contexts
-            return [AST.TextNode(content: tokenStream.consume().content)]
+            return [parseText()]
         case .autolink:
             // Handle autolinks
             if let autolink = parseAutolink() {
                 return [autolink]
             } else {
-                return [AST.TextNode(content: tokenStream.consume().content)]
+                return [parseText()]
             }
         case .dollarSign:
             // Handle inline math
             if let inlineMath = try parseInlineMath() {
                 return [inlineMath]
             } else {
-                return [AST.TextNode(content: tokenStream.consume().content)]
+                return [parseText()]
             }
         case .backslash:
             // Handle escaped characters
             if let escaped = parseEscapedCharacter() {
                 return [escaped]
             } else {
-                return [AST.TextNode(content: tokenStream.consume().content)]
+                return [parseText()]
             }
         default:
             // For other tokens, treat as text
-            return [AST.TextNode(content: tokenStream.consume().content)]
+            return [parseText()]
         }
     }
-    
+
     // MARK: - Text and Whitespace
-    
+
     private func parseText() -> AST.TextNode {
         let token = tokenStream.consume()
         return AST.TextNode(content: token.content, sourceLocation: token.location)
     }
-    
+
     private func parseWhitespace() -> AST.TextNode {
         let token = tokenStream.consume()
         return AST.TextNode(content: token.content, sourceLocation: token.location)
     }
-    
+
     // MARK: - Emphasis and Strong Emphasis
-    
+
     private func parseEmphasisOrStrong(delimiter: String) throws -> ASTNode? {
         let startLocation = tokenStream.current.location
         let delimiterChar = Character(delimiter)
-        
+
         // Count consecutive delimiters
         var delimiterCount = 0
         let startPosition = tokenStream.currentPosition
-        
-        while !tokenStream.isAtEnd && 
+
+        while !tokenStream.isAtEnd &&
               (tokenStream.current.type == .asterisk || tokenStream.current.type == .underscore) &&
               tokenStream.current.content.first == delimiterChar {
             delimiterCount += tokenStream.current.content.count
             tokenStream.advance()
         }
-        
+
         // Need at least 1 delimiter
         guard delimiterCount > 0 else {
             tokenStream.setPosition(startPosition)
             return parseText()
         }
-        
+
         // Look for closing delimiters
         var content: [ASTNode] = []
-        
+
         while !tokenStream.isAtEnd {
             // Stop at newlines - emphasis shouldn't span line boundaries
             if tokenStream.current.type == .newline {
@@ -223,18 +243,18 @@ public final class InlineParser {
             // Check for closing delimiters
             if (tokenStream.current.type == .asterisk || tokenStream.current.type == .underscore) &&
                tokenStream.current.content.first == delimiterChar {
-                
+
                 // Count closing delimiters
                 var closingCount = 0
                 let closingPosition = tokenStream.currentPosition
-                
-                while !tokenStream.isAtEnd && 
+
+                while !tokenStream.isAtEnd &&
                       (tokenStream.current.type == .asterisk || tokenStream.current.type == .underscore) &&
                       tokenStream.current.content.first == delimiterChar {
                     closingCount += tokenStream.current.content.count
                     tokenStream.advance()
                 }
-                
+
                 // Handle triple asterisks for bold+italic (***text***)
                 if delimiterCount >= 3 && closingCount >= 3 {
                     // Put back extra delimiters
@@ -242,19 +262,19 @@ public final class InlineParser {
                     if extraDelimiters > 0 {
                         tokenStream.setPosition(tokenStream.currentPosition - 1)
                     }
-                    
+
                     // Create nested strong and emphasis nodes
                     let emphasisNode = AST.EmphasisNode(
                         children: content,
-                        sourceLocation: startLocation
+                        sourceLocation: tokenStream.range(startingAt: startLocation)
                     )
-                    
+
                     return AST.StrongEmphasisNode(
                         children: [emphasisNode],
-                        sourceLocation: startLocation
+                        sourceLocation: tokenStream.range(startingAt: startLocation)
                     )
                 }
-                
+
                 // Strong emphasis (2 delimiters)
                 if delimiterCount >= 2 && closingCount >= 2 {
                     // Put back extra delimiters
@@ -262,13 +282,13 @@ public final class InlineParser {
                     if extraDelimiters > 0 {
                         tokenStream.setPosition(tokenStream.currentPosition - 1)
                     }
-                    
+
                     return AST.StrongEmphasisNode(
                         children: content,
-                        sourceLocation: startLocation
+                        sourceLocation: tokenStream.range(startingAt: startLocation)
                     )
                 }
-                
+
                 // Emphasis (1 delimiter)
                 if delimiterCount >= 1 && closingCount >= 1 {
                     // Put back extra delimiters
@@ -276,17 +296,17 @@ public final class InlineParser {
                     if extraDelimiters > 0 {
                         tokenStream.setPosition(tokenStream.currentPosition - 1)
                     }
-                    
+
                     return AST.EmphasisNode(
                         children: content,
-                        sourceLocation: startLocation
+                        sourceLocation: tokenStream.range(startingAt: startLocation)
                     )
                 }
-                
+
                 // Not enough closing delimiters, restore position and continue
                 tokenStream.setPosition(closingPosition)
             }
-            
+
             // Parse content
             let inlineNodes = try parseInline()
             for inline in inlineNodes {
@@ -297,62 +317,54 @@ public final class InlineParser {
                 }
             }
         }
-        
+
         // No closing delimiters found, treat as regular text
         tokenStream.setPosition(startPosition)
         return parseText()
     }
-    
+
     // MARK: - Code Spans
-    
+
     private func parseCodeSpan() throws -> AST.CodeSpanNode? {
         let startLocation = tokenStream.current.location
         let startPosition = tokenStream.currentPosition
         let openingToken = tokenStream.consume()
         let backtickCount = openingToken.content.count
-        
+
         var content = ""
         var foundClosing = false
-        
-        // Add protection against infinite loops specifically in code span parsing
-        var iterations = 0
-        let maxIterations = 1000 // Reasonable limit for code span content
-        
-        while !tokenStream.isAtEnd && iterations < maxIterations {
+
+        while !tokenStream.isAtEnd {
             let token = tokenStream.current
-            
+
             if token.type == .backtick && token.content.count == backtickCount {
                 tokenStream.advance()
                 foundClosing = true
                 break
             }
-            
+
             // Accept any token type inside code spans - they should all be treated as literal content
             content += token.content
             tokenStream.advance()
-            iterations += 1
         }
-        
-        if iterations >= maxIterations {
-            // Fallback: backtrack and treat as regular text
-            tokenStream.setPosition(startPosition)
-            return nil
-        }
-        
+
         guard foundClosing else {
             // No closing backticks, backtrack and treat as regular text
             tokenStream.setPosition(startPosition)
             return nil
         }
-        
+
         // Trim one space from each end if present
         if content.hasPrefix(" ") && content.hasSuffix(" ") && content.count > 2 {
             content = String(content.dropFirst().dropLast())
         }
-        
-        return AST.CodeSpanNode(content: content, sourceLocation: startLocation)
+
+        return AST.CodeSpanNode(
+            content: content,
+            sourceLocation: tokenStream.range(startingAt: startLocation)
+        )
     }
-    
+
     // MARK: - Inline Math
 
     private func parseInlineMath() throws -> AST.InlineMathNode? {
@@ -412,13 +424,16 @@ public final class InlineParser {
             return nil
         }
 
-        return AST.InlineMathNode(content: content, sourceLocation: startLocation)
+        return AST.InlineMathNode(
+            content: content,
+            sourceLocation: tokenStream.range(startingAt: startLocation)
+        )
     }
 
     // MARK: - Links and Images
 
-    private func parseLinkOrImage() throws -> ASTNode? {
-        let startLocation = tokenStream.current.location
+    private func parseLinkOrImage(startingAt explicitStart: SourceLocation? = nil) throws -> ASTNode? {
+        let startLocation = explicitStart ?? tokenStream.current.location
         let linkStartPosition = tokenStream.currentPosition
 
         // Check if this is an image (preceded by !)
@@ -467,7 +482,7 @@ public final class InlineParser {
             // If parseInline() consumed past the ] boundary, backtrack and consume as text
             if tokenStream.currentPosition > rbPos {
                 tokenStream.setPosition(posBeforeInline)
-                linkText.append(AST.TextNode(content: tokenStream.consume().content))
+                linkText.append(parseText())
                 continue
             }
 
@@ -488,20 +503,39 @@ public final class InlineParser {
                 }
                 return nil
             }.joined()
-            
-            return AST.TextNode(content: "[\(linkTextContent)", sourceLocation: startLocation)
+
+            return AST.TextNode(
+                content: "[\(linkTextContent)",
+                sourceLocation: tokenStream.range(startingAt: startLocation)
+            )
         }
-        
+
         // Check for inline link: [text](url "title")
         if tokenStream.check(.leftParen) {
-            return try parseInlineLink(linkText: linkText, isImage: isImage, startLocation: startLocation)
+            if let link = try parseInlineLink(
+                linkText: linkText,
+                isImage: isImage,
+                startLocation: startLocation
+            ) {
+                return link
+            }
+            tokenStream.setPosition(linkStartPosition)
+            return parseText()
         }
-        
+
         // Check for reference link: [text][ref] or [text][]
         if tokenStream.check(.leftBracket) {
-            return try parseReferenceLink(linkText: linkText, isImage: isImage, startLocation: startLocation)
+            if let link = try parseReferenceLink(
+                linkText: linkText,
+                isImage: isImage,
+                startLocation: startLocation
+            ) {
+                return link
+            }
+            tokenStream.setPosition(linkStartPosition)
+            return parseText()
         }
-        
+
         // Shortcut reference link: [ref]
         let refLabel = linkText.compactMap { node in
             if let textNode = node as? AST.TextNode {
@@ -509,25 +543,25 @@ public final class InlineParser {
             }
             return nil
         }.joined()
-        
-        if let reference = linkReferences[refLabel.lowercased()] {
+
+        if let reference = linkReferences[ReferenceDefinitionResolver.normalizeLabel(refLabel)] {
             if isImage {
                 return AST.ImageNode(
                     url: reference.url,
                     altText: refLabel,
                     title: reference.title,
-                    sourceLocation: startLocation
+                    sourceLocation: tokenStream.range(startingAt: startLocation)
                 )
             } else {
                 return AST.LinkNode(
                     url: reference.url,
                     title: reference.title,
                     children: linkText,
-                    sourceLocation: startLocation
+                    sourceLocation: tokenStream.range(startingAt: startLocation)
                 )
             }
         }
-        
+
         // Not a valid link, treat as text - reconstruct the original bracket content
         let linkTextContent = linkText.compactMap { node in
             if let textNode = node as? AST.TextNode {
@@ -535,63 +569,72 @@ public final class InlineParser {
             }
             return nil
         }.joined()
-        
-        return AST.TextNode(content: "[\(linkTextContent)]", sourceLocation: startLocation)
+
+        return AST.TextNode(
+            content: "[\(linkTextContent)]",
+            sourceLocation: tokenStream.range(startingAt: startLocation)
+        )
     }
-    
+
     private func parseImage() throws -> ASTNode? {
+        let startPosition = tokenStream.currentPosition
+        let startLocation = tokenStream.current.location
         guard tokenStream.match(.exclamation) else { return parseText() }
-        return try parseLinkOrImage()
+        guard let image = try parseLinkOrImage(startingAt: startLocation) else {
+            tokenStream.setPosition(startPosition)
+            return parseText()
+        }
+        return image
     }
-    
+
     private func parseInlineLink(linkText: [ASTNode], isImage: Bool, startLocation: SourceLocation) throws -> ASTNode? {
         guard tokenStream.match(.leftParen) else { return nil }
-        
+
         // Skip whitespace
         while tokenStream.check(.whitespace) {
             tokenStream.advance()
         }
-        
+
         // Parse URL
         var url = ""
-        while !tokenStream.isAtEnd && 
-              !tokenStream.check(.rightParen) && 
+        while !tokenStream.isAtEnd &&
+              !tokenStream.check(.rightParen) &&
               !tokenStream.check(.whitespace) &&
               tokenStream.current.content != "\"" {
             url += tokenStream.consume().content
         }
-        
+
         // Skip whitespace
         while tokenStream.check(.whitespace) {
             tokenStream.advance()
         }
-        
+
         // Parse optional title
         var title: String?
         if tokenStream.current.content == "\"" {
             tokenStream.advance() // consume opening quote
             var titleContent = ""
-            
+
             while !tokenStream.isAtEnd && tokenStream.current.content != "\"" {
                 titleContent += tokenStream.consume().content
             }
-            
+
             if tokenStream.current.content == "\"" {
                 tokenStream.advance() // consume closing quote
                 title = titleContent
             }
         }
-        
+
         // Skip whitespace
         while tokenStream.check(.whitespace) {
             tokenStream.advance()
         }
-        
+
         guard tokenStream.match(.rightParen) else {
             // Invalid link syntax
             return nil
         }
-        
+
         if isImage {
             // For images, extract alt text from linkText
             let altText = linkText.compactMap { node in
@@ -600,35 +643,35 @@ public final class InlineParser {
                 }
                 return nil
             }.joined()
-            
+
             return AST.ImageNode(
                 url: url,
                 altText: altText,
                 title: title,
-                sourceLocation: startLocation
+                sourceLocation: tokenStream.range(startingAt: startLocation)
             )
         } else {
             return AST.LinkNode(
                 url: url,
                 title: title,
                 children: linkText,
-                sourceLocation: startLocation
+                sourceLocation: tokenStream.range(startingAt: startLocation)
             )
         }
     }
-    
+
     private func parseReferenceLink(linkText: [ASTNode], isImage: Bool, startLocation: SourceLocation) throws -> ASTNode? {
         guard tokenStream.match(.leftBracket) else { return nil }
-        
+
         var refLabel = ""
-        
+
         // Parse reference label
         while !tokenStream.isAtEnd && !tokenStream.check(.rightBracket) {
             refLabel += tokenStream.consume().content
         }
-        
+
         guard tokenStream.match(.rightBracket) else { return nil }
-        
+
         // If empty reference, use link text as reference
         if refLabel.isEmpty {
             refLabel = linkText.compactMap { node in
@@ -638,11 +681,11 @@ public final class InlineParser {
                 return nil
             }.joined()
         }
-        
-        guard let reference = linkReferences[refLabel.lowercased()] else {
+
+        guard let reference = linkReferences[ReferenceDefinitionResolver.normalizeLabel(refLabel)] else {
             return nil
         }
-        
+
         if isImage {
             // For images, extract alt text from linkText
             let altText = linkText.compactMap { node in
@@ -651,71 +694,73 @@ public final class InlineParser {
                 }
                 return nil
             }.joined()
-            
+
             return AST.ImageNode(
                 url: reference.url,
                 altText: altText,
                 title: reference.title,
-                sourceLocation: startLocation
+                sourceLocation: tokenStream.range(startingAt: startLocation)
             )
         } else {
             return AST.LinkNode(
                 url: reference.url,
                 title: reference.title,
                 children: linkText,
-                sourceLocation: startLocation
+                sourceLocation: tokenStream.range(startingAt: startLocation)
             )
         }
     }
-    
+
     // MARK: - Other Inline Elements
-    
+
     private func parseEscapedCharacter() -> ASTNode? {
         let token = tokenStream.consume()
-        
+
         // Remove the backslash and return the escaped character
         let escapedContent = token.content.count > 1 ? String(token.content.dropFirst()) : ""
         return AST.TextNode(content: escapedContent, sourceLocation: token.location)
     }
-    
+
     private func parseEntity() throws -> ASTNode {
         let token = tokenStream.consume()
         // TODO: Implement proper entity decoding
         // For now, return the entity as-is
         return AST.TextNode(content: token.content, sourceLocation: token.location)
     }
-    
+
     private func parseAutolink() -> AST.AutolinkNode? {
         let token = tokenStream.consume()
-        let url = token.content
-        
-        let displayText = if url.contains("@") {
-            url
+        let displayText = token.content.trimmingCharacters(in: CharacterSet(charactersIn: "<>"))
+        let url: String
+        if displayText.contains("@") && !displayText.contains("://") {
+            url = "mailto:" + displayText
+        } else if displayText.hasPrefix("www.") {
+            url = "https://" + displayText
         } else {
-            url
+            url = displayText
         }
-        
+
         return AST.AutolinkNode(url: url, text: displayText, sourceLocation: token.location)
     }
-    
+
     private func parseStrikethrough() throws -> ASTNode? {
         let startPosition = tokenStream.currentPosition
         let startLocation = tokenStream.current.location
-        
+
         // Check if we have opening ~~
         guard tokenStream.check(.tilde) else { return nil }
         let openingTilde = tokenStream.current
-        guard openingTilde.content == "~~" else { 
+        guard openingTilde.content == "~~" else {
             // Single tilde, not strikethrough
-            return nil 
+            return nil
         }
-        
+
         // Consume the opening ~~
         tokenStream.advance()
-        
+
         var content: [ASTNode] = []
         var foundClosing = false
-        
+
         // Look for closing ~~
         while !tokenStream.isAtEnd {
             if tokenStream.check(.tilde) {
@@ -727,40 +772,37 @@ public final class InlineParser {
                     break
                 }
             }
-            
+
             // Add content inside strikethrough
             let token = tokenStream.consume()
             content.append(AST.TextNode(content: token.content, sourceLocation: token.location))
         }
-        
+
         if foundClosing {
-            return AST.StrikethroughNode(content: content, sourceLocation: startLocation)
+            return AST.StrikethroughNode(
+                content: content,
+                sourceLocation: tokenStream.range(startingAt: startLocation)
+            )
         } else {
             // No closing delimiter found, backtrack and treat as text
             tokenStream.setPosition(startPosition)
             return nil
         }
     }
-    
+
     private func parseHTMLInline() -> AST.HTMLInlineNode {
         let token = tokenStream.consume()
         return AST.HTMLInlineNode(content: token.content, sourceLocation: token.location)
     }
-    
+
     private func parseHardBreak() -> AST.LineBreakNode {
         let token = tokenStream.consume()
         return AST.LineBreakNode(isHard: true, sourceLocation: token.location)
     }
-    
+
     private func parseSoftBreak() -> AST.SoftBreakNode {
         let token = tokenStream.consume()
         return AST.SoftBreakNode(sourceLocation: token.location)
     }
-    
-    // MARK: - Link References
-    
-    /// Set link references for resolving reference links
-    public func setLinkReferences(_ references: [String: LinkReference]) {
-        self.linkReferences = references
-    }
-} 
+
+}

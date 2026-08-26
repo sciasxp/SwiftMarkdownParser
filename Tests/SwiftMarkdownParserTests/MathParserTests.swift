@@ -19,7 +19,7 @@ import Testing
         $$
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         #expect(ast.children.count == 1)
 
@@ -37,7 +37,7 @@ import Testing
         $$
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let mathBlock = try #require(ast.children.first as? AST.MathBlockNode)
 
@@ -58,7 +58,7 @@ import Testing
         This is beautiful.
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         // heading, paragraph, math block, paragraph
         #expect(ast.children.count >= 3)
@@ -77,7 +77,7 @@ import Testing
     @Test func inlineMath_simple_parsesToInlineMathNode() async throws {
         let markdown = "The formula $E = mc^2$ is famous."
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         // Should be a paragraph containing text + inline math + text
         let paragraph = try #require(ast.children.first as? AST.ParagraphNode)
@@ -90,7 +90,7 @@ import Testing
     @Test func inlineMath_multipleInOneParagraph_parsesAll() async throws {
         let markdown = "Both $\\alpha$ and $\\beta$ are Greek letters."
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let paragraph = try #require(ast.children.first as? AST.ParagraphNode)
 
@@ -105,7 +105,7 @@ import Testing
     @Test func inlineMath_spaceAfterOpening_treatedAsText() async throws {
         let markdown = "This $ is not math$ here."
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let paragraph = try #require(ast.children.first as? AST.ParagraphNode)
 
@@ -116,7 +116,7 @@ import Testing
     @Test func inlineMath_spaceBeforeClosing_treatedAsText() async throws {
         let markdown = "This $not math $ here."
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let paragraph = try #require(ast.children.first as? AST.ParagraphNode)
 
@@ -127,7 +127,7 @@ import Testing
     @Test func inlineMath_emptyDollars_treatedAsText() async throws {
         let markdown = "Empty $$ should not be inline math."
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let paragraph = try #require(ast.children.first as? AST.ParagraphNode)
 
@@ -141,7 +141,7 @@ import Testing
         and ends here$ does not work.
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let allInlineMath = collectNodes(ofType: AST.InlineMathNode.self, from: ast)
         #expect(allInlineMath.count == 0, "Inline math should not span lines")
@@ -150,7 +150,7 @@ import Testing
     @Test func inlineMath_unclosed_treatedAsText() async throws {
         let markdown = "This $unclosed math has no closing delimiter."
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let paragraph = try #require(ast.children.first as? AST.ParagraphNode)
 
@@ -161,7 +161,7 @@ import Testing
     @Test func escapedDollar_treatedAsText() async throws {
         let markdown = "The price is \\$5.00 and not math."
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let allInlineMath = collectNodes(ofType: AST.InlineMathNode.self, from: ast)
         #expect(allInlineMath.count == 0, "Escaped $ should not trigger math parsing")
@@ -178,7 +178,7 @@ import Testing
         $$
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
 
         let mathBlocks = ast.children.compactMap { $0 as? AST.MathBlockNode }
         #expect(mathBlocks.count == 1)

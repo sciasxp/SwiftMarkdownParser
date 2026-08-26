@@ -10,14 +10,7 @@ import Testing
     let parser: SwiftMarkdownParser
 
     init() async throws {
-        let configuration = SwiftMarkdownParser.Configuration(
-            enableGFMExtensions: true,
-            strictMode: false,
-            maxNestingDepth: 100,
-            trackSourceLocations: true,
-            maxParsingTime: 30.0
-        )
-        parser = SwiftMarkdownParser(configuration: configuration)
+        parser = SwiftMarkdownParser()
     }
 
     // MARK: - Basic HTML Rendering
@@ -436,7 +429,7 @@ import Testing
         let customRenderer = HTMLRenderer(context: context)
 
         let markdown = "- [x] Custom styled task"
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
         let html = try await customRenderer.render(document: ast)
 
         // Should preserve custom CSS class while adding state-specific classes

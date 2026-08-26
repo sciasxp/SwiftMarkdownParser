@@ -43,7 +43,7 @@ import Testing
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
         let html = try await renderer.render(document: ast)
 
         // Verify theme-specific styling
@@ -71,7 +71,7 @@ import Testing
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
         let html = try await renderer.render(document: ast)
 
         // Verify theme is applied
@@ -100,7 +100,7 @@ import Testing
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
         let html = try await renderer.render(document: ast)
 
         // Verify theme-specific styling
@@ -121,7 +121,7 @@ import Testing
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
         let html = try await renderer.render(document: ast)
 
         // Verify HTML contains syntax highlighting classes
@@ -151,7 +151,7 @@ import Testing
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
         let html = try await renderer.render(document: ast)
 
         // Verify all languages are properly highlighted
@@ -173,7 +173,7 @@ import Testing
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
         let html = try await renderer.render(document: ast)
 
         // Should still render as code block without highlighting
@@ -192,7 +192,7 @@ import Testing
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
         let html = try await renderer.render(document: ast)
 
         // Verify structure is preserved
@@ -211,7 +211,7 @@ import Testing
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
         let html = try await renderer.render(document: ast)
 
         // Verify HTML is properly escaped
@@ -239,7 +239,7 @@ import Testing
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
         let html = try await renderer.render(document: ast)
 
         // Should use custom CSS prefix
@@ -263,7 +263,7 @@ import Testing
         ```
         """
 
-        let ast = try await parser.parseToAST(markdown)
+        let ast = try parser.parse(markdown)
         let html = try await renderer.render(document: ast)
 
         // Should not contain highlighting classes

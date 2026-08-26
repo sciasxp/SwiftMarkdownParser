@@ -18,8 +18,8 @@ public struct MarkdownWebView: View {
     /// The markdown content to render
     public let markdownContent: String
     
-    /// Configuration for markdown parsing
-    public let configuration: SwiftMarkdownParser.Configuration
+    /// Deterministic limits for Markdown parsing
+    public let resourceLimits: SwiftMarkdownParser.ResourceLimits
     
     /// Optional callback when content is rendered
     public let onRender: ((Result<Void, Error>) -> Void)?
@@ -37,13 +37,13 @@ public struct MarkdownWebView: View {
     
     public init(
         markdownContent: String,
-        configuration: SwiftMarkdownParser.Configuration = SwiftMarkdownParser.Configuration(),
+        resourceLimits: SwiftMarkdownParser.ResourceLimits = .default,
         includeMathSupport: Bool = true,
         includeTaskListSupport: Bool = true,
         onRender: ((Result<Void, Error>) -> Void)? = nil
     ) {
         self.markdownContent = markdownContent
-        self.configuration = configuration
+        self.resourceLimits = resourceLimits
         self.includeMathSupport = includeMathSupport
         self.includeTaskListSupport = includeTaskListSupport
         self.onRender = onRender
@@ -59,7 +59,7 @@ public struct MarkdownWebView: View {
             
             MarkdownWebViewRepresentable(
                 markdownContent: markdownContent,
-                configuration: configuration,
+                resourceLimits: resourceLimits,
                 includeMathSupport: includeMathSupport,
                 includeTaskListSupport: includeTaskListSupport,
                 isLoading: $isLoading,
@@ -160,7 +160,7 @@ public struct MermaidWebView: View {
 @available(iOS 17.0, macOS 14.0, *)
 struct MarkdownWebViewRepresentable: NSViewRepresentable {
     let markdownContent: String
-    let configuration: SwiftMarkdownParser.Configuration
+    let resourceLimits: SwiftMarkdownParser.ResourceLimits
     let includeMathSupport: Bool
     let includeTaskListSupport: Bool
     @Binding var isLoading: Bool
@@ -202,7 +202,7 @@ struct MarkdownWebViewRepresentable: NSViewRepresentable {
             let html = try await WebViewSupport.generateMarkdownHTMLDocument(
                 markdownContent,
                 title: "Markdown Document",
-                configuration: configuration,
+                resourceLimits: resourceLimits,
                 includeMathSupport: includeMathSupport,
                 includeTaskListSupport: includeTaskListSupport
             )
@@ -329,12 +329,12 @@ public enum WebViewSupport {
     public static func generateMarkdownHTMLDocument(
         _ markdownContent: String,
         title: String = "Markdown Document",
-        configuration: SwiftMarkdownParser.Configuration = SwiftMarkdownParser.Configuration(),
+        resourceLimits: SwiftMarkdownParser.ResourceLimits = .default,
         includeMathSupport: Bool = true,
         includeTaskListSupport: Bool = true
     ) async throws -> String {
-        let parser = SwiftMarkdownParser(configuration: configuration)
-        let ast = try await parser.parseToAST(markdownContent)
+        let parser = SwiftMarkdownParser(resourceLimits: resourceLimits)
+        let ast = try parser.parse(markdownContent)
         
         // Create enhanced render context with proper styling
         let styleConfig = StyleConfiguration(
@@ -351,7 +351,7 @@ public enum WebViewSupport {
             mermaidConfiguration: .default
         )
         
-        let htmlRenderer = HTMLRenderer(context: context, configuration: configuration)
+        let htmlRenderer = HTMLRenderer(context: context)
         let bodyContent = try await htmlRenderer.render(document: ast)
         
         return generateStandaloneMarkdownHTML(

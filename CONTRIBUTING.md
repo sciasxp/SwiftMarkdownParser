@@ -183,14 +183,14 @@ Any other relevant information.
 
 ### High Priority
 - **Performance optimizations**: Tokenizer and parser improvements
-- **GFM extensions**: Math support, footnotes, definition lists
+- **Dialect compliance**: CommonMark 0.30, GFM, math, and Mermaid edge cases
 - **SwiftUI renderer**: Native SwiftUI output format
 - **Documentation**: API docs, tutorials, examples
 - **Test coverage**: Edge cases, performance tests
 
 ### Medium Priority
 - **Syntax highlighting**: Code block language support
-- **Custom extensions**: Plugin system for custom markdown elements
+- **AST transformations**: Reusable transformations over completed documents
 - **Error handling**: Better error messages and recovery
 - **Accessibility**: VoiceOver and accessibility improvements
 
@@ -210,7 +210,7 @@ func test_featureName_condition_expectedResult() async throws {
     let parser = SwiftMarkdownParser()
     
     // Act
-    let ast = try await parser.parseToAST(markdown)
+    let document = try parser.parse(markdown)
     
     // Assert
     XCTAssertEqual(ast.children.count, 1)
@@ -248,7 +248,7 @@ func test_featureName_condition_expectedResult() async throws {
 /// 
 /// ```swift
 /// let parser = SwiftMarkdownParser()
-/// let ast = try await parser.parseToAST(complexMarkdown)
+/// let document = try parser.parse(complexMarkdown)
 /// let html = try await parser.parseToHTML(complexMarkdown)
 /// ```
 ```

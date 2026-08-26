@@ -8,13 +8,7 @@ import Testing
     let parser: SwiftMarkdownParser
 
     init() {
-        // Enable GFM extensions and source location tracking for comprehensive testing
-        let config = SwiftMarkdownParser.Configuration(
-            enableGFMExtensions: true,
-            strictMode: false,
-            trackSourceLocations: true
-        )
-        parser = SwiftMarkdownParser(configuration: config)
+        parser = SwiftMarkdownParser()
     }
 
     /// Test the parsing of the GitHub instructions markdown selection
@@ -33,7 +27,7 @@ import Testing
            ```
         """
 
-        let document = try await parser.parseToAST(markdown)
+        let document = try parser.parse(markdown)
 
         // Basic validation
         #expect(document != nil, "Document should be parsed successfully")
@@ -186,7 +180,7 @@ import Testing
         3. Third item
         """
 
-        let document = try await parser.parseToAST(markdown)
+        let document = try parser.parse(markdown)
 
         let list = try #require(document.children.first as? AST.ListNode, "Expected ListNode")
 
@@ -199,7 +193,7 @@ import Testing
     @Test func parseBoldTextInList() async throws {
         let markdown = "1. **Bold text** in list item"
 
-        let document = try await parser.parseToAST(markdown)
+        let document = try parser.parse(markdown)
 
         guard let list = document.children.first as? AST.ListNode,
               let firstItem = list.items.first as? AST.ListItemNode,
@@ -221,7 +215,7 @@ import Testing
            ```
         """
 
-        let document = try await parser.parseToAST(markdown)
+        let document = try parser.parse(markdown)
 
         guard let list = document.children.first as? AST.ListNode,
               let firstItem = list.items.first as? AST.ListItemNode else {

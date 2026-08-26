@@ -80,7 +80,7 @@ struct ContentView: View {
     private func loadContent() async {
         do {
             let parser = SwiftMarkdownParser()
-            let ast = try await parser.parseToAST(markdown)
+            let ast = try parser.parse(markdown)
             let renderer = SwiftUIRenderer()
             self.content = try await renderer.render(document: ast)
         } catch {

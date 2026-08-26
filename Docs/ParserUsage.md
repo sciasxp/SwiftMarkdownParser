@@ -10,26 +10,32 @@ import SwiftMarkdownParser
 // Create parser
 let parser = SwiftMarkdownParser()
 
-// Parse to AST
-let ast = try await parser.parseToAST("# Hello **World**!")
+// Build a complete semantic Markdown Document
+let document = try parser.parse("# Hello **World**!")
 
 // Parse directly to HTML
 let html = try await parser.parseToHTML("# Hello **World**!")
 ```
 
-## Configuration
+## Supported Dialect and Resource Limits
+
+The parser always recognizes CommonMark 0.30, GitHub Flavored Markdown,
+math expressions, and Mermaid fenced diagrams. Grammar modes are intentionally
+not configurable. Consumers customize results by transforming the completed
+document.
 
 ```swift
-let config = SwiftMarkdownParser.Configuration(
-    enableGFMExtensions: true,     // Tables, task lists, strikethrough
-    strictMode: false,             // Relaxed parsing
-    maxNestingDepth: 100,         // Recursion limit
-    trackSourceLocations: false,   // Debug info
-    maxParsingTime: 30.0          // Timeout in seconds
+let limits = SwiftMarkdownParser.ResourceLimits(
+    maximumSourceLength: 2_000_000,
+    maximumNestingDepth: 100,
+    maximumWork: 25_000_000
 )
 
-let parser = SwiftMarkdownParser(configuration: config)
+let parser = SwiftMarkdownParser(resourceLimits: limits)
 ```
+
+Limits are deterministic: the same source and limits produce the same result.
+Wall-clock time is not part of parsing correctness.
 
 ## AST Structure
 
@@ -45,7 +51,7 @@ The parser generates a hierarchical AST with these main node types:
 - `AST.LinkNode` - [text](url) links
 - `AST.ImageNode` - ![alt](src) images
 - `AST.CodeBlockNode` - ```code``` blocks
-- `AST.InlineCodeNode` - `code` spans
+- `AST.CodeSpanNode` - `code` spans
 - `AST.ListNode` - Ordered/unordered lists
 - `AST.ListItemNode` - List items
 - `AST.BlockQuoteNode` - > blockquotes
@@ -55,13 +61,13 @@ The parser generates a hierarchical AST with these main node types:
 - `AST.GFMTableRowNode` - Table rows  
 - `AST.GFMTableCellNode` - Table cells
 - `AST.GFMTaskListItemNode` - [x] task lists
-- `AST.GFMStrikethroughNode` - ~~strikethrough~~
+- `AST.StrikethroughNode` - ~~strikethrough~~
 
 ## Working with AST
 
 ```swift
 let parser = SwiftMarkdownParser()
-let ast = try await parser.parseToAST(markdown)
+let ast = try parser.parse(markdown)
 
 func analyzeDocument(_ node: ASTNode) {
     switch node {
@@ -90,11 +96,11 @@ analyzeDocument(ast)
 
 ```swift
 do {
-    let ast = try await parser.parseToAST(markdown)
-} catch MarkdownParsingError.invalidInput(let message) {
-    print("Invalid input: \(message)")
-} catch MarkdownParsingError.tokenizationFailed(let message) {
-    print("Tokenization failed: \(message)")
+    let document = try parser.parse(markdown)
+} catch MarkdownParsingError.sourceTooLarge(let limit, let actual) {
+    print("Source has \(actual) characters; limit is \(limit)")
+} catch MarkdownParsingError.resourceLimitExceeded(let resource, let limit, let actual) {
+    print("Exceeded \(resource.rawValue): \(actual) > \(limit)")
 } catch {
     print("Parsing failed: \(error)")
 }
@@ -102,7 +108,7 @@ do {
 
 ## Performance Tips
 
-- Use default configuration for most cases
-- Increase `maxParsingTime` only for very large documents
-- Set `trackSourceLocations: false` for better performance
-- Consider parsing to AST once and rendering multiple times
+- Use the default resource limits for most documents.
+- Raise source or work limits deliberately for trusted large inputs.
+- Parse once and render or analyze the completed document multiple times.
+- Track wall-clock performance in benchmarks, not pass/fail assertions.

@@ -33,6 +33,7 @@ let package = Package(
             name: "WebViewTest",
             dependencies: ["SwiftMarkdownParser"],
             path: "Examples",
+            exclude: ["AST_Example.swift"],
             sources: ["WebViewTest.swift"],
             swiftSettings: [
                 .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
@@ -41,6 +42,7 @@ let package = Package(
         .testTarget(
             name: "SwiftMarkdownParserTests",
             dependencies: ["SwiftMarkdownParser"],
+            resources: [.process("Fixtures")],
             swiftSettings: [
                 .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
             ]),

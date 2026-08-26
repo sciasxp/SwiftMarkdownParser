@@ -8,13 +8,7 @@ import Testing
     let parser: SwiftMarkdownParser
 
     init() {
-        // Enable GFM extensions for full feature testing
-        let config = SwiftMarkdownParser.Configuration(
-            enableGFMExtensions: true,
-            strictMode: false,
-            trackSourceLocations: true
-        )
-        parser = SwiftMarkdownParser(configuration: config)
+        parser = SwiftMarkdownParser()
     }
 
     // MARK: - Core Document Parsing Tests
@@ -42,7 +36,7 @@ import Testing
         | Data A   | Data B   |
         """
 
-        let document = try await parser.parseToAST(sampleMarkdown)
+        let document = try parser.parse(sampleMarkdown)
 
         // Basic validation
         #expect(document != nil, "Document should be parsed successfully")
@@ -139,7 +133,7 @@ import Testing
         // Test that SwiftUI rendering doesn't throw
         let context = SwiftUIRenderContext()
         let renderer = SwiftUIRenderer(context: context)
-        let document = try await parser.parseToAST(sampleMarkdown)
+        let document = try parser.parse(sampleMarkdown)
 
         // Should not throw - basic rendering test
         let view = try await renderer.render(document: document)
@@ -159,7 +153,7 @@ import Testing
         """
 
         // Should not throw - parser should handle gracefully
-        let document = try await parser.parseToAST(problematicMarkdown)
+        let document = try parser.parse(problematicMarkdown)
         #expect(document != nil, "Parser should handle problematic markdown gracefully")
         #expect(document.children.count > 0, "Should parse some content")
     }
@@ -192,7 +186,7 @@ import Testing
         """
 
         // Basic validation that the document was parsed
-        let document = try await parser.parseToAST(readmeMarkdown)
+        let document = try parser.parse(readmeMarkdown)
         #expect(document != nil, "Should successfully parse README markdown")
         #expect(document.children.count > 0, "Should have parsed content")
 
@@ -225,7 +219,7 @@ import Testing
         The outer code block should preserve the inner backticks as literal text.
         """
 
-        let document = try await parser.parseToAST(nestedCodeBlockMarkdown)
+        let document = try parser.parse(nestedCodeBlockMarkdown)
         #expect(document != nil, "Should parse nested code block successfully")
 
         // Based on debug output, the parser creates more elements than expected
@@ -294,7 +288,7 @@ import Testing
         ```
         """
 
-        let document = try await parser.parseToAST(complexNestedMarkdown)
+        let document = try parser.parse(complexNestedMarkdown)
         #expect(document != nil, "Should parse complex nested markdown")
 
         // Count code blocks - should be exactly 3 (one for each scenario)

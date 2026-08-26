@@ -7,29 +7,29 @@ import Foundation
 // MARK: - Token Types
 
 /// Represents a single token in the markdown text
-public struct Token: Sendable, Equatable {
+struct Token: Sendable, Equatable {
     /// The type of the token
-    public let type: TokenType
+    let type: TokenType
     
     /// The raw content of the token
-    public let content: String
+    let content: String
     
     /// Source location of the token
-    public let location: SourceLocation
+    let location: SourceLocation
     
     /// Length of the token in characters
-    public let length: Int
+    let length: Int
     
-    public init(type: TokenType, content: String, location: SourceLocation) {
+    init(type: TokenType, content: String, location: SourceLocation) {
         self.type = type
         self.content = content
-        self.location = location
+        self.location = location.extending(over: content)
         self.length = content.count
     }
 }
 
 /// Types of tokens that can be found in markdown
-public enum TokenType: String, CaseIterable, Sendable, Equatable {
+enum TokenType: String, CaseIterable, Sendable, Equatable {
     // Text content
     case text
     case whitespace
@@ -99,10 +99,12 @@ public enum TokenType: String, CaseIterable, Sendable, Equatable {
 // MARK: - Tokenizer
 
 /// Lexical analyzer for markdown text
-public final class MarkdownTokenizer {
+final class MarkdownTokenizer {
     
     private let input: String
     private let characters: [Character]
+    private let baseOffset: Int
+    private let budget: ParsingBudget
     private var position: Int = 0
     private var line: Int = 1
     private var column: Int = 1
@@ -117,13 +119,21 @@ public final class MarkdownTokenizer {
     private var inMathBlock: Bool = false
     
     /// Initialize tokenizer with markdown text
-    public init(_ input: String) {
+    init(
+        _ input: String,
+        startingAt location: SourceLocation = SourceLocation(line: 1, column: 1, offset: 0),
+        budget: ParsingBudget
+    ) {
         self.input = input
         self.characters = Array(input)
+        self.baseOffset = location.offset
+        self.budget = budget
+        self.line = location.line
+        self.column = location.column
     }
     
     /// Tokenize the entire input into a sequence of tokens
-    public func tokenize() -> [Token] {
+    func tokenize() -> [Token] {
         var tokens: [Token] = []
         
         while !isAtEnd {
@@ -150,7 +160,7 @@ public final class MarkdownTokenizer {
         guard !isAtEnd else { return nil }
         
         let char = currentChar
-        
+
         // Handle newlines first
         if char == "\n" {
             advance()
@@ -187,6 +197,10 @@ public final class MarkdownTokenizer {
                 return closingMath
             }
             return tokenizeTextInCodeBlock()  // Reuse existing method
+        }
+
+        if let autolink = tokenizeBareAutolinkIfPresent() {
+            return autolink
         }
 
         // Check for line-start patterns (headers, lists, block quotes, etc.)
@@ -269,10 +283,11 @@ public final class MarkdownTokenizer {
     }
     
     private var isAtEnd: Bool {
-        return position >= characters.count
+        return budget.isExhausted || position >= characters.count
     }
     
     private func advance() {
+        budget.consumeWork()
         guard position < characters.count else { return }
         
         if characters[position] == "\n" {
@@ -286,7 +301,7 @@ public final class MarkdownTokenizer {
     }
     
     private var currentLocation: SourceLocation {
-        return SourceLocation(line: line, column: column, offset: position)
+        return SourceLocation(line: line, column: column, offset: baseOffset + position)
     }
     
     private func isAfterWhitespace() -> Bool {
@@ -418,7 +433,7 @@ public final class MarkdownTokenizer {
         // Must be followed by space or end of line
         if !isAtEnd && !currentChar.isWhitespace {
             // Not a header, backtrack and return as text
-            position = startLocation.offset
+            position = startLocation.offset - baseOffset
             line = startLocation.line
             column = startLocation.column
             return tokenizeText()
@@ -675,12 +690,52 @@ public final class MarkdownTokenizer {
         var content = ""
         
         // Read until whitespace or special character
-        while !isAtEnd && !currentChar.isWhitespace && !"[]()".contains(currentChar) {
+        while !isAtEnd && !currentChar.isWhitespace && !"[]()<>".contains(currentChar) {
             content.append(currentChar)
             advance()
         }
         
         return Token(type: .autolink, content: content, location: startLocation)
+    }
+
+    private func tokenizeBareAutolinkIfPresent() -> Token? {
+        if (currentChar == "h" && (hasPrefix("http://") || hasPrefix("https://"))) ||
+            (currentChar == "w" && hasPrefix("www.")) {
+            return tokenizeAutolink()
+        }
+
+        guard currentChar.isLetter || currentChar.isNumber else { return nil }
+        var scan = position
+        var atPosition: Int?
+        var dotAfterAt = false
+        var finalCharacter: Character?
+
+        while scan < characters.count {
+            let character = characters[scan]
+            guard !character.isWhitespace, !"[]()<>".contains(character) else { break }
+            if character == "@", atPosition == nil {
+                atPosition = scan
+            } else if character == ".", atPosition != nil {
+                dotAfterAt = true
+            }
+            finalCharacter = character
+            scan += 1
+        }
+        guard let atPosition,
+              atPosition > position,
+              dotAfterAt,
+              finalCharacter != "." else { return nil }
+        return tokenizeAutolink()
+    }
+
+    private func hasPrefix(_ prefix: String) -> Bool {
+        let prefixCharacters = Array(prefix)
+        guard position + prefixCharacters.count <= characters.count else { return false }
+        for (index, character) in prefixCharacters.enumerated()
+        where characters[position + index] != character {
+            return false
+        }
+        return true
     }
     
     private func tokenizeDashOrList() -> Token {
@@ -721,7 +776,7 @@ public final class MarkdownTokenizer {
         // Must be followed by whitespace
         if !isAtEnd && !currentChar.isWhitespace {
             // Not a list marker, backtrack
-            position = startLocation.offset
+            position = startLocation.offset - baseOffset
             line = startLocation.line
             column = startLocation.column
             return nil
@@ -749,7 +804,7 @@ public final class MarkdownTokenizer {
         // Must be followed by . or )
         guard !isAtEnd && (currentChar == "." || currentChar == ")") else {
             // Not a numbered list, backtrack
-            position = startLocation.offset
+            position = startLocation.offset - baseOffset
             line = startLocation.line
             column = startLocation.column
             return nil
@@ -761,7 +816,7 @@ public final class MarkdownTokenizer {
         // Must be followed by whitespace
         if !isAtEnd && !currentChar.isWhitespace {
             // Not a list marker, backtrack
-            position = startLocation.offset
+            position = startLocation.offset - baseOffset
             line = startLocation.line
             column = startLocation.column
             return nil
@@ -850,7 +905,7 @@ public final class MarkdownTokenizer {
         // Must have at least 4 spaces
         guard spaceCount >= 4 else {
             // Backtrack
-            position = startLocation.offset
+            position = startLocation.offset - baseOffset
             line = startLocation.line
             column = startLocation.column
             return nil
@@ -873,7 +928,7 @@ public final class MarkdownTokenizer {
         // Must have at least 3 characters
         guard content.count >= 3 else {
             // Backtrack
-            position = startLocation.offset
+            position = startLocation.offset - baseOffset
             line = startLocation.line
             column = startLocation.column
             return nil
@@ -908,7 +963,7 @@ public final class MarkdownTokenizer {
         // Must have at least the same length as opening fence
         guard count >= fenceLength else {
             // Backtrack - this is not a closing fence
-            position = startLocation.offset
+            position = startLocation.offset - baseOffset
             line = startLocation.line
             column = startLocation.column
             return nil
@@ -921,7 +976,7 @@ public final class MarkdownTokenizer {
         while tempPos < characters.count && characters[tempPos] != "\n" && characters[tempPos] != "\r" {
             if !characters[tempPos].isWhitespace {
                 // There's non-whitespace content after the fence, so this is not a closing fence
-                position = startLocation.offset
+                position = startLocation.offset - baseOffset
                 line = startLocation.line
                 column = startLocation.column
                 return nil
@@ -1082,16 +1137,19 @@ public final class MarkdownTokenizer {
 // MARK: - Token Stream
 
 /// A stream of tokens that can be consumed by the parser
-public final class TokenStream {
+final class TokenStream {
     private let tokens: [Token]
+    private let budget: ParsingBudget
     private var position: Int = 0
     
-    public init(_ tokens: [Token]) {
+    init(_ tokens: [Token], budget: ParsingBudget) {
         self.tokens = tokens
+        self.budget = budget
     }
     
     /// Current token
-    public var current: Token {
+    var current: Token {
+        budget.consumeWork()
         guard position < tokens.count else { 
             return Token(type: .eof, content: "", location: SourceLocation(line: 0, column: 0, offset: 0))
         }
@@ -1099,7 +1157,8 @@ public final class TokenStream {
     }
     
     /// Peek at the next token
-    public func peek(_ offset: Int = 1) -> Token {
+    func peek(_ offset: Int = 1) -> Token {
+        budget.consumeWork()
         let pos = position + offset
         guard pos >= 0 && pos < tokens.count else {
             return Token(type: .eof, content: "", location: SourceLocation(line: 0, column: 0, offset: 0))
@@ -1108,31 +1167,32 @@ public final class TokenStream {
     }
     
     /// Advance to the next token
-    public func advance() {
+    func advance() {
+        budget.consumeWork()
         if position < tokens.count {
             position += 1
         }
     }
     
     /// Check if we're at the end
-    public var isAtEnd: Bool {
-        return position >= tokens.count || current.type == .eof
+    var isAtEnd: Bool {
+        return budget.isExhausted || position >= tokens.count || current.type == .eof
     }
     
     /// Consume and return the current token
-    public func consume() -> Token {
+    func consume() -> Token {
         let token = current
         advance()
         return token
     }
     
     /// Check if current token matches the given type
-    public func check(_ type: TokenType) -> Bool {
+    func check(_ type: TokenType) -> Bool {
         return current.type == type
     }
     
     /// Consume token if it matches the given type
-    public func match(_ types: TokenType...) -> Bool {
+    func match(_ types: TokenType...) -> Bool {
         for type in types {
             if check(type) {
                 advance()
@@ -1143,12 +1203,18 @@ public final class TokenStream {
     }
     
     /// Current position in the token stream (for backtracking)
-    public var currentPosition: Int {
+    var currentPosition: Int {
         return position
     }
     
     /// Set position in the token stream (for backtracking)
-    public func setPosition(_ pos: Int) {
+    func setPosition(_ pos: Int) {
+        budget.consumeWork()
         position = max(0, min(pos, tokens.count))
+    }
+
+    func range(startingAt start: SourceLocation) -> SourceLocation {
+        guard position > 0, position - 1 < tokens.count else { return start }
+        return start.spanning(to: tokens[position - 1].location)
     }
 }

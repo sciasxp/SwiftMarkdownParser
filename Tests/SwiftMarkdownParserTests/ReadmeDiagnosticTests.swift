@@ -136,14 +136,12 @@ import Foundation
         #expect(html.contains("<code"), "Should contain code")
     }
 
-    // Test the actual readme file
-    @Test func actualReadme() async throws {
-        let readmePath = "/Users/sciasxp/Downloads/readme.md"
-        guard let data = FileManager.default.contents(atPath: readmePath),
-              let content = String(data: data, encoding: .utf8) else {
-            Issue.record("Could not read readme.md")
-            return
-        }
+    // Test a repository-owned README-shaped fixture.
+    @Test func representativeReadmeFixture() async throws {
+        let fixtureURL = try #require(
+            Bundle.module.url(forResource: "representative-readme", withExtension: "md")
+        )
+        let content = try String(contentsOf: fixtureURL, encoding: .utf8)
 
         let html = try await parser.parseToHTML(content)
         print("=== ACTUAL README (first 3000 chars) ===")
