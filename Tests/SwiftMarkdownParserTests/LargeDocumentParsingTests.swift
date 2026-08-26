@@ -250,8 +250,8 @@ import Darwin
         var emphasisCount = 0
         var blockquoteCount = 0
 
-        // Recursively count different node types
-        func countNodes(_ node: ASTNode) {
+        for visit in ast.depthFirst().dropFirst() {
+            let node = visit.node
             switch node {
             case is AST.HeadingNode:
                 headingCount += 1
@@ -272,14 +272,6 @@ import Darwin
             default:
                 break
             }
-
-            for child in node.children {
-                countNodes(child)
-            }
-        }
-
-        for child in ast.children {
-            countNodes(child)
         }
 
         // Verify expected structure based on generated test document
@@ -462,18 +454,8 @@ import Darwin
         // Test that parser can handle documents without artificial block limits
         let ast = try parser.parse(largeTestDocument)
 
-        // Count total number of blocks processed
-        var totalBlocks = 0
-        func countBlocks(_ node: ASTNode) {
-            totalBlocks += 1
-            for child in node.children {
-                countBlocks(child)
-            }
-        }
-
-        for child in ast.children {
-            countBlocks(child)
-        }
+        // Exclude the document root to retain the historical block count.
+        let totalBlocks = ast.depthFirst().dropFirst().reduce(0) { count, _ in count + 1 }
 
         // Should be able to process many more blocks than the old 100 limit
         #expect(totalBlocks > 100, "Should process more than 100 blocks without artificial limits")

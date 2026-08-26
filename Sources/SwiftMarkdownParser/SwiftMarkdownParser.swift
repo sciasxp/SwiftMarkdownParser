@@ -222,7 +222,15 @@ public struct HTMLRenderer: MarkdownRenderer {
         var hasMath = false
 
         // Single pre-pass: collect Mermaid diagrams and detect math nodes
-        collectSpecialNodes(from: document, mermaidDiagrams: &mermaidDiagrams, hasMath: &hasMath)
+        for visit in document.depthFirst() {
+            if let mermaidNode = visit.node as? AST.MermaidDiagramNode {
+                let id = MermaidUtils.generateSafeId(from: mermaidNode.content)
+                mermaidDiagrams.append((node: mermaidNode, id: id))
+            }
+            if !hasMath && (visit.node is AST.MathBlockNode || visit.node is AST.InlineMathNode) {
+                hasMath = true
+            }
+        }
 
         // Add Mermaid initialization if there are diagrams
         if !mermaidDiagrams.isEmpty && context.mermaidConfiguration.enabled {
@@ -258,20 +266,6 @@ public struct HTMLRenderer: MarkdownRenderer {
     /// Shared KaTeX renderer instance, created once per HTMLRenderer
     private var katexRenderer: KaTeXRenderer {
         KaTeXRenderer(configuration: context.katexConfiguration)
-    }
-
-    /// Single-pass collection of Mermaid diagrams and math node detection
-    private func collectSpecialNodes(from node: ASTNode, mermaidDiagrams: inout [(node: AST.MermaidDiagramNode, id: String)], hasMath: inout Bool) {
-        if let mermaidNode = node as? AST.MermaidDiagramNode {
-            let id = MermaidUtils.generateSafeId(from: mermaidNode.content)
-            mermaidDiagrams.append((node: mermaidNode, id: id))
-        }
-        if !hasMath && (node is AST.MathBlockNode || node is AST.InlineMathNode) {
-            hasMath = true
-        }
-        for child in node.children {
-            collectSpecialNodes(from: child, mermaidDiagrams: &mermaidDiagrams, hasMath: &hasMath)
-        }
     }
 
     private func generateMermaidInitializationScript() -> String {

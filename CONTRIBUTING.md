@@ -190,7 +190,7 @@ Any other relevant information.
 
 ### Medium Priority
 - **Syntax highlighting**: Code block language support
-- **AST transformations**: Reusable transformations over completed documents
+- **AST transformation rules**: Domain-specific rules built on `depthFirst()` and `rewriting(_:)`
 - **Error handling**: Better error messages and recovery
 - **Accessibility**: VoiceOver and accessibility improvements
 

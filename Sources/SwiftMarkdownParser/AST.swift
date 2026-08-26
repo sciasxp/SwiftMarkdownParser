@@ -13,7 +13,7 @@ public protocol ASTNode: Sendable {
     /// The type of this AST node
     var nodeType: ASTNodeType { get }
 
-    /// Child nodes (if any)
+    /// Child nodes (if any). Custom nodes must form a finite, acyclic tree.
     var children: [ASTNode] { get }
 
     /// Source location information
@@ -573,25 +573,26 @@ public enum AST {
             self.sourceLocation = sourceLocation
         }
 
-        /// Recursively extracts plain text content from AST nodes
+        /// Extracts plain text content from AST nodes in document order.
         public static func extractPlainText(from nodes: [ASTNode]) -> String {
-            return nodes.compactMap { node in
-                switch node {
-                case let textNode as AST.TextNode:
-                    return textNode.content
-                case let codeSpanNode as AST.CodeSpanNode:
-                    return codeSpanNode.content
-                case let autolinkNode as AST.AutolinkNode:
-                    return autolinkNode.text
-                case let imageNode as AST.ImageNode:
-                    return imageNode.altText
-                case let htmlInlineNode as AST.HTMLInlineNode:
-                    return htmlInlineNode.content
-                case let htmlBlockNode as AST.HTMLBlockNode:
-                    return htmlBlockNode.content
-                default:
-                    // For nodes with children (emphasis, strong, links, etc.)
-                    return extractPlainText(from: node.children)
+            nodes.flatMap { root in
+                root.depthFirst().compactMap { visit in
+                    switch visit.node {
+                    case let textNode as AST.TextNode:
+                        return textNode.content
+                    case let codeSpanNode as AST.CodeSpanNode:
+                        return codeSpanNode.content
+                    case let autolinkNode as AST.AutolinkNode:
+                        return autolinkNode.text
+                    case let imageNode as AST.ImageNode:
+                        return imageNode.altText
+                    case let htmlInlineNode as AST.HTMLInlineNode:
+                        return htmlInlineNode.content
+                    case let htmlBlockNode as AST.HTMLBlockNode:
+                        return htmlBlockNode.content
+                    default:
+                        return nil
+                    }
                 }
             }.joined()
         }

@@ -188,30 +188,27 @@ import Testing
     }
 
     private func assertValidRanges(in node: ASTNode, sourceLength: Int) {
-        guard let range = node.sourceLocation else {
-            Issue.record("Missing source range for \(node.nodeType.rawValue)")
-            return
-        }
-        #expect(range.offset >= 0)
-        #expect(range.endOffset >= range.offset)
-        #expect(range.endOffset <= sourceLength)
-
-        for child in node.children {
-            if let childRange = child.sourceLocation {
-                #expect(childRange.offset >= range.offset)
-                #expect(childRange.endOffset <= range.endOffset)
+        for visit in node.depthFirst() {
+            guard let range = visit.node.sourceLocation else {
+                Issue.record("Missing source range for \(visit.node.nodeType.rawValue)")
+                continue
             }
-            assertValidRanges(in: child, sourceLength: sourceLength)
+            #expect(range.offset >= 0)
+            #expect(range.endOffset >= range.offset)
+            #expect(range.endOffset <= sourceLength)
+
+            if let parentRange = visit.parent?.sourceLocation {
+                #expect(range.offset >= parentRange.offset)
+                #expect(range.endOffset <= parentRange.endOffset)
+            }
         }
     }
 
     private func containsNode<T: ASTNode>(ofType type: T.Type, in node: ASTNode) -> Bool {
-        if node is T { return true }
-        return node.children.contains { containsNode(ofType: type, in: $0) }
+        node.depthFirst().contains { $0.node is T }
     }
 
     private func plainText(in node: ASTNode) -> String {
-        if let text = node as? AST.TextNode { return text.content }
-        return node.children.map(plainText).joined()
+        node.depthFirst().compactMap { ($0.node as? AST.TextNode)?.content }.joined()
     }
 }

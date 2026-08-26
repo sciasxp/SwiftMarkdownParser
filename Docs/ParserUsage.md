@@ -67,10 +67,10 @@ The parser generates a hierarchical AST with these main node types:
 
 ```swift
 let parser = SwiftMarkdownParser()
-let ast = try parser.parse(markdown)
+let document = try parser.parse(markdown)
 
-func analyzeDocument(_ node: ASTNode) {
-    switch node {
+for visit in document.depthFirst() {
+    switch visit.node {
     case let heading as AST.HeadingNode:
         print("Heading level \(heading.level)")
     case let link as AST.LinkNode:
@@ -82,15 +82,40 @@ func analyzeDocument(_ node: ASTNode) {
     default:
         break
     }
-    
-    // Process children recursively
-    for child in node.children {
-        analyzeDocument(child)
-    }
 }
-
-analyzeDocument(ast)
 ```
+
+Traversal is lazy, includes the root, and preserves child order. Every visit
+also provides `ancestors`, `parent`, `path`, and `depth`.
+
+## Rewriting a Document
+
+`rewriting(_:)` performs one immutable bottom-up pass. A container visit sees
+its already-rewritten descendants. Replacement nodes are not visited again in
+the same pass.
+
+```swift
+let rewritten = try document.rewriting { visit in
+    guard let link = visit.node as? AST.LinkNode,
+          link.url == "https://old.example" else {
+        return .keep
+    }
+
+    return .replace(AST.LinkNode(
+        url: "https://new.example",
+        title: link.title,
+        children: link.children,
+        sourceLocation: link.sourceLocation
+    ))
+}
+```
+
+Rules return `.keep`, `.remove`, `.replace(node)`, or
+`.replaceMany(nodes)`. Built-in containers preserve their metadata when their
+children change. Table rows and cells retain their typed relationships;
+violations throw `ASTRewriteError`. Existing custom `ASTNode` conformances are
+still traversable. A custom node with descendants adopts `ASTRewritableNode`
+when those descendants should be rewritable.
 
 ## Error Handling
 
@@ -111,4 +136,5 @@ do {
 - Use the default resource limits for most documents.
 - Raise source or work limits deliberately for trusted large inputs.
 - Parse once and render or analyze the completed document multiple times.
+- Use `depthFirst()` for generic scans and one `rewriting(_:)` pass for related transformations.
 - Track wall-clock performance in benchmarks, not pass/fail assertions.

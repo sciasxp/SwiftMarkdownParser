@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Wall-clock time no longer changes parser correctness
 - **Complete Source Ranges**: Parser-produced nodes now carry half-open start/end ranges
 - **Atomic Document Construction**: References, tables, task lists, and inline GFM semantics are resolved before `parse(_:)` returns
+- **AST Traversal and Rewriting**: Added lazy contextual preorder traversal and immutable bottom-up document rewriting
+  - Rewrites can retain, remove, replace, or expand nodes without revisiting replacements
+  - Built-in containers preserve metadata and typed table relationships are validated
+  - Custom containers can opt into descendant rewriting with `ASTRewritableNode`
 - **Large Document Support**: Added comprehensive test suite for large document parsing
   - Performance testing with real-world documents (README.md as test case)
   - Validation of protection mechanisms under various conditions

@@ -109,11 +109,11 @@ struct MarkdownView: View {
 import SwiftMarkdownParser
 
 let parser = SwiftMarkdownParser()
-let ast = try parser.parse(markdown)
+let document = try parser.parse(markdown)
 
-// Analyze the AST structure
-func analyzeMarkdown(_ node: ASTNode) {
-    switch node {
+// Analyze the complete AST in stable depth-first order.
+for visit in document.depthFirst() {
+    switch visit.node {
     case let heading as AST.HeadingNode:
         print("Heading Level \(heading.level)")
     case let link as AST.LinkNode:
@@ -125,14 +125,25 @@ func analyzeMarkdown(_ node: ASTNode) {
     default:
         break
     }
-
-    for child in node.children {
-        analyzeMarkdown(child)
-    }
 }
-
-analyzeMarkdown(ast)
 ```
+
+Rewrite a document immutably with one bottom-up pass:
+
+```swift
+let rewritten = try document.rewriting { visit in
+    guard let link = visit.node as? AST.LinkNode else { return .keep }
+    return .replace(AST.LinkNode(
+        url: "https://new.example",
+        title: link.title,
+        children: link.children,
+        sourceLocation: link.sourceLocation
+    ))
+}
+```
+
+Rules may keep, remove, replace, or expand nodes. Replacements are not revisited
+in the same pass.
 
 ### Syntax Highlighting
 

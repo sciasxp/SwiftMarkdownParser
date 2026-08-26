@@ -143,7 +143,7 @@ import Testing
 
         let ast = try parser.parse(markdown)
 
-        let allInlineMath = collectNodes(ofType: AST.InlineMathNode.self, from: ast)
+        let allInlineMath = ast.depthFirst().compactMap { $0.node as? AST.InlineMathNode }
         #expect(allInlineMath.count == 0, "Inline math should not span lines")
     }
 
@@ -163,7 +163,7 @@ import Testing
 
         let ast = try parser.parse(markdown)
 
-        let allInlineMath = collectNodes(ofType: AST.InlineMathNode.self, from: ast)
+        let allInlineMath = ast.depthFirst().compactMap { $0.node as? AST.InlineMathNode }
         #expect(allInlineMath.count == 0, "Escaped $ should not trigger math parsing")
     }
 
@@ -184,17 +184,4 @@ import Testing
         #expect(mathBlocks.count == 1)
         #expect(mathBlocks[0].sourceLocation != nil)
     }
-}
-
-// MARK: - Helpers
-
-private func collectNodes<T: ASTNode>(ofType type: T.Type, from node: ASTNode) -> [T] {
-    var result: [T] = []
-    if let match = node as? T {
-        result.append(match)
-    }
-    for child in node.children {
-        result.append(contentsOf: collectNodes(ofType: type, from: child))
-    }
-    return result
 }

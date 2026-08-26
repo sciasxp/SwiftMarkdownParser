@@ -78,57 +78,55 @@ struct ASTExample {
         }
     }
 
-    /// Recursively print AST structure for debugging
-    static func printAST(_ node: ASTNode, indent: Int) {
-        let indentString = String(repeating: "  ", count: indent)
+    /// Print AST structure in stable depth-first order.
+    static func printAST(_ root: ASTNode, indent: Int) {
+        for visit in root.depthFirst() {
+            let node = visit.node
+            let indentString = String(repeating: "  ", count: indent + visit.depth)
 
-        switch node {
-        case let document as DocumentNode:
-            print("\(indentString)📄 Document (\(document.children.count) children)")
+            switch node {
+            case let document as DocumentNode:
+                print("\(indentString)📄 Document (\(document.children.count) children)")
 
-        case let paragraph as ParagraphNode:
-            print("\(indentString)📝 Paragraph (\(paragraph.children.count) children)")
+            case let paragraph as ParagraphNode:
+                print("\(indentString)📝 Paragraph (\(paragraph.children.count) children)")
 
-        case let heading as HeadingNode:
-            print("\(indentString)📋 Heading Level \(heading.level) (\(heading.children.count) children)")
+            case let heading as HeadingNode:
+                print("\(indentString)📋 Heading Level \(heading.level) (\(heading.children.count) children)")
 
-        case let text as TextNode:
-            let preview = text.content.prefix(30)
-            print("\(indentString)📄 Text: \"\(preview)\(text.content.count > 30 ? "..." : "")\"")
+            case let text as TextNode:
+                let preview = text.content.prefix(30)
+                print("\(indentString)📄 Text: \"\(preview)\(text.content.count > 30 ? "..." : "")\"")
 
-        case let emphasis as EmphasisNode:
-            print("\(indentString)📝 Emphasis (\(emphasis.children.count) children)")
+            case let emphasis as EmphasisNode:
+                print("\(indentString)📝 Emphasis (\(emphasis.children.count) children)")
 
-        case let strong as StrongEmphasisNode:
-            print("\(indentString)💪 Strong (\(strong.children.count) children)")
+            case let strong as StrongEmphasisNode:
+                print("\(indentString)💪 Strong (\(strong.children.count) children)")
 
-        case let link as LinkNode:
-            print("\(indentString)🔗 Link: \(link.url) (\(link.children.count) children)")
+            case let link as LinkNode:
+                print("\(indentString)🔗 Link: \(link.url) (\(link.children.count) children)")
 
-        case let image as ImageNode:
-            print("\(indentString)🖼️ Image: \(image.url) (\(image.children.count) children)")
+            case let image as ImageNode:
+                print("\(indentString)🖼️ Image: \(image.url) (\(image.children.count) children)")
 
-        case let codeBlock as CodeBlockNode:
-            let language = codeBlock.language ?? "plain"
-            print("\(indentString)💻 CodeBlock (\(language)): \(codeBlock.content.prefix(20))...")
+            case let codeBlock as CodeBlockNode:
+                let language = codeBlock.language ?? "plain"
+                print("\(indentString)💻 CodeBlock (\(language)): \(codeBlock.content.prefix(20))...")
 
-        case let blockQuote as BlockQuoteNode:
-            print("\(indentString)💬 BlockQuote (\(blockQuote.children.count) children)")
+            case let blockQuote as BlockQuoteNode:
+                print("\(indentString)💬 BlockQuote (\(blockQuote.children.count) children)")
 
-        case let list as ListNode:
-            let type = list.isOrdered ? "Ordered" : "Unordered"
-            print("\(indentString)📋 \(type) List (\(list.children.count) items)")
+            case let list as ListNode:
+                let type = list.isOrdered ? "Ordered" : "Unordered"
+                print("\(indentString)📋 \(type) List (\(list.children.count) items)")
 
-        case let listItem as ListItemNode:
-            print("\(indentString)• ListItem (\(listItem.children.count) children)")
+            case let listItem as ListItemNode:
+                print("\(indentString)• ListItem (\(listItem.children.count) children)")
 
-        default:
-            print("\(indentString)❓ \(node.nodeType): \(type(of: node))")
-        }
-
-        // Recursively print children
-        for child in node.children {
-            printAST(child, indent: indent + 1)
+            default:
+                print("\(indentString)❓ \(node.nodeType): \(type(of: node))")
+            }
         }
     }
 }

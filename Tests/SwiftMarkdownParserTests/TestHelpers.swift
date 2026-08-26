@@ -10,6 +10,22 @@ struct UnsupportedTestNode: ASTNode {
     let sourceLocation: SourceLocation? = nil
 }
 
+struct RewritableTestContainer: ASTRewritableNode {
+    let nodeType = ASTNodeType(rawValue: "rewritableTestContainer")
+    let children: [ASTNode]
+    let sourceLocation: SourceLocation? = nil
+
+    func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+        RewritableTestContainer(children: children)
+    }
+}
+
+struct ReadOnlyTestContainer: ASTNode {
+    let nodeType = ASTNodeType(rawValue: "readOnlyTestContainer")
+    let children: [ASTNode]
+    let sourceLocation: SourceLocation? = nil
+}
+
 /// Creates a SourceLocation without ambiguity (no Testing import here).
 func makeTestSourceLocation(line: Int, column: Int, offset: Int) -> SourceLocation {
     SourceLocation(line: line, column: column, offset: offset)

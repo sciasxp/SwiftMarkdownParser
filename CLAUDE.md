@@ -32,6 +32,8 @@ Markdown Source
 
 **Entry point:** `SwiftMarkdownParser` in `SwiftMarkdownParser.swift` exposes synchronous `parse(_:)`, async HTML conveniences, and deterministic `ResourceLimits`. Token, block, and inline parsers are internal implementation details. The Supported Dialect is fixed to CommonMark 0.30, GFM, math, and Mermaid.
 
+**AST operations:** `depthFirst()` in `ASTTraversal.swift` is the shared lazy preorder seam for generic scans. `DocumentNode.rewriting(_:)` in `ASTRewriter.swift` is a bottom-up, one-shot immutable rewrite; built-in metadata is preserved, and custom containers adopt `ASTRewritableNode` to support rewritten descendants.
+
 **Renderer protocol:** `MarkdownRenderer` in `RendererProtocol.swift` — generic over `Output` and `Context` types. `RendererRegistry` (actor) manages multiple renderers. GFM table/task-list rendering is implemented as extensions on this protocol.
 
 **SwiftUI rendering:** `SwiftUIRenderer` in `SwiftUIRenderer.swift` and `SwiftUIRenderContext` in `SwiftUIRenderContext.swift` — produces `AnyView` output, requires iOS 17.0+/macOS 14.0+.
@@ -39,7 +41,7 @@ Markdown Source
 ## Key Source Directories
 
 - `Sources/SwiftMarkdownParser/` — all library code
-  - Core parser: `SwiftMarkdownParser.swift`, `Tokenizer.swift`, `BlockParser.swift`, `InlineParser.swift`, `AST.swift`
+  - Core parser and AST: `SwiftMarkdownParser.swift`, `Tokenizer.swift`, `BlockParser.swift`, `InlineParser.swift`, `AST.swift`, `ASTTraversal.swift`, `ASTRewriter.swift`
   - Renderers: `RendererProtocol.swift`, `SwiftUIRenderer.swift`, `SwiftUIRenderContext.swift`, `MermaidRenderer.swift`, `MermaidConfiguration.swift`, `KaTeXRenderer.swift`, `KaTeXConfiguration.swift`, `WebViewSupport.swift`
   - GFM table utilities: `GFMExtensions.swift`
   - Syntax highlighting: `SyntaxHighlighting.swift` + one `*SyntaxEngine.swift` per language (JS, TS, Swift, Kotlin, Python, Bash)
@@ -50,6 +52,7 @@ Markdown Source
 ## Gotchas
 
 - **Document construction is synchronous** — call `try parser.parse(source)`; HTML and renderer operations remain `async throws`.
+- **AST rewriting is bottom-up and one-shot** — a visit observes rewritten descendants, while replacement nodes are not revisited in the same pass.
 - **Test at the document seam** — use Markdown Source → Markdown Document tests. Direct token tests are reserved for internal progress or budget invariants.
 - **Tests use Swift Testing** — use `@Test` with `#expect`/`#require`; add `async` only when the test performs asynchronous work.
 - **`RendererRegistry` and `SyntaxHighlightingRegistry`/`Cache` are actors** — interactions require `await`.
