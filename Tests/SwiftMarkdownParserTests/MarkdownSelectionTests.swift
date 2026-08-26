@@ -30,7 +30,6 @@ import Testing
         let document = try parser.parse(markdown)
 
         // Basic validation
-        #expect(document != nil, "Document should be parsed successfully")
         #expect(document.children.count == 1, "Document should have one child (the ordered list)")
 
         // Should have one ordered list
@@ -145,7 +144,7 @@ import Testing
            ```
         """
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Basic HTML structure validation
         #expect(html.contains("<ol>"), "HTML should contain ordered list tag")

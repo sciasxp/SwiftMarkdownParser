@@ -1,4 +1,4 @@
-/// Configuration options for KaTeX math rendering
+/// HTML output options for KaTeX math rendering.
 ///
 /// This file provides configuration settings for customizing KaTeX math expression
 /// appearance and behavior when rendering markdown with embedded math.
@@ -8,10 +8,10 @@ import Foundation
 // MARK: - KaTeX CSS Class Names
 
 /// Shared CSS class name constants used by both the Swift renderer and the KaTeX init script
-public enum KaTeXCSS {
-    public static let mathBase = "math"
-    public static let mathDisplay = "math-display"
-    public static let mathInline = "math-inline"
+enum KaTeXCSS {
+    static let mathBase = "math"
+    static let mathDisplay = "math-display"
+    static let mathInline = "math-inline"
 }
 
 // MARK: - KaTeX Configuration
@@ -71,7 +71,7 @@ public struct KaTeXConfiguration: Sendable {
     }
 
     /// Generate the KaTeX initialization script that renders math elements on page load
-    public func generateInitScript() -> String {
+    func generateInitScript() -> String {
         var options: [String] = []
         options.append("throwOnError: \(throwOnError ? "true" : "false")")
         options.append("errorColor: '\(errorColor)'")
@@ -126,12 +126,12 @@ public struct KaTeXConfiguration: Sendable {
     }
 
     /// Generate the KaTeX CSS stylesheet link tag
-    public func generateStylesheetLink() -> String {
+    func generateStylesheetLink() -> String {
         return "<link rel=\"stylesheet\" href=\"\(resolvedBaseURL)/katex.min.css\">"
     }
 
     /// Generate the KaTeX JavaScript script tags
-    public func generateScriptTags() -> String {
+    func generateScriptTags() -> String {
         return "<script defer src=\"\(resolvedBaseURL)/katex.min.js\"></script>"
     }
 }

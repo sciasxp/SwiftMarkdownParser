@@ -249,7 +249,8 @@ func test_featureName_condition_expectedResult() async throws {
 /// ```swift
 /// let parser = SwiftMarkdownParser()
 /// let document = try parser.parse(complexMarkdown)
-/// let html = try await parser.parseToHTML(complexMarkdown)
+/// let document = try parser.parse(complexMarkdown)
+/// let html = try await HTMLRenderer().renderFragment(document)
 /// ```
 ```
 

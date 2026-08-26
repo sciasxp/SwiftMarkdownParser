@@ -39,7 +39,6 @@ import Testing
         let document = try parser.parse(sampleMarkdown)
 
         // Basic validation
-        #expect(document != nil, "Document should be parsed successfully")
         #expect(document.children.count > 0, "Document should have children")
 
         // Validate key structural elements exist
@@ -96,7 +95,7 @@ import Testing
         | Data A   | Data B   |
         """
 
-        let html = try await parser.parseToHTML(sampleMarkdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(sampleMarkdown))
 
         // Verify key HTML elements are present
         #expect(html.contains("<h1>My Document</h1>"), "Should contain h1 heading")
@@ -109,6 +108,7 @@ import Testing
         #expect(html.contains("Hello, World!"), "Should contain code content")
     }
 
+    @MainActor
     @Test func renderSampleDocumentToSwiftUI() async throws {
         let sampleMarkdown = """
         # My Document
@@ -131,13 +131,12 @@ import Testing
         """
 
         // Test that SwiftUI rendering doesn't throw
-        let context = SwiftUIRenderContext()
-        let renderer = SwiftUIRenderer(context: context)
+        let context = SwiftUIRenderOptions()
+        let renderer = SwiftUIRenderer(options: context)
         let document = try parser.parse(sampleMarkdown)
 
         // Should not throw - basic rendering test
-        let view = try await renderer.render(document: document)
-        #expect(view != nil, "Should render SwiftUI view successfully")
+        _ = try await renderer.render(document)
     }
 
     @Test func parseWithInvalidMarkdown() async throws {
@@ -154,7 +153,6 @@ import Testing
 
         // Should not throw - parser should handle gracefully
         let document = try parser.parse(problematicMarkdown)
-        #expect(document != nil, "Parser should handle problematic markdown gracefully")
         #expect(document.children.count > 0, "Should parse some content")
     }
 
@@ -187,17 +185,16 @@ import Testing
 
         // Basic validation that the document was parsed
         let document = try parser.parse(readmeMarkdown)
-        #expect(document != nil, "Should successfully parse README markdown")
         #expect(document.children.count > 0, "Should have parsed content")
 
         // Verify it can be converted to HTML
-        let html = try await parser.parseToHTML(readmeMarkdown)
-        #expect(html != nil, "Should successfully render to HTML")
+        let html = try await HTMLRenderer().renderFragment(parser.parse(readmeMarkdown))
         #expect(!html.isEmpty, "HTML output should not be empty")
     }
 
     // MARK: - Edge Case Tests
 
+    @MainActor
     @Test func parseNestedCodeBlockEdgeCase() async throws {
         // Test markdown containing a code block that has code block syntax inside it
         let nestedCodeBlockMarkdown = """
@@ -220,8 +217,6 @@ import Testing
         """
 
         let document = try parser.parse(nestedCodeBlockMarkdown)
-        #expect(document != nil, "Should parse nested code block successfully")
-
         // Based on debug output, the parser creates more elements than expected
         // Let's verify the key elements exist rather than exact count
         #expect(document.children.count > 3, "Should have multiple top-level elements")
@@ -248,15 +243,14 @@ import Testing
         #expect(codeBlock.language == "markdown", "Code block should have markdown language")
 
         // Verify HTML rendering works correctly
-        let html = try await parser.parseToHTML(nestedCodeBlockMarkdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(nestedCodeBlockMarkdown))
         #expect(html.contains("<pre>"), "Should contain preformatted block")
         #expect(!html.isEmpty, "Should generate non-empty HTML")
 
         // Verify SwiftUI rendering doesn't crash
-        let context = SwiftUIRenderContext()
-        let renderer = SwiftUIRenderer(context: context)
-        let view = try await renderer.render(document: document)
-        #expect(view != nil, "Should render SwiftUI view successfully")
+        let context = SwiftUIRenderOptions()
+        let renderer = SwiftUIRenderer(options: context)
+        _ = try await renderer.render(document)
     }
 
     @Test func parseMultipleNestedCodeBlocks() async throws {
@@ -289,8 +283,6 @@ import Testing
         """
 
         let document = try parser.parse(complexNestedMarkdown)
-        #expect(document != nil, "Should parse complex nested markdown")
-
         // Count code blocks - should be exactly 3 (one for each scenario)
         var codeBlockCount = 0
         for node in document.children {
@@ -302,7 +294,7 @@ import Testing
         #expect(codeBlockCount == 3, "Should have exactly 3 code blocks (one per scenario)")
 
         // Verify HTML rendering preserves structure
-        let html = try await parser.parseToHTML(complexNestedMarkdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(complexNestedMarkdown))
         #expect(html.contains("def hello()"), "Should contain Python code")
         #expect(html.contains("console.log"), "Should contain JavaScript code")
         #expect(html.contains("backticks"), "Should contain text about backticks")

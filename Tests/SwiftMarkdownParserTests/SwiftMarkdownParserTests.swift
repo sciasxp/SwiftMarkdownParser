@@ -31,7 +31,7 @@ import Foundation
     @Test func htmlRenderer_renderTextNode_returnsEscapedHTML() async throws {
         let renderer = HTMLRenderer()
         let textNode = AST.TextNode(content: "Hello & <world>")
-        let html = try await renderer.render(node: textNode)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [textNode]))
         #expect(html == "Hello &amp; &lt;world&gt;")
     }
 
@@ -39,7 +39,7 @@ import Foundation
         let renderer = HTMLRenderer()
         let textNode = AST.TextNode(content: "Hello, World!")
         let paragraph = AST.ParagraphNode(children: [textNode])
-        let html = try await renderer.render(node: paragraph)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [paragraph]))
         #expect(html.contains("<p>Hello, World!</p>"))
     }
 
@@ -47,7 +47,7 @@ import Foundation
         let renderer = HTMLRenderer()
         let textNode = AST.TextNode(content: "Test Heading")
         let heading = AST.HeadingNode(level: 2, children: [textNode])
-        let html = try await renderer.render(node: heading)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [heading]))
         #expect(html.contains("<h2>Test Heading</h2>"))
     }
 
@@ -55,7 +55,7 @@ import Foundation
         let renderer = HTMLRenderer()
         let textNode = AST.TextNode(content: "Swift")
         let link = AST.LinkNode(url: "https://swift.org", title: "Swift.org", children: [textNode])
-        let html = try await renderer.render(node: link)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [link]))
         #expect(html == "<a href=\"https://swift.org\" title=\"Swift.org\">Swift</a>")
     }
 

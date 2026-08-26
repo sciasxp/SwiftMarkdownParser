@@ -27,22 +27,25 @@ Markdown Source
     → SwiftMarkdownParser.parse(_:)
     → one internal parse execution (tokens, blocks, inlines, references, budgets)
     → complete Markdown Document (DocumentNode with semantic children and source ranges)
-    → Renderer                 (HTMLRenderer in SwiftMarkdownParser.swift, or SwiftUIRenderer)
+    ├→ HTMLRenderer.renderFragment(_:) / renderDocument(_:metadata:)
+    └→ SwiftUIRenderer.render(_:)
 ```
 
-**Entry point:** `SwiftMarkdownParser` in `SwiftMarkdownParser.swift` exposes synchronous `parse(_:)`, async HTML conveniences, and deterministic `ResourceLimits`. Token, block, and inline parsers are internal implementation details. The Supported Dialect is fixed to CommonMark 0.30, GFM, math, and Mermaid.
+**Construction seam:** `SwiftMarkdownParser` exposes synchronous `parse(_:)` and deterministic `ResourceLimits`. Token, block, and inline parsers are internal implementation details. The supported dialect is fixed to CommonMark 0.30, GFM, math, and Mermaid.
 
 **AST operations:** `depthFirst()` in `ASTTraversal.swift` is the shared lazy preorder seam for generic scans. `DocumentNode.rewriting(_:)` in `ASTRewriter.swift` is a bottom-up, one-shot immutable rewrite; built-in metadata is preserved, and custom containers adopt `ASTRewritableNode` to support rewritten descendants.
 
-**Renderer protocol:** `MarkdownRenderer` in `RendererProtocol.swift` — generic over `Output` and `Context` types. `RendererRegistry` (actor) manages multiple renderers. GFM table/task-list rendering is implemented as extensions on this protocol.
+**HTML output seam:** `HTMLRenderer` owns HTML escaping, GFM, syntax highlighting, Mermaid, KaTeX, CSS, scripts, and complete-document composition. Configure it with `HTMLRenderOptions`; callers render only complete `DocumentNode` values.
 
-**SwiftUI rendering:** `SwiftUIRenderer` in `SwiftUIRenderer.swift` and `SwiftUIRenderContext` in `SwiftUIRenderContext.swift` — produces `AnyView` output, requires iOS 17.0+/macOS 14.0+.
+**SwiftUI output seam:** `SwiftUIRenderer` is `@MainActor`, accepts `SwiftUIRenderOptions`, and produces `AnyView` from a complete `DocumentNode`. `MarkdownWebView` is an HTML presentation adapter and also accepts a document rather than Markdown source.
 
 ## Key Source Directories
 
 - `Sources/SwiftMarkdownParser/` — all library code
-  - Core parser and AST: `SwiftMarkdownParser.swift`, `Tokenizer.swift`, `BlockParser.swift`, `InlineParser.swift`, `AST.swift`, `ASTTraversal.swift`, `ASTRewriter.swift`
-  - Renderers: `RendererProtocol.swift`, `SwiftUIRenderer.swift`, `SwiftUIRenderContext.swift`, `MermaidRenderer.swift`, `MermaidConfiguration.swift`, `KaTeXRenderer.swift`, `KaTeXConfiguration.swift`, `WebViewSupport.swift`
+  - Construction: `Parsing/SwiftMarkdownParser.swift`, `Tokenizer.swift`, `BlockParser.swift`, `InlineParser.swift`
+  - AST: `AST.swift`, `ASTTraversal.swift`, `ASTRewriter.swift`
+  - HTML output: `Rendering/HTML/`
+  - Native SwiftUI output: `Rendering/SwiftUI/`
   - GFM table utilities: `GFMExtensions.swift`
   - Syntax highlighting: `SyntaxHighlighting.swift` + one `*SyntaxEngine.swift` per language (JS, TS, Swift, Kotlin, Python, Bash)
 - `Tests/SwiftMarkdownParserTests/` — Swift Testing suites and repository-owned fixtures
@@ -51,12 +54,12 @@ Markdown Source
 
 ## Gotchas
 
-- **Document construction is synchronous** — call `try parser.parse(source)`; HTML and renderer operations remain `async throws`.
+- **Document construction is synchronous** — call `try parser.parse(source)`; renderer operations remain `async throws`.
 - **AST rewriting is bottom-up and one-shot** — a visit observes rewritten descendants, while replacement nodes are not revisited in the same pass.
-- **Test at the document seam** — use Markdown Source → Markdown Document tests. Direct token tests are reserved for internal progress or budget invariants.
+- **Test at document-level seams** — construction tests use Source → Document; output tests use Document → HTML/AnyView. Direct token or node-render tests are reserved for internal invariants.
 - **Tests use Swift Testing** — use `@Test` with `#expect`/`#require`; add `async` only when the test performs asynchronous work.
-- **`RendererRegistry` and `SyntaxHighlightingRegistry`/`Cache` are actors** — interactions require `await`.
-- **WebView types require `@MainActor`** — `MarkdownWebView` and `MermaidWebView` in `WebViewSupport.swift` must be used on the main thread.
+- **`SyntaxHighlightingRegistry`/`Cache` are actors** — interactions require `await`.
+- **SwiftUI output requires `@MainActor`** — create and call `SwiftUIRenderer` and `MarkdownWebView` on the main actor.
 - **HTML entity decoding is not implemented** — entities like `&amp;` pass through as-is.
 
 ## Code Style

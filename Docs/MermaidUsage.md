@@ -40,7 +40,8 @@ pie title Pet Distribution
 """
 
 let parser = SwiftMarkdownParser()
-let html = try await parser.parseToHTML(markdown)
+let document = try parser.parse(markdown)
+let html = try await HTMLRenderer().renderFragment(document)
 ```
 
 ## SwiftUI Integration
@@ -77,16 +78,15 @@ struct ContentView: View {
         }
     }
     
+    @MainActor
     private func loadContent() async {
         do {
             let parser = SwiftMarkdownParser()
             let ast = try parser.parse(markdown)
             let renderer = SwiftUIRenderer()
-            self.content = try await renderer.render(document: ast)
+            self.content = try await renderer.render(ast)
         } catch {
-            await MainActor.run {
-                self.content = AnyView(Text("Error loading content"))
-            }
+            self.content = AnyView(Text("Error loading content"))
         }
     }
 }
@@ -101,6 +101,7 @@ let config = MermaidConfiguration(
     securityLevel: .strict
 )
 
-let context = RenderContext(mermaidConfiguration: config)
-let html = try await parser.parseToHTML(markdown, context: context)
+let document = try parser.parse(markdown)
+let options = HTMLRenderOptions(mermaidConfiguration: config)
+let html = try await HTMLRenderer(options: options).renderFragment(document)
 ```

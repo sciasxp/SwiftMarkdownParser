@@ -17,7 +17,7 @@ import Testing
 
     @Test func htmlRenderer_rendersCheckedTaskListItem() async throws {
         let markdown = "- [x] Completed task"
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should contain proper task list HTML structure
         #expect(html.contains("<ul"), "Should contain unordered list")
@@ -40,7 +40,7 @@ import Testing
 
     @Test func htmlRenderer_rendersUncheckedTaskListItem() async throws {
         let markdown = "- [ ] Incomplete task"
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should contain proper task list HTML structure
         #expect(html.contains("<ul"), "Should contain unordered list")
@@ -68,7 +68,7 @@ import Testing
         ]
 
         for (markdown, expectedChecked) in testCases {
-            let html = try await parser.parseToHTML(markdown)
+            let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
             // Should contain checkbox
             #expect(html.contains("type=\"checkbox\""), "Should contain checkbox for: \(markdown)")
@@ -90,7 +90,7 @@ import Testing
         - [X] Third task
         """
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should contain one list with multiple items
         #expect(html.contains("<ul"), "Should contain unordered list")
@@ -122,7 +122,7 @@ import Testing
         - Another regular item
         """
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should contain one list
         #expect(html.contains("<ul"), "Should contain unordered list")
@@ -150,7 +150,7 @@ import Testing
           - [ ] Child task 2
         """
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should contain list structure
         #expect(html.contains("<ul"), "Should contain unordered list")
@@ -169,7 +169,7 @@ import Testing
 
     @Test func htmlRenderer_rendersTaskListWithInlineFormatting() async throws {
         let markdown = "- [x] Task with **bold** and *italic* text"
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should contain checkbox
         #expect(html.contains("type=\"checkbox\""), "Should contain checkbox")
@@ -187,7 +187,7 @@ import Testing
 
     @Test func htmlRenderer_rendersTaskListWithLinks() async throws {
         let markdown = "- [x] Task with [a link](https://example.com)"
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should contain checkbox
         #expect(html.contains("type=\"checkbox\""), "Should contain checkbox")
@@ -204,7 +204,7 @@ import Testing
 
     @Test func htmlRenderer_usesSemanticHTMLStructure() async throws {
         let markdown = "- [x] Semantic task"
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should use proper list structure
         #expect(html.contains("<ul"), "Should use unordered list")
@@ -222,7 +222,7 @@ import Testing
 
     @Test func htmlRenderer_includesAccessibilityAttributes() async throws {
         let markdown = "- [x] Accessible task"
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should have accessibility attributes
         let hasAriaLabel = html.contains("aria-label")
@@ -240,7 +240,7 @@ import Testing
 
     @Test func htmlRenderer_includesTaskListCSSClasses() async throws {
         let markdown = "- [x] Styled task"
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should include CSS classes for styling
         let hasTaskListClass = html.contains("class=\"task-list\"") ||
@@ -254,7 +254,7 @@ import Testing
 
     @Test func htmlRenderer_handlesEmptyTaskContent() async throws {
         let markdown = "- [x] "
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should still render checkbox even with empty content
         #expect(html.contains("type=\"checkbox\""), "Should contain checkbox")
@@ -264,7 +264,7 @@ import Testing
 
     @Test func htmlRenderer_handlesSpecialCharactersInTaskContent() async throws {
         let markdown = "- [x] Task with <special> & \"quoted\" characters"
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should contain checkbox
         #expect(html.contains("type=\"checkbox\""), "Should contain checkbox")
@@ -283,7 +283,7 @@ import Testing
         2. [ ] Second numbered task
         """
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should use ordered list
         #expect(html.contains("<ol"), "Should contain ordered list")
@@ -307,7 +307,7 @@ import Testing
         - [X] Third task with [link](https://example.com)
         """
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Basic HTML structure validation
         #expect(html.contains("<ul"), "Should have opening ul tag")
@@ -333,7 +333,7 @@ import Testing
 
     @Test func htmlRenderer_enhancedCheckedTaskListStyling() async throws {
         let markdown = "- [x] Completed task with enhanced styling"
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should contain enhanced CSS classes for checked items
         #expect(html.contains("task-list-item-checked"), "Should contain checked task list item class")
@@ -357,7 +357,7 @@ import Testing
 
     @Test func htmlRenderer_enhancedUncheckedTaskListStyling() async throws {
         let markdown = "- [ ] Incomplete task with enhanced styling"
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should contain enhanced CSS classes for unchecked items
         #expect(html.contains("task-list-item-unchecked"), "Should contain unchecked task list item class")
@@ -384,7 +384,7 @@ import Testing
         - [x] Third task
         """
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should contain task list container class
         #expect(html.contains("class=\"task-list\""), "Should contain task-list class")
@@ -403,7 +403,7 @@ import Testing
 
     @Test func htmlRenderer_enhancedTaskListWithComplexContent() async throws {
         let markdown = "- [x] Completed task with **bold** and *italic* text"
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should contain enhanced styling for checked items
         #expect(html.contains("task-list-item-checked"), "Should contain checked item class")
@@ -419,18 +419,18 @@ import Testing
     }
 
     @Test func htmlRenderer_enhancedTaskListCustomCSSClass() async throws {
-        let context = RenderContext(
-            styleConfiguration: StyleConfiguration(
+        let context = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
                 cssClasses: [
                     .taskListItem: "custom-task-item"
                 ]
             )
         )
-        let customRenderer = HTMLRenderer(context: context)
+        let customRenderer = HTMLRenderer(options: context)
 
         let markdown = "- [x] Custom styled task"
         let ast = try parser.parse(markdown)
-        let html = try await customRenderer.render(document: ast)
+        let html = try await customRenderer.renderFragment(ast)
 
         // Should preserve custom CSS class while adding state-specific classes
         #expect(html.contains("custom-task-item"), "Should contain custom CSS class")
@@ -448,7 +448,7 @@ import Testing
         - Another regular item
         """
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should contain task list container styling
         #expect(html.contains("class=\"task-list\""), "Should have task-list class on container")

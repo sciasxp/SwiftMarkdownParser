@@ -219,11 +219,11 @@ import Darwin
         print("Document statistics: \(ast.children.count) top-level nodes")
     }
 
-    @Test func largeDocument_parseToHTML_preservesRenderedStructure() async throws {
+    @Test func largeDocument_renderHTML_preservesRenderedStructure() async throws {
         let startTime = CFAbsoluteTimeGetCurrent()
 
         // Parse to HTML
-        let html = try await parser.parseToHTML(largeTestDocument)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(largeTestDocument))
 
         let endTime = CFAbsoluteTimeGetCurrent()
         let elapsedTime = endTime - startTime
@@ -309,8 +309,8 @@ import Darwin
         #expect(totalBlocks > 1000, "Test document should have over 1000 blocks")
     }
 
-    @Test func largeDocument_parseToHTML_containsExpectedElements() async throws {
-        let html = try await parser.parseToHTML(largeTestDocument)
+    @Test func largeDocument_renderHTML_containsExpectedElements() async throws {
+        let html = try await HTMLRenderer().renderFragment(parser.parse(largeTestDocument))
 
         // Verify key HTML elements are present
         #expect(html.contains("<h1>"), "HTML should contain h1 elements")

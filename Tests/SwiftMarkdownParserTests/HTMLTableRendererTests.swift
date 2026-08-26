@@ -24,7 +24,7 @@ import Foundation
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         #expect(html.contains("<strong>Bold</strong>"))
         #expect(html.contains("<td><strong>Bold</strong> text</td>"))
@@ -38,7 +38,7 @@ import Foundation
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         #expect(html.contains("<em>Italic</em>"))
         #expect(html.contains("<td><em>Italic</em> text</td>"))
@@ -52,7 +52,7 @@ import Foundation
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         #expect(html.contains("<code>code</code>"))
         #expect(html.contains("<td><code>code</code> span</td>"))
@@ -66,7 +66,7 @@ import Foundation
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         #expect(html.contains("<a href=\"https://example.com\">Link</a>"))
         #expect(html.contains("<td><a href=\"https://example.com\">Link</a> text</td>"))
@@ -80,7 +80,7 @@ import Foundation
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         #expect(html.contains("<strong>Bold</strong>"))
         #expect(html.contains("<em>italic</em>"))
@@ -96,7 +96,7 @@ import Foundation
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         #expect(html.contains("<del>Strikethrough</del>"))
         #expect(html.contains("<td><del>Strikethrough</del> text</td>"))
@@ -110,7 +110,7 @@ import Foundation
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         #expect(html.contains("<a href=\"https://example.com\">https://example.com</a>"))
     }
@@ -123,7 +123,7 @@ import Foundation
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         // Should render both strong and em elements
         #expect(html.contains("<strong>Bold</strong>"))
@@ -138,7 +138,7 @@ import Foundation
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         #expect(html.contains("*Not bold*"))
         #expect(html.contains("not code"))
@@ -149,15 +149,15 @@ import Foundation
     // MARK: - Accessibility Tests
 
     @Test func table_includesAccessibilityAttributes() async throws {
-        let context = RenderContext(
-            styleConfiguration: StyleConfiguration(
+        let context = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
                 customAttributes: [
                     .table: ["role": "table", "aria-label": "Data table"],
                     .tableCell: ["scope": "col"]
                 ]
             )
         )
-        let accessibleRenderer = HTMLRenderer(context: context)
+        let accessibleRenderer = HTMLRenderer(options: context)
 
         let markdown = """
         | Name | Age |
@@ -166,21 +166,21 @@ import Foundation
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await accessibleRenderer.render(document: ast)
+        let html = try await accessibleRenderer.renderFragment(ast)
 
         #expect(html.contains("role=\"table\""))
         #expect(html.contains("aria-label=\"Data table\""))
     }
 
     @Test func tableHeaders_includeScopeAttributes() async throws {
-        let context = RenderContext(
-            styleConfiguration: StyleConfiguration(
+        let context = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
                 customAttributes: [
                     .tableCell: ["scope": "col"]
                 ]
             )
         )
-        let accessibleRenderer = HTMLRenderer(context: context)
+        let accessibleRenderer = HTMLRenderer(options: context)
 
         let markdown = """
         | Name | Age |
@@ -189,7 +189,7 @@ import Foundation
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await accessibleRenderer.render(document: ast)
+        let html = try await accessibleRenderer.renderFragment(ast)
 
         // Headers should have scope="col"
         #expect(html.contains("<th scope=\"col\">Name</th>"))
@@ -205,7 +205,7 @@ import Foundation
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         // For now, just ensure table renders without caption
         #expect(html.contains("<table>"))
@@ -215,15 +215,15 @@ import Foundation
     // MARK: - Enhanced Styling Tests
 
     @Test func table_supportsZebraStriping() async throws {
-        let context = RenderContext(
-            styleConfiguration: StyleConfiguration(
+        let context = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
                 cssClasses: [
                     .tableRow: "table-row",
                     .table: "zebra-striped"
                 ]
             )
         )
-        let styledRenderer = HTMLRenderer(context: context)
+        let styledRenderer = HTMLRenderer(options: context)
 
         let markdown = """
         | Name | Age |
@@ -233,21 +233,21 @@ import Foundation
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await styledRenderer.render(document: ast)
+        let html = try await styledRenderer.renderFragment(ast)
 
         #expect(html.contains("class=\"zebra-striped\""))
         #expect(html.contains("class=\"table-row\""))
     }
 
     @Test func table_supportsCustomCellPadding() async throws {
-        let context = RenderContext(
-            styleConfiguration: StyleConfiguration(
+        let context = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
                 customAttributes: [
                     .tableCell: ["style": "padding: 12px;"]
                 ]
             )
         )
-        let styledRenderer = HTMLRenderer(context: context)
+        let styledRenderer = HTMLRenderer(options: context)
 
         let markdown = """
         | Name | Age |
@@ -256,7 +256,7 @@ import Foundation
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await styledRenderer.render(document: ast)
+        let html = try await styledRenderer.renderFragment(ast)
 
         #expect(html.contains("style=\"padding: 12px;\""))
     }
@@ -272,7 +272,7 @@ import Foundation
 
         let startTime = Date()
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
         let endTime = Date()
 
         let renderTime = endTime.timeIntervalSince(startTime)
@@ -293,7 +293,7 @@ import Foundation
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         #expect(html.contains("<td></td>"))
         #expect(html.contains("<td>John</td>"))
@@ -308,7 +308,7 @@ import Foundation
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         #expect(html.contains("&lt;&gt;&amp;&quot;&#39;"))
         #expect(!html.contains("<>&\"'"))

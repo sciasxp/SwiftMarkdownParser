@@ -212,7 +212,7 @@ import Testing
             ))
         }
 
-        let html = try await HTMLRenderer().render(document: rewritten)
+        let html = try await HTMLRenderer().renderFragment(rewritten)
         #expect(html.contains("href=\"https://new.example\""))
         #expect(!html.contains("https://old.example"))
     }

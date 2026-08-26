@@ -13,8 +13,8 @@ let parser = SwiftMarkdownParser()
 // Build a complete semantic Markdown Document
 let document = try parser.parse("# Hello **World**!")
 
-// Parse directly to HTML
-let html = try await parser.parseToHTML("# Hello **World**!")
+// Feed that document to an output-specific renderer
+let html = try await HTMLRenderer().renderFragment(document)
 ```
 
 ## Supported Dialect and Resource Limits

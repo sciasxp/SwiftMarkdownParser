@@ -10,6 +10,12 @@ struct UnsupportedTestNode: ASTNode {
     let sourceLocation: SourceLocation? = nil
 }
 
+struct UnsupportedSwiftUITestNode: ASTNode {
+    let nodeType = ASTNodeType(rawValue: "unsupported-swiftui")
+    let children: [ASTNode] = []
+    let sourceLocation: SourceLocation? = nil
+}
+
 struct RewritableTestContainer: ASTRewritableNode {
     let nodeType = ASTNodeType(rawValue: "rewritableTestContainer")
     let children: [ASTNode]

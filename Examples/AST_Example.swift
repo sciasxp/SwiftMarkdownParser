@@ -46,13 +46,13 @@ struct ASTExample {
             // Render to HTML
             print("\n🌐 HTML Output:")
             let htmlRenderer = HTMLRenderer()
-            let html = try await htmlRenderer.render(document: ast)
+            let html = try await htmlRenderer.renderFragment(ast)
             print(html)
 
             // Demonstrate custom renderer context
             print("\n🎨 HTML with Custom Styling:")
-            let customContext = RenderContext(
-                styleConfiguration: StyleConfiguration(
+            let customOptions = HTMLRenderOptions(
+                styleConfiguration: HTMLStyleConfiguration(
                     cssClasses: [
                         .heading: "custom-heading",
                         .paragraph: "custom-paragraph",
@@ -62,8 +62,8 @@ struct ASTExample {
                     includeSourcePositions: true
                 )
             )
-            let customRenderer = HTMLRenderer(context: customContext)
-            let customHTML = try await customRenderer.render(document: ast)
+            let customRenderer = HTMLRenderer(options: customOptions)
+            let customHTML = try await customRenderer.renderFragment(ast)
             print(customHTML)
 
             // SwiftUI rendering is also available via SwiftUIRenderer
@@ -71,7 +71,7 @@ struct ASTExample {
             print("\n📱 SwiftUI Renderer:")
             print("// Use SwiftUIRenderer from the library for native SwiftUI output:")
             print("// let swiftUIRenderer = SwiftUIRenderer()")
-            print("// let view = try await swiftUIRenderer.render(document: ast)")
+            print("// let view = try await swiftUIRenderer.render(ast)")
 
         } catch {
             print("❌ Error: \(error)")

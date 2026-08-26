@@ -56,7 +56,8 @@ print("Hello, World!")
 """
 
 let parser = SwiftMarkdownParser()
-let html = try await parser.parseToHTML(markdown)
+let document = try parser.parse(markdown)
+let html = try await HTMLRenderer().renderFragment(document)
 print(html)
 ```
 
@@ -83,21 +84,16 @@ struct MarkdownView: View {
         }
     }
 
+    @MainActor
     private func renderMarkdown() async {
         do {
             let parser = SwiftMarkdownParser()
             let ast = try parser.parse(markdown)
 
             let renderer = SwiftUIRenderer()
-            let view = try await renderer.render(document: ast)
-
-            await MainActor.run {
-                self.renderedView = view
-            }
+            renderedView = try await renderer.render(ast)
         } catch {
-            await MainActor.run {
-                self.renderedView = AnyView(Text("Error: \(error.localizedDescription)"))
-            }
+            renderedView = AnyView(Text("Error: \(error.localizedDescription)"))
         }
     }
 }
@@ -153,12 +149,19 @@ HTML renderer includes syntax highlighting for JavaScript, TypeScript, Swift, Ko
 let codeMarkdown = """
 ```swift
 let parser = SwiftMarkdownParser()
-let html = try await parser.parseToHTML("# Hello")
+let document = try parser.parse("# Hello")
+let html = try await HTMLRenderer().renderFragment(document)
 ```
 """
 
 let parser = SwiftMarkdownParser()
-let html = try await parser.parseToHTML(codeMarkdown)
+let document = try parser.parse(codeMarkdown)
+let options = HTMLRenderOptions(
+    styleConfiguration: HTMLStyleConfiguration(
+        syntaxHighlighting: HTMLSyntaxHighlightingOptions(enabled: true)
+    )
+)
+let html = try await HTMLRenderer(options: options).renderFragment(document)
 // Returns HTML with syntax highlighting applied
 ```
 
@@ -192,7 +195,8 @@ graph TD
 """
 
 let parser = SwiftMarkdownParser()
-let html = try await parser.parseToHTML(diagramMarkdown)
+let document = try parser.parse(diagramMarkdown)
+let html = try await HTMLRenderer().renderFragment(document)
 // HTML output includes embedded Mermaid diagram
 ```
 
@@ -211,11 +215,17 @@ let html = try await parser.parseToHTML(diagramMarkdown)
 // Build a complete Markdown Document synchronously
 func parse(_ markdown: String) throws -> AST.DocumentNode
 
-// Parse directly to HTML
-func parseToHTML(_ markdown: String, context: RenderContext = RenderContext()) async throws -> String
+// Render an embeddable HTML fragment
+func renderFragment(_ document: AST.DocumentNode) async throws -> String
 
-// Render AST with custom renderer
-func render(document: AST.DocumentNode) async throws -> Output
+// Render a complete HTML document
+func renderDocument(
+    _ document: AST.DocumentNode,
+    metadata: HTMLDocumentMetadata = .init()
+) async throws -> String
+
+// Render a native SwiftUI view on MainActor
+@MainActor func render(_ document: AST.DocumentNode) async throws -> AnyView
 ```
 
 ## Documentation

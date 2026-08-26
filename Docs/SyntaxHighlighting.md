@@ -35,9 +35,9 @@ func increment() async {
 """
 
 // Configure syntax highlighting
-let context = RenderContext(
-    styleConfiguration: StyleConfiguration(
-        syntaxHighlighting: SyntaxHighlightingConfig(
+let context = HTMLRenderOptions(
+    styleConfiguration: HTMLStyleConfiguration(
+        syntaxHighlighting: HTMLSyntaxHighlightingOptions(
             enabled: true,
             cssPrefix: "hljs-"       // optional; default is "language-"
         )
@@ -47,8 +47,8 @@ let context = RenderContext(
 let parser = SwiftMarkdownParser()
 let ast = try parser.parse(codeMarkdown)
 
-let renderer = HTMLRenderer(context: context)
-let highlightedHTML = try await renderer.render(document: ast)
+let renderer = HTMLRenderer(options: context)
+let highlightedHTML = try await renderer.renderFragment(ast)
 ```
 
 ### SwiftUI Integration (Basic Code Blocks Only)
@@ -93,26 +93,21 @@ struct MarkdownView: View {
         }
     }
 
+    @MainActor
     private func renderMarkdown() async {
         do {
             let parser = SwiftMarkdownParser()
             let ast = try parser.parse(markdown)
 
             // Use a predefined SwiftUI style - NO syntax highlighting available
-            let context = SwiftUIRenderContext(
+            let context = SwiftUIRenderOptions(
                 styleConfiguration: SwiftUIStyleConfiguration.github
             )
 
-            let renderer = SwiftUIRenderer(context: context)
-            let view = try await renderer.render(document: ast)
-
-            await MainActor.run {
-                self.renderedView = view
-            }
+            let renderer = SwiftUIRenderer(options: context)
+            self.renderedView = try await renderer.render(ast)
         } catch {
-            await MainActor.run {
-                self.renderedView = AnyView(Text("Error: \(error.localizedDescription)"))
-            }
+            self.renderedView = AnyView(Text("Error: \(error.localizedDescription)"))
         }
     }
 }
@@ -270,13 +265,13 @@ Popular dark theme for developers:
 ### HTML Renderer Configuration
 
 ```swift
-let syntaxConfig = SyntaxHighlightingConfig(
+let syntaxConfig = HTMLSyntaxHighlightingOptions(
     enabled: true,
     cssPrefix: "hljs-"   // optional; default is "language-"
 )
 
-let context = RenderContext(
-    styleConfiguration: StyleConfiguration(
+let context = HTMLRenderOptions(
+    styleConfiguration: HTMLStyleConfiguration(
         syntaxHighlighting: syntaxConfig
     )
 )
@@ -287,7 +282,7 @@ let context = RenderContext(
 **Note**: SwiftUI renderer does not support syntax highlighting. Only basic styling is available.
 
 ```swift
-let context = SwiftUIRenderContext(
+let context = SwiftUIRenderOptions(
     styleConfiguration: SwiftUIStyleConfiguration(
         // Only basic code styling - no syntax highlighting
         codeFont: .system(.body, design: .monospaced),
@@ -304,9 +299,9 @@ let context = SwiftUIRenderContext(
 
 ```swift
 // Custom CSS classes for HTML output
-let context = RenderContext(
-    styleConfiguration: StyleConfiguration(
-        syntaxHighlighting: SyntaxHighlightingConfig(
+let context = HTMLRenderOptions(
+    styleConfiguration: HTMLStyleConfiguration(
+        syntaxHighlighting: HTMLSyntaxHighlightingOptions(
             enabled: true,
             cssPrefix: "custom-"
         ),
@@ -333,7 +328,7 @@ let customStyle = SwiftUIStyleConfiguration(
     codeCornerRadius: 4.0
 )
 
-let context = SwiftUIRenderContext(styleConfiguration: customStyle)
+let context = SwiftUIRenderOptions(styleConfiguration: customStyle)
 ```
 
 ### Theme Color Mapping
@@ -530,9 +525,9 @@ async func generateHighlightedHTML() throws -> String {
     let parser = SwiftMarkdownParser()
     let ast = try parser.parse(multiLanguageMarkdown)
 
-    let context = RenderContext(
-        styleConfiguration: StyleConfiguration(
-            syntaxHighlighting: SyntaxHighlightingConfig(
+    let context = HTMLRenderOptions(
+        styleConfiguration: HTMLStyleConfiguration(
+            syntaxHighlighting: HTMLSyntaxHighlightingOptions(
                 enabled: true,
                 cssPrefix: "hljs-"
             ),
@@ -543,8 +538,8 @@ async func generateHighlightedHTML() throws -> String {
         )
     )
 
-    let renderer = HTMLRenderer(context: context)
-    return try await renderer.render(document: ast)
+    let renderer = HTMLRenderer(options: context)
+    return try await renderer.renderFragment(ast)
 }
 
 // Usage
@@ -581,13 +576,14 @@ struct SwiftUICodeExample: View {
         }
     }
 
+    @MainActor
     private func renderCode() async {
         do {
             let parser = SwiftMarkdownParser()
             let ast = try parser.parse(codeMarkdown)
 
             // SwiftUI basic styling - no syntax highlighting
-            let context = SwiftUIRenderContext(
+            let context = SwiftUIRenderOptions(
                 styleConfiguration: SwiftUIStyleConfiguration(
                     codeFont: .system(.body, design: .monospaced),
                     codeTextColor: .primary,
@@ -595,16 +591,10 @@ struct SwiftUICodeExample: View {
                 )
             )
 
-            let renderer = SwiftUIRenderer(context: context)
-            let view = try await renderer.render(document: ast)
-
-            await MainActor.run {
-                self.renderedView = view
-            }
+            let renderer = SwiftUIRenderer(options: context)
+            self.renderedView = try await renderer.render(ast)
         } catch {
-            await MainActor.run {
-                self.renderedView = AnyView(Text("Error: \(error.localizedDescription)"))
-            }
+            self.renderedView = AnyView(Text("Error: \(error.localizedDescription)"))
         }
     }
 }

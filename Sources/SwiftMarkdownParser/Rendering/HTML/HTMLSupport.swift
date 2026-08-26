@@ -1,31 +1,10 @@
-/// Renderer protocol and infrastructure for converting AST to various output formats
-///
-/// This file defines the pluggable renderer architecture that allows the same AST
-/// to be rendered to different output formats (HTML, SwiftUI, PDF, etc.).
+/// HTML-specific rendering options, errors, and implementation support.
 import Foundation
 
-// MARK: - Renderer Protocol
+// MARK: - HTML Options
 
-/// Protocol for rendering AST nodes to a specific output format
-public protocol MarkdownRenderer: Sendable {
-    /// The output type produced by this renderer
-    associatedtype Output
-
-    /// Render a complete document AST to the output format
-    /// - Parameter document: The root document node
-    /// - Returns: The rendered output
-    func render(document: AST.DocumentNode) async throws -> Output
-
-    /// Render any AST node to the output format
-    /// - Parameter node: The AST node to render
-    /// - Returns: The rendered output
-    func render(node: ASTNode) async throws -> Output
-}
-
-// MARK: - Renderer Context
-
-/// Context passed to renderers for configuration and state
-public struct RenderContext: Sendable {
+/// Immutable options consumed by `HTMLRenderer`.
+public struct HTMLRenderOptions: Sendable {
     /// Base URL for resolving relative links
     public let baseURL: URL?
 
@@ -33,7 +12,7 @@ public struct RenderContext: Sendable {
     public let sanitizeHTML: Bool
 
     /// Custom CSS classes or styling information
-    public let styleConfiguration: StyleConfiguration
+    public let styleConfiguration: HTMLStyleConfiguration
 
     /// Configuration for Mermaid diagram rendering
     public let mermaidConfiguration: MermaidConfiguration
@@ -41,48 +20,36 @@ public struct RenderContext: Sendable {
     /// Configuration for KaTeX math rendering
     public let katexConfiguration: KaTeXConfiguration
 
-    /// Link reference definitions from the document
-    public let linkReferences: [String: LinkReference]
-
-    /// Current rendering depth (for nested elements)
-    public let depth: Int
-
     public init(
         baseURL: URL? = nil,
         sanitizeHTML: Bool = true,
-        styleConfiguration: StyleConfiguration = .default,
+        styleConfiguration: HTMLStyleConfiguration = .default,
         mermaidConfiguration: MermaidConfiguration = .default,
-        katexConfiguration: KaTeXConfiguration = .default,
-        linkReferences: [String: LinkReference] = [:],
-        depth: Int = 0
+        katexConfiguration: KaTeXConfiguration = .default
     ) {
         self.baseURL = baseURL
         self.sanitizeHTML = sanitizeHTML
         self.styleConfiguration = styleConfiguration
         self.mermaidConfiguration = mermaidConfiguration
         self.katexConfiguration = katexConfiguration
-        self.linkReferences = linkReferences
-        self.depth = depth
     }
+}
 
-    /// Create a new context with incremented depth
-    public func incrementingDepth() -> RenderContext {
-        RenderContext(
-            baseURL: baseURL,
-            sanitizeHTML: sanitizeHTML,
-            styleConfiguration: styleConfiguration,
-            mermaidConfiguration: mermaidConfiguration,
-            katexConfiguration: katexConfiguration,
-            linkReferences: linkReferences,
-            depth: depth + 1
-        )
+/// Metadata used only when producing a complete HTML document.
+public struct HTMLDocumentMetadata: Sendable, Equatable {
+    public let title: String
+    public let language: String
+
+    public init(title: String = "Markdown Document", language: String = "en") {
+        self.title = title
+        self.language = language
     }
 }
 
 // MARK: - Style Configuration
 
 /// Configuration for styling rendered output
-public struct StyleConfiguration: Sendable {
+public struct HTMLStyleConfiguration: Sendable {
     /// CSS classes for different element types
     public let cssClasses: [ASTNodeType: String]
 
@@ -93,13 +60,13 @@ public struct StyleConfiguration: Sendable {
     public let includeSourcePositions: Bool
 
     /// Code syntax highlighting configuration
-    public let syntaxHighlighting: SyntaxHighlightingConfig
+    public let syntaxHighlighting: HTMLSyntaxHighlightingOptions
 
     public init(
         cssClasses: [ASTNodeType: String] = [:],
         customAttributes: [ASTNodeType: [String: String]] = [:],
         includeSourcePositions: Bool = false,
-        syntaxHighlighting: SyntaxHighlightingConfig = .default
+        syntaxHighlighting: HTMLSyntaxHighlightingOptions = .default
     ) {
         self.cssClasses = cssClasses
         self.customAttributes = customAttributes
@@ -107,13 +74,13 @@ public struct StyleConfiguration: Sendable {
         self.syntaxHighlighting = syntaxHighlighting
     }
 
-    public static let `default` = StyleConfiguration()
+    public static let `default` = HTMLStyleConfiguration()
 }
 
 // MARK: - Syntax Highlighting Configuration
 
 /// Configuration for code syntax highlighting
-public struct SyntaxHighlightingConfig: Sendable {
+public struct HTMLSyntaxHighlightingOptions: Sendable {
     /// Whether syntax highlighting is enabled
     public let enabled: Bool
 
@@ -133,7 +100,7 @@ public struct SyntaxHighlightingConfig: Sendable {
         self.supportedLanguages = supportedLanguages
     }
 
-    public static let `default` = SyntaxHighlightingConfig()
+    public static let `default` = HTMLSyntaxHighlightingOptions()
 
     /// Common programming languages for syntax highlighting
     public static let commonLanguages: Set<String> = [
@@ -144,58 +111,26 @@ public struct SyntaxHighlightingConfig: Sendable {
     ]
 }
 
-// MARK: - Link Reference
-
-/// Link reference definition
-public struct LinkReference: Sendable, Equatable {
-    /// The URL of the link
-    public let url: String
-
-    /// Optional title for the link
-    public let title: String?
-
-    /// Source location where the reference was defined
-    public let sourceLocation: SourceLocation?
-
-    public init(url: String, title: String? = nil, sourceLocation: SourceLocation? = nil) {
-        self.url = url
-        self.title = title
-        self.sourceLocation = sourceLocation
-    }
-}
-
 // MARK: - Renderer Error Types
 
-/// Errors that can occur during rendering
-public enum RendererError: Error, LocalizedError, Sendable {
+/// Errors raised at the HTML output seam.
+public enum HTMLRenderingError: Error, LocalizedError, Sendable {
     case unsupportedNodeType(ASTNodeType)
-    case invalidURL(String)
-    case renderingFailed(String)
-    case missingLinkReference(String)
-    case htmlSanitizationFailed(String)
 
     public var errorDescription: String? {
         switch self {
         case .unsupportedNodeType(let type):
             return "Unsupported AST node type: \(type)"
-        case .invalidURL(let url):
-            return "Invalid URL: \(url)"
-        case .renderingFailed(let message):
-            return "Rendering failed: \(message)"
-        case .missingLinkReference(let label):
-            return "Missing link reference: \(label)"
-        case .htmlSanitizationFailed(let message):
-            return "HTML sanitization failed: \(message)"
         }
     }
 }
 
 // MARK: - Renderer Utilities
 
-/// Utility functions for renderers
-public enum RendererUtils {
+/// Implementation details shared within the HTML output module.
+enum RendererUtils {
     /// Escape HTML special characters
-    public static func escapeHTML(_ text: String) -> String {
+    static func escapeHTML(_ text: String) -> String {
         text
             .replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
@@ -205,7 +140,7 @@ public enum RendererUtils {
     }
 
     /// Escape HTML attribute values
-    public static func escapeHTMLAttribute(_ text: String) -> String {
+    static func escapeHTMLAttribute(_ text: String) -> String {
         text
             .replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "\"", with: "&quot;")
@@ -213,7 +148,7 @@ public enum RendererUtils {
     }
 
     /// Normalize URL for security
-    public static func normalizeURL(_ url: String, baseURL: URL? = nil) -> String? {
+    static func normalizeURL(_ url: String, baseURL: URL? = nil) -> String? {
         // Remove javascript: and data: URLs for security
         let lowercased = url.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         if lowercased.hasPrefix("javascript:") || lowercased.hasPrefix("data:") {
@@ -229,15 +164,15 @@ public enum RendererUtils {
     }
 
     /// Generate CSS class name from node type
-    public static func cssClassName(for nodeType: ASTNodeType, prefix: String = "md-") -> String {
+    static func cssClassName(for nodeType: ASTNodeType, prefix: String = "md-") -> String {
         return prefix + nodeType.rawValue.replacingOccurrences(of: "_", with: "-")
     }
 
     /// Generate HTML attributes from style configuration
-    public static func htmlAttributes(
+    static func htmlAttributes(
         for nodeType: ASTNodeType,
         sourceLocation: SourceLocation?,
-        styleConfig: StyleConfiguration
+        styleConfig: HTMLStyleConfiguration
     ) -> [String: String] {
         var attributes: [String: String] = [:]
 
@@ -263,7 +198,7 @@ public enum RendererUtils {
     }
 
     /// Format HTML attributes as string
-    public static func formatHTMLAttributes(_ attributes: [String: String]) -> String {
+    static func formatHTMLAttributes(_ attributes: [String: String]) -> String {
         guard !attributes.isEmpty else { return "" }
 
         return " " + attributes
@@ -275,45 +210,9 @@ public enum RendererUtils {
     }
 }
 
-// MARK: - Renderer Registry
-
-/// Registry for managing multiple renderer types
-public actor RendererRegistry {
-    private var renderers: [String: any MarkdownRenderer] = [:]
-
-    public init() {}
-
-    /// Register a renderer with a name
-    public func register<R: MarkdownRenderer>(renderer: R, withName name: String) {
-        renderers[name] = renderer
-    }
-
-    /// Get a registered renderer by name
-    public func renderer(named name: String) -> (any MarkdownRenderer)? {
-        return renderers[name]
-    }
-
-    /// Get all registered renderer names
-    public func registeredNames() -> [String] {
-        return Array(renderers.keys).sorted()
-    }
-
-    /// Remove a renderer
-    public func unregister(name: String) {
-        renderers.removeValue(forKey: name)
-    }
-}
-
-// MARK: - HTML Renderer Implementation
-
-extension HTMLRenderer {
-    // This extension is now primarily for CommonMark nodes.
-    // GFM-specific rendering is handled in the public extension below.
-}
-
 // MARK: - GFM Rendering for HTML
 
-public extension HTMLRenderer {
+extension HTMLRenderer {
     /// Render GFM table
     func renderGFMTable(_ node: AST.GFMTableNode) async throws -> String {
         var html = "<table"
@@ -321,7 +220,7 @@ public extension HTMLRenderer {
         let attributes = RendererUtils.htmlAttributes(
             for: .table,
             sourceLocation: node.sourceLocation,
-            styleConfig: context.styleConfiguration
+            styleConfig: options.styleConfiguration
         )
 
         html += RendererUtils.formatHTMLAttributes(attributes)
@@ -360,7 +259,7 @@ public extension HTMLRenderer {
         let attributes = RendererUtils.htmlAttributes(
             for: .tableRow,
             sourceLocation: row.sourceLocation,
-            styleConfig: context.styleConfiguration
+            styleConfig: options.styleConfiguration
         )
 
         html += RendererUtils.formatHTMLAttributes(attributes)
@@ -388,7 +287,7 @@ public extension HTMLRenderer {
         var attributes = RendererUtils.htmlAttributes(
             for: .tableCell,
             sourceLocation: cell.sourceLocation,
-            styleConfig: context.styleConfiguration
+            styleConfig: options.styleConfiguration
         )
 
         // Add scope attribute for header cells
@@ -402,8 +301,7 @@ public extension HTMLRenderer {
         // Render inline content if available, otherwise use plain text
         if !cell.children.isEmpty {
             for child in cell.children {
-                let childRenderer = HTMLRenderer(context: context)
-                html += try await childRenderer.render(node: child)
+                html += try await render(node: child)
             }
         } else {
             html += RendererUtils.escapeHTML(cell.content)
@@ -422,7 +320,7 @@ public extension HTMLRenderer {
         var attributes = RendererUtils.htmlAttributes(
             for: .taskListItem,
             sourceLocation: node.sourceLocation,
-            styleConfig: context.styleConfiguration
+            styleConfig: options.styleConfiguration
         )
 
         // Add default CSS class if not explicitly configured
@@ -501,8 +399,7 @@ public extension HTMLRenderer {
 
         // Render task content
         for child in node.children {
-            let childRenderer = HTMLRenderer(context: context)
-            html += try await childRenderer.render(node: child)
+            html += try await render(node: child)
         }
 
         html += "</span>"

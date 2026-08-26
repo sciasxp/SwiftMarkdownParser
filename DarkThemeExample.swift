@@ -33,12 +33,15 @@ async func demonstrateDarkThemes() {
     do {
         // Regular dark theme with enhanced visibility
         print("=== Enhanced Dark Theme ===")
-        let darkHTML = try await parser.parseToHTMLWithDarkTheme(sequenceDiagramMarkdown)
+        let document = try parser.parse(sequenceDiagramMarkdown)
+        let darkOptions = HTMLRenderOptions(mermaidConfiguration: .dark)
+        let darkHTML = try await HTMLRenderer(options: darkOptions).renderFragment(document)
         print("✅ Enhanced dark theme generated successfully")
         
         // High contrast dark theme for maximum visibility
         print("\n=== High Contrast Dark Theme ===")
-        let highContrastHTML = try await parser.parseToHTMLWithDarkHighContrastTheme(sequenceDiagramMarkdown)
+        let highContrastOptions = HTMLRenderOptions(mermaidConfiguration: .darkHighContrast)
+        let highContrastHTML = try await HTMLRenderer(options: highContrastOptions).renderFragment(document)
         print("✅ High contrast dark theme generated successfully")
         
         // Custom theme example
@@ -60,8 +63,8 @@ async func demonstrateDarkThemes() {
             }
             """
         )
-        let context = RenderContext(mermaidConfiguration: customConfig)
-        let customHTML = try await parser.parseToHTML(sequenceDiagramMarkdown, context: context)
+        let options = HTMLRenderOptions(mermaidConfiguration: customConfig)
+        let customHTML = try await HTMLRenderer(options: options).renderFragment(document)
         print("✅ Custom dark theme with green text generated successfully")
         
         // Verify all themes contain proper styling

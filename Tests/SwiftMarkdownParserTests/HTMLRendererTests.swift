@@ -24,26 +24,26 @@ import Foundation
 
     @Test func renderTextNode_escapeHTMLCharacters() async throws {
         let textNode = AST.TextNode(content: "Hello & <world> \"quoted\" 'text'")
-        let html = try await renderer.render(node: textNode)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [textNode]))
         #expect(html == "Hello &amp; &lt;world&gt; &quot;quoted&quot; &#39;text&#39;")
     }
 
     @Test func renderTextNode_emptyString() async throws {
         let textNode = AST.TextNode(content: "")
-        let html = try await renderer.render(node: textNode)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [textNode]))
         #expect(html == "")
     }
 
     @Test func renderTextNode_specialCharacters() async throws {
         let textNode = AST.TextNode(content: "© ® ™ € £ ¥")
-        let html = try await renderer.render(node: textNode)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [textNode]))
         #expect(html == "© ® ™ € £ ¥")
     }
 
     @Test func renderParagraphNode_basicParagraph() async throws {
         let textNode = AST.TextNode(content: "This is a paragraph.")
         let paragraph = AST.ParagraphNode(children: [textNode])
-        let html = try await renderer.render(node: paragraph)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [paragraph]))
         #expect(html == "<p>This is a paragraph.</p>\n")
     }
 
@@ -54,13 +54,13 @@ import Foundation
             AST.TextNode(content: "!")
         ]
         let paragraph = AST.ParagraphNode(children: children)
-        let html = try await renderer.render(node: paragraph)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [paragraph]))
         #expect(html == "<p>Hello <em>world</em>!</p>\n")
     }
 
     @Test func renderParagraphNode_empty() async throws {
         let paragraph = AST.ParagraphNode(children: [])
-        let html = try await renderer.render(node: paragraph)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [paragraph]))
         #expect(html == "<p></p>\n")
     }
 
@@ -68,7 +68,7 @@ import Foundation
         for level in 1...6 {
             let textNode = AST.TextNode(content: "Heading \(level)")
             let heading = AST.HeadingNode(level: level, children: [textNode])
-            let html = try await renderer.render(node: heading)
+            let html = try await renderer.renderFragment(AST.DocumentNode(children: [heading]))
             #expect(html == "<h\(level)>Heading \(level)</h\(level)>\n")
         }
     }
@@ -81,7 +81,7 @@ import Foundation
             AST.CodeSpanNode(content: "code")
         ]
         let heading = AST.HeadingNode(level: 2, children: children)
-        let html = try await renderer.render(node: heading)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [heading]))
         #expect(html == "<h2>Bold <strong>heading</strong> with <code>code</code></h2>\n")
     }
 
@@ -90,7 +90,7 @@ import Foundation
     @Test func renderEmphasisNode_basicEmphasis() async throws {
         let textNode = AST.TextNode(content: "emphasized")
         let emphasis = AST.EmphasisNode(children: [textNode])
-        let html = try await renderer.render(node: emphasis)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [emphasis]))
         #expect(html == "<em>emphasized</em>")
     }
 
@@ -100,14 +100,14 @@ import Foundation
             AST.StrongEmphasisNode(children: [AST.TextNode(content: "bold")])
         ]
         let emphasis = AST.EmphasisNode(children: children)
-        let html = try await renderer.render(node: emphasis)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [emphasis]))
         #expect(html == "<em>italic with <strong>bold</strong></em>")
     }
 
     @Test func renderStrongEmphasisNode_basicStrong() async throws {
         let textNode = AST.TextNode(content: "strong")
         let strong = AST.StrongEmphasisNode(children: [textNode])
-        let html = try await renderer.render(node: strong)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [strong]))
         #expect(html == "<strong>strong</strong>")
     }
 
@@ -117,7 +117,7 @@ import Foundation
             AST.EmphasisNode(children: [AST.TextNode(content: "italic")])
         ]
         let strong = AST.StrongEmphasisNode(children: children)
-        let html = try await renderer.render(node: strong)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [strong]))
         #expect(html == "<strong>bold with <em>italic</em></strong>")
     }
 
@@ -126,14 +126,14 @@ import Foundation
     @Test func renderLinkNode_basicLink() async throws {
         let textNode = AST.TextNode(content: "Swift")
         let link = AST.LinkNode(url: "https://swift.org", title: nil, children: [textNode])
-        let html = try await renderer.render(node: link)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [link]))
         #expect(html == "<a href=\"https://swift.org\">Swift</a>")
     }
 
     @Test func renderLinkNode_withTitle() async throws {
         let textNode = AST.TextNode(content: "Swift")
         let link = AST.LinkNode(url: "https://swift.org", title: "Swift Programming Language", children: [textNode])
-        let html = try await renderer.render(node: link)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [link]))
         #expect(html == "<a href=\"https://swift.org\" title=\"Swift Programming Language\">Swift</a>")
     }
 
@@ -143,45 +143,45 @@ import Foundation
             AST.StrongEmphasisNode(children: [AST.TextNode(content: "Swift.org")])
         ]
         let link = AST.LinkNode(url: "https://swift.org", title: nil, children: children)
-        let html = try await renderer.render(node: link)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [link]))
         #expect(html == "<a href=\"https://swift.org\">Visit <strong>Swift.org</strong></a>")
     }
 
     @Test func renderLinkNode_unsafeURL() async throws {
         let textNode = AST.TextNode(content: "Unsafe")
         let link = AST.LinkNode(url: "javascript:alert('xss')", title: nil, children: [textNode])
-        let html = try await renderer.render(node: link)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [link]))
         #expect(html == "Unsafe") // Should render as plain text
     }
 
     @Test func renderLinkNode_dataURL() async throws {
         let textNode = AST.TextNode(content: "Data")
         let link = AST.LinkNode(url: "data:text/html,<script>alert('xss')</script>", title: nil, children: [textNode])
-        let html = try await renderer.render(node: link)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [link]))
         #expect(html == "Data") // Should render as plain text
     }
 
     @Test func renderImageNode_basicImage() async throws {
         let image = AST.ImageNode(url: "https://example.com/image.jpg", altText: "Alt text", title: nil)
-        let html = try await renderer.render(node: image)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [image]))
         #expect(html == "<img alt=\"Alt text\" src=\"https://example.com/image.jpg\" />")
     }
 
     @Test func renderImageNode_withTitle() async throws {
         let image = AST.ImageNode(url: "https://example.com/image.jpg", altText: "Alt text", title: "Image title")
-        let html = try await renderer.render(node: image)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [image]))
         #expect(html == "<img alt=\"Alt text\" src=\"https://example.com/image.jpg\" title=\"Image title\" />")
     }
 
     @Test func renderImageNode_unsafeURL() async throws {
         let image = AST.ImageNode(url: "javascript:alert('xss')", altText: "Alt text", title: nil)
-        let html = try await renderer.render(node: image)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [image]))
         #expect(html == "Alt text") // Should render as plain text
     }
 
     @Test func renderImageNode_emptyAlt() async throws {
         let image = AST.ImageNode(url: "https://example.com/image.jpg", altText: "", title: nil)
-        let html = try await renderer.render(node: image)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [image]))
         #expect(html == "<img alt=\"\" src=\"https://example.com/image.jpg\" />")
     }
 
@@ -192,7 +192,7 @@ import Foundation
         let item2 = AST.ListItemNode(children: [AST.ParagraphNode(children: [AST.TextNode(content: "Item 2")])])
         let list = AST.ListNode(isOrdered: false, startNumber: nil, items: [item1, item2])
 
-        let html = try await renderer.render(node: list)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [list]))
         let expected = "<ul>\n<li><p>Item 1</p>\n</li>\n<li><p>Item 2</p>\n</li>\n</ul>\n"
         #expect(html == expected)
     }
@@ -202,7 +202,7 @@ import Foundation
         let item2 = AST.ListItemNode(children: [AST.ParagraphNode(children: [AST.TextNode(content: "Second")])])
         let list = AST.ListNode(isOrdered: true, startNumber: 1, items: [item1, item2])
 
-        let html = try await renderer.render(node: list)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [list]))
         let expected = "<ol>\n<li><p>First</p>\n</li>\n<li><p>Second</p>\n</li>\n</ol>\n"
         #expect(html == expected)
     }
@@ -212,7 +212,7 @@ import Foundation
         let item2 = AST.ListItemNode(children: [AST.ParagraphNode(children: [AST.TextNode(content: "Sixth")])])
         let list = AST.ListNode(isOrdered: true, startNumber: 5, items: [item1, item2])
 
-        let html = try await renderer.render(node: list)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [list]))
         let expected = "<ol start=\"5\">\n<li><p>Fifth</p>\n</li>\n<li><p>Sixth</p>\n</li>\n</ol>\n"
         #expect(html == expected)
     }
@@ -222,7 +222,7 @@ import Foundation
         let codeBlock = AST.CodeBlockNode(content: "code example", language: "swift")
         let listItem = AST.ListItemNode(children: [paragraph, codeBlock])
 
-        let html = try await renderer.render(node: listItem)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [listItem]))
         let expected = "<li><p>Item text</p>\n<pre><code class=\"language-swift\">code example</code></pre>\n</li>\n"
         #expect(html == expected)
     }
@@ -233,7 +233,7 @@ import Foundation
         let paragraph = AST.ParagraphNode(children: [AST.TextNode(content: "This is a quote.")])
         let blockQuote = AST.BlockQuoteNode(children: [paragraph])
 
-        let html = try await renderer.render(node: blockQuote)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [blockQuote]))
         let expected = "<blockquote>\n<p>This is a quote.</p>\n</blockquote>\n"
         #expect(html == expected)
     }
@@ -243,7 +243,7 @@ import Foundation
         let paragraph2 = AST.ParagraphNode(children: [AST.TextNode(content: "Second paragraph.")])
         let blockQuote = AST.BlockQuoteNode(children: [paragraph1, paragraph2])
 
-        let html = try await renderer.render(node: blockQuote)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [blockQuote]))
         let expected = "<blockquote>\n<p>First paragraph.</p>\n<p>Second paragraph.</p>\n</blockquote>\n"
         #expect(html == expected)
     }
@@ -254,7 +254,7 @@ import Foundation
         let outerParagraph = AST.ParagraphNode(children: [AST.TextNode(content: "Outer quote.")])
         let outerBlockQuote = AST.BlockQuoteNode(children: [outerParagraph, innerBlockQuote])
 
-        let html = try await renderer.render(node: outerBlockQuote)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [outerBlockQuote]))
         let expected = "<blockquote>\n<p>Outer quote.</p>\n<blockquote>\n<p>Nested quote.</p>\n</blockquote>\n</blockquote>\n"
         #expect(html == expected)
     }
@@ -263,19 +263,19 @@ import Foundation
 
     @Test func renderCodeBlockNode_basicCodeBlock() async throws {
         let codeBlock = AST.CodeBlockNode(content: "let x = 42", language: nil)
-        let html = try await renderer.render(node: codeBlock)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [codeBlock]))
         #expect(html == "<pre><code>let x = 42</code></pre>\n")
     }
 
     @Test func renderCodeBlockNode_withLanguage() async throws {
         let codeBlock = AST.CodeBlockNode(content: "let x = 42", language: "swift")
-        let html = try await renderer.render(node: codeBlock)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [codeBlock]))
         #expect(html == "<pre><code class=\"language-swift\">let x = 42</code></pre>\n")
     }
 
     @Test func renderCodeBlockNode_escapeHTML() async throws {
         let codeBlock = AST.CodeBlockNode(content: "<script>alert('xss')</script>", language: "html")
-        let html = try await renderer.render(node: codeBlock)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [codeBlock]))
         #expect(html == "<pre><code class=\"language-html\">&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;</code></pre>\n")
     }
 
@@ -286,20 +286,20 @@ import Foundation
         }
         """
         let codeBlock = AST.CodeBlockNode(content: code, language: "javascript")
-        let html = try await renderer.render(node: codeBlock)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [codeBlock]))
         let expected = "<pre><code class=\"language-javascript\">function hello() {\n    console.log(&quot;Hello, World!&quot;);\n}</code></pre>\n"
         #expect(html == expected)
     }
 
     @Test func renderCodeSpanNode_basicCodeSpan() async throws {
         let codeSpan = AST.CodeSpanNode(content: "let x = 42")
-        let html = try await renderer.render(node: codeSpan)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [codeSpan]))
         #expect(html == "<code>let x = 42</code>")
     }
 
     @Test func renderCodeSpanNode_escapeHTML() async throws {
         let codeSpan = AST.CodeSpanNode(content: "<script>")
-        let html = try await renderer.render(node: codeSpan)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [codeSpan]))
         #expect(html == "<code>&lt;script&gt;</code>")
     }
 
@@ -307,19 +307,19 @@ import Foundation
 
     @Test func renderLineBreakNode_hardBreak() async throws {
         let lineBreak = AST.LineBreakNode(isHard: true)
-        let html = try await renderer.render(node: lineBreak)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [lineBreak]))
         #expect(html == "<br />\n")
     }
 
     @Test func renderLineBreakNode_softBreak() async throws {
         let lineBreak = AST.LineBreakNode(isHard: false)
-        let html = try await renderer.render(node: lineBreak)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [lineBreak]))
         #expect(html == "\n")
     }
 
     @Test func renderSoftBreakNode() async throws {
         let softBreak = AST.SoftBreakNode()
-        let html = try await renderer.render(node: softBreak)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [softBreak]))
         #expect(html == " ")
     }
 
@@ -327,7 +327,7 @@ import Foundation
 
     @Test func renderThematicBreakNode() async throws {
         let thematicBreak = AST.ThematicBreakNode()
-        let html = try await renderer.render(node: thematicBreak)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [thematicBreak]))
         #expect(html == "<hr />\n")
     }
 
@@ -335,19 +335,19 @@ import Foundation
 
     @Test func renderAutolinkNode_basicAutolink() async throws {
         let autolink = AST.AutolinkNode(url: "https://example.com", text: "https://example.com")
-        let html = try await renderer.render(node: autolink)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [autolink]))
         #expect(html == "<a href=\"https://example.com\">https://example.com</a>")
     }
 
     @Test func renderAutolinkNode_emailAutolink() async throws {
         let autolink = AST.AutolinkNode(url: "mailto:test@example.com", text: "test@example.com")
-        let html = try await renderer.render(node: autolink)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [autolink]))
         #expect(html == "<a href=\"mailto:test@example.com\">test@example.com</a>")
     }
 
     @Test func renderAutolinkNode_unsafeURL() async throws {
         let autolink = AST.AutolinkNode(url: "javascript:alert('xss')", text: "javascript:alert('xss')")
-        let html = try await renderer.render(node: autolink)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [autolink]))
         #expect(html == "javascript:alert(&#39;xss&#39;)") // Should render as plain text
     }
 
@@ -355,29 +355,29 @@ import Foundation
 
     @Test func renderHTMLBlockNode_withSanitization() async throws {
         let htmlBlock = AST.HTMLBlockNode(content: "<script>alert('xss')</script>")
-        let html = try await renderer.render(node: htmlBlock)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [htmlBlock]))
         #expect(html == "&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;")
     }
 
     @Test func renderHTMLBlockNode_withoutSanitization() async throws {
-        let context = RenderContext(sanitizeHTML: false)
-        let customRenderer = HTMLRenderer(context: context)
+        let context = HTMLRenderOptions(sanitizeHTML: false)
+        let customRenderer = HTMLRenderer(options: context)
         let htmlBlock = AST.HTMLBlockNode(content: "<div>Safe HTML</div>")
-        let html = try await customRenderer.render(node: htmlBlock)
+        let html = try await customRenderer.renderFragment(AST.DocumentNode(children: [htmlBlock]))
         #expect(html == "<div>Safe HTML</div>")
     }
 
     @Test func renderHTMLInlineNode_withSanitization() async throws {
         let htmlInline = AST.HTMLInlineNode(content: "<em>emphasis</em>")
-        let html = try await renderer.render(node: htmlInline)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [htmlInline]))
         #expect(html == "&lt;em&gt;emphasis&lt;/em&gt;")
     }
 
     @Test func renderHTMLInlineNode_withoutSanitization() async throws {
-        let context = RenderContext(sanitizeHTML: false)
-        let customRenderer = HTMLRenderer(context: context)
+        let context = HTMLRenderOptions(sanitizeHTML: false)
+        let customRenderer = HTMLRenderer(options: context)
         let htmlInline = AST.HTMLInlineNode(content: "<strong>bold</strong>")
-        let html = try await customRenderer.render(node: htmlInline)
+        let html = try await customRenderer.renderFragment(AST.DocumentNode(children: [htmlInline]))
         #expect(html == "<strong>bold</strong>")
     }
 
@@ -386,7 +386,7 @@ import Foundation
     @Test func renderStrikethroughNode_basicStrikethrough() async throws {
         let textNode = AST.TextNode(content: "deleted")
         let strikethrough = AST.StrikethroughNode(content: [textNode])
-        let html = try await renderer.render(node: strikethrough)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [strikethrough]))
         #expect(html == "<del>deleted</del>")
     }
 
@@ -396,7 +396,7 @@ import Foundation
             AST.EmphasisNode(children: [AST.TextNode(content: "italic")])
         ]
         let strikethrough = AST.StrikethroughNode(content: children)
-        let html = try await renderer.render(node: strikethrough)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [strikethrough]))
         #expect(html == "<del>deleted <em>italic</em></del>")
     }
 
@@ -410,7 +410,7 @@ import Foundation
         let dataRow = AST.GFMTableRowNode(cells: [dataCell1, dataCell2], isHeader: false)
 
         let table = AST.GFMTableNode(rows: [headerRow, dataRow], alignments: [.none, .none])
-        let html = try await renderer.render(node: table)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [table]))
 
         let expected = """
         <table>
@@ -444,7 +444,7 @@ import Foundation
         let dataRow = AST.GFMTableRowNode(cells: [dataCell1, dataCell2, dataCell3], isHeader: false)
 
         let table = AST.GFMTableNode(rows: [headerRow, dataRow], alignments: [.left, .center, .right])
-        let html = try await renderer.render(node: table)
+        let html = try await renderer.renderFragment(AST.DocumentNode(children: [table]))
 
         #expect(html.contains("style=\"text-align: left\""))
         #expect(html.contains("style=\"text-align: center\""))
@@ -454,8 +454,8 @@ import Foundation
     // MARK: - Custom Styling Tests
 
     @Test func renderWithCustomCSSClasses() async throws {
-        let context = RenderContext(
-            styleConfiguration: StyleConfiguration(
+        let context = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
                 cssClasses: [
                     .paragraph: "custom-paragraph",
                     .heading: "custom-heading",
@@ -463,78 +463,78 @@ import Foundation
                 ]
             )
         )
-        let customRenderer = HTMLRenderer(context: context)
+        let customRenderer = HTMLRenderer(options: context)
 
         let textNode = AST.TextNode(content: "Hello")
         let paragraph = AST.ParagraphNode(children: [textNode])
-        let html = try await customRenderer.render(node: paragraph)
+        let html = try await customRenderer.renderFragment(AST.DocumentNode(children: [paragraph]))
 
         #expect(html == "<p class=\"custom-paragraph\">Hello</p>\n")
     }
 
     @Test func renderWithSourcePositions() async throws {
         let sourceLocation = makeTestSourceLocation(line: 5, column: 10, offset: 100)
-        let context = RenderContext(
-            styleConfiguration: StyleConfiguration(
+        let context = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
                 includeSourcePositions: true
             )
         )
-        let customRenderer = HTMLRenderer(context: context)
+        let customRenderer = HTMLRenderer(options: context)
 
         let textNode = AST.TextNode(content: "Hello")
         let paragraph = AST.ParagraphNode(children: [textNode], sourceLocation: sourceLocation)
-        let html = try await customRenderer.render(node: paragraph)
+        let html = try await customRenderer.renderFragment(AST.DocumentNode(children: [paragraph]))
 
         #expect(html.contains("data-source-line=\"5\""))
         #expect(html.contains("data-source-column=\"10\""))
     }
 
     @Test func renderWithCustomAttributes() async throws {
-        let context = RenderContext(
-            styleConfiguration: StyleConfiguration(
+        let context = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
                 customAttributes: [
                     .paragraph: ["data-test": "value", "id": "test-paragraph"]
                 ]
             )
         )
-        let customRenderer = HTMLRenderer(context: context)
+        let customRenderer = HTMLRenderer(options: context)
 
         let textNode = AST.TextNode(content: "Hello")
         let paragraph = AST.ParagraphNode(children: [textNode])
-        let html = try await customRenderer.render(node: paragraph)
+        let html = try await customRenderer.renderFragment(AST.DocumentNode(children: [paragraph]))
 
         #expect(html.contains("data-test=\"value\""))
         #expect(html.contains("id=\"test-paragraph\""))
     }
 
     @Test func renderWithSyntaxHighlightingDisabled() async throws {
-        let context = RenderContext(
-            styleConfiguration: StyleConfiguration(
-                syntaxHighlighting: SyntaxHighlightingConfig(enabled: false)
+        let context = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
+                syntaxHighlighting: HTMLSyntaxHighlightingOptions(enabled: false)
             )
         )
-        let customRenderer = HTMLRenderer(context: context)
+        let customRenderer = HTMLRenderer(options: context)
 
         let codeBlock = AST.CodeBlockNode(content: "let x = 42", language: "swift")
-        let html = try await customRenderer.render(node: codeBlock)
+        let html = try await customRenderer.renderFragment(AST.DocumentNode(children: [codeBlock]))
 
         #expect(html == "<pre><code class=\"language-swift\">let x = 42</code></pre>\n")
         #expect(!html.contains("hljs-"))  // Should not contain syntax highlighting classes
     }
 
     @Test func renderWithCustomSyntaxHighlightingPrefix() async throws {
-        let context = RenderContext(
-            styleConfiguration: StyleConfiguration(
-                syntaxHighlighting: SyntaxHighlightingConfig(
+        let context = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
+                syntaxHighlighting: HTMLSyntaxHighlightingOptions(
                     enabled: true,
                     cssPrefix: "hljs-"
                 )
             )
         )
-        let customRenderer = HTMLRenderer(context: context)
+        let customRenderer = HTMLRenderer(options: context)
 
         let codeBlock = AST.CodeBlockNode(content: "let x = 42", language: "swift")
-        let html = try await customRenderer.render(node: codeBlock)
+        let html = try await customRenderer.renderFragment(AST.DocumentNode(children: [codeBlock]))
 
         #expect(html.contains("hljs-keyword"))  // Should contain syntax highlighting with custom prefix
         #expect(html.contains("language-swift"))  // Should still have language class on code element
@@ -544,24 +544,24 @@ import Foundation
 
     @Test func renderWithBaseURL() async throws {
         let baseURL = URL(string: "https://example.com/docs/")!
-        let context = RenderContext(baseURL: baseURL)
-        let customRenderer = HTMLRenderer(context: context)
+        let context = HTMLRenderOptions(baseURL: baseURL)
+        let customRenderer = HTMLRenderer(options: context)
 
         let textNode = AST.TextNode(content: "Link")
         let link = AST.LinkNode(url: "page.html", title: nil, children: [textNode])
-        let html = try await customRenderer.render(node: link)
+        let html = try await customRenderer.renderFragment(AST.DocumentNode(children: [link]))
 
         #expect(html == "<a href=\"https://example.com/docs/page.html\">Link</a>")
     }
 
     @Test func renderWithBaseURL_absoluteURLUnchanged() async throws {
         let baseURL = URL(string: "https://example.com/docs/")!
-        let context = RenderContext(baseURL: baseURL)
-        let customRenderer = HTMLRenderer(context: context)
+        let context = HTMLRenderOptions(baseURL: baseURL)
+        let customRenderer = HTMLRenderer(options: context)
 
         let textNode = AST.TextNode(content: "Link")
         let link = AST.LinkNode(url: "https://other.com/page.html", title: nil, children: [textNode])
-        let html = try await customRenderer.render(node: link)
+        let html = try await customRenderer.renderFragment(AST.DocumentNode(children: [link]))
 
         #expect(html == "<a href=\"https://other.com/page.html\">Link</a>")
     }
@@ -573,14 +573,14 @@ import Foundation
         let paragraph = AST.ParagraphNode(children: [AST.TextNode(content: "Content")])
         let document = AST.DocumentNode(children: [heading, paragraph])
 
-        let html = try await renderer.render(document: document)
+        let html = try await renderer.renderFragment(document)
         let expected = "<h1>Title</h1>\n<p>Content</p>\n"
         #expect(html == expected)
     }
 
     @Test func renderDocument_emptyDocument() async throws {
         let document = AST.DocumentNode(children: [])
-        let html = try await renderer.render(document: document)
+        let html = try await renderer.renderFragment(document)
         #expect(html == "")
     }
 
@@ -589,8 +589,8 @@ import Foundation
     @Test func renderUnsupportedNodeType() async throws {
         let unsupportedNode = UnsupportedTestNode()
 
-        await #expect(throws: RendererError.self) {
-            _ = try await renderer.render(node: unsupportedNode)
+        await #expect(throws: HTMLRenderingError.self) {
+            _ = try await renderer.renderFragment(AST.DocumentNode(children: [unsupportedNode]))
         }
     }
 
@@ -626,7 +626,7 @@ import Foundation
         """
 
         let document = try parser.parse(markdown)
-        let html = try await renderer.render(document: document)
+        let html = try await renderer.renderFragment(document)
 
         // Verify key elements are present
         #expect(html.contains("<h1>Main Title</h1>"))
@@ -659,7 +659,7 @@ import Foundation
         let document = AST.DocumentNode(children: children)
 
         let startTime = Date()
-        let html = try await renderer.render(document: document)
+        let html = try await renderer.renderFragment(document)
         let endTime = Date()
 
         let renderTime = endTime.timeIntervalSince(startTime)

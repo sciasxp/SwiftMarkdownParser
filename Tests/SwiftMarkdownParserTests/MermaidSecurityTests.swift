@@ -24,7 +24,7 @@ import Foundation
         ```
         """
 
-        let html = try await parser.parseToHTML(maliciousMarkdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(maliciousMarkdown))
 
         // Should contain the Mermaid diagram structure (security handled by Mermaid.js)
         #expect(html.contains("mermaid-container"))
@@ -46,7 +46,7 @@ import Foundation
         ```
         """
 
-        let html = try await parser.parseToHTML(maliciousMarkdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(maliciousMarkdown))
 
         // Should properly contain Mermaid diagram structure
         #expect(html.contains("mermaid-container"))
@@ -71,7 +71,7 @@ import Foundation
         ```
         """
 
-        let html = try await parser.parseToHTML(maliciousMarkdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(maliciousMarkdown))
 
         // Should contain Mermaid diagram structure
         #expect(html.contains("class=\"mermaid\""))
@@ -148,7 +148,7 @@ import Foundation
         ```
         """
 
-        let html = try await parser.parseToHTML(unicodeMarkdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(unicodeMarkdown))
 
         // Should handle Unicode properly
         #expect(html.contains("🚀 Start 北京"))
@@ -170,7 +170,7 @@ import Foundation
         ```
         """
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should not crash and should produce valid output
         #expect(html.contains("mermaid-container"))
@@ -185,7 +185,7 @@ import Foundation
         let invalidPart = "Invalid\"] --> B[\"End\"]\n```"
         let markdown = validPart + invalidPart
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         // Should handle gracefully without crashing
         #expect(html.contains("mermaid-container"))
@@ -328,31 +328,29 @@ import Foundation
             displayErrors: false  // Don't expose error details
         )
 
-        let renderer = MermaidRenderer(configuration: secureConfig)
         let node = AST.MermaidDiagramNode(content: "graph TD\n    A --> B")
-
-        let html = renderer.renderMermaidDiagram(node)
+        let document = AST.DocumentNode(children: [node])
+        let options = HTMLRenderOptions(mermaidConfiguration: secureConfig)
+        let html = try await HTMLRenderer(options: options).renderDocument(document)
 
         // Should generate secure HTML
         #expect(html.contains("mermaid-container"))
         #expect(html.contains("class=\"mermaid\""))
 
-        // Configuration should have secure settings
-        let initScript = secureConfig.generateInitScript()
-        #expect(initScript.contains("securityLevel: 'strict'"))
-        #expect(!initScript.contains("displayErrors: true"))
+        #expect(html.contains("securityLevel: 'strict'"))
+        #expect(!html.contains("displayErrors: true"))
     }
 
     @Test func mermaidRendererDisabledSecurely() async throws {
         // Test that disabled Mermaid renders safely as code blocks
         let disabledConfig = MermaidConfiguration(enabled: false)
-        let renderer = MermaidRenderer(configuration: disabledConfig)
 
         let maliciousNode = AST.MermaidDiagramNode(
             content: "graph TD\n    A[\"<script>alert('XSS')</script>\"] --> B"
         )
-
-        let html = renderer.renderMermaidDiagram(maliciousNode)
+        let document = AST.DocumentNode(children: [maliciousNode])
+        let options = HTMLRenderOptions(mermaidConfiguration: disabledConfig)
+        let html = try await HTMLRenderer(options: options).renderFragment(document)
 
         // Should render as safe code block
         #expect(html.contains("<code class=\"language-mermaid\">"))

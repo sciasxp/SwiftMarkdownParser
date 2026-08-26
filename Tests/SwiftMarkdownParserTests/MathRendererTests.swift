@@ -19,7 +19,7 @@ import Testing
         $$
         """
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         #expect(html.contains("<div class=\"math math-display\">"))
         #expect(html.contains("E = mc^2"))
@@ -33,7 +33,7 @@ import Testing
         $$
         """
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         #expect(html.contains("<div class=\"math math-display\">"))
         #expect(html.contains("&lt;"))
@@ -46,7 +46,7 @@ import Testing
     @Test func htmlInlineMath_rendersMathInlineSpan() async throws {
         let markdown = "The formula $E = mc^2$ is famous."
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         #expect(html.contains("<span class=\"math math-inline\">"))
         #expect(html.contains("E = mc^2"))
@@ -56,7 +56,7 @@ import Testing
     @Test func htmlInlineMath_escapesHTMLEntities() async throws {
         let markdown = "When $a < b$ holds."
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         #expect(html.contains("<span class=\"math math-inline\">"))
         #expect(html.contains("a &lt; b"))
@@ -75,7 +75,7 @@ import Testing
         $$
         """
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         #expect(html.contains("<h1>"))
         #expect(html.contains("<span class=\"math math-inline\">"))
@@ -85,7 +85,7 @@ import Testing
     @Test func mathWithBold_rendersCorrectly() async throws {
         let markdown = "The **important** formula $E = mc^2$ changed physics."
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         #expect(html.contains("<strong>important</strong>"))
         #expect(html.contains("<span class=\"math math-inline\">"))
@@ -98,7 +98,7 @@ import Testing
         - Second: $\\beta$
         """
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         #expect(html.contains("<li>"))
         // The inline math nodes should be present somewhere in the output
@@ -122,7 +122,7 @@ import Testing
         ```
         """
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         #expect(html.contains("<div class=\"math math-display\">"))
         #expect(html.contains("f(x) = x^2"))
@@ -143,7 +143,7 @@ import Testing
         $$
         """
 
-        let html = try await parser.parseToHTML(markdown)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(markdown))
 
         let displayMathCount = html.components(separatedBy: "math math-display").count - 1
         #expect(displayMathCount == 2, "Should have two math display blocks")

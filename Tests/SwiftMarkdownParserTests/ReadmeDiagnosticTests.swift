@@ -15,7 +15,7 @@ import Foundation
         let md = """
         > **Versão**: 3.24.4 | **iOS**: 15.0+ | **Swift**: 5.x
         """
-        let html = try await parser.parseToHTML(md)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(md))
         print("=== BLOCKQUOTE WITH PIPES ===")
         print(html)
         print("===")
@@ -31,7 +31,7 @@ import Foundation
         | **Modo Offline** | Trabalhar sem conexão |
         | **Planos de Ação** | Criar e gerenciar ações |
         """
-        let html = try await parser.parseToHTML(md)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(md))
         print("=== SIMPLE TABLE ===")
         print(html)
         print("===")
@@ -55,7 +55,7 @@ import Foundation
         | **Biometria** | Face ID/Touch ID |
         | **SSO/ADFS** | Login corporativo |
         """
-        let html = try await parser.parseToHTML(md)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(md))
         print("=== LARGE TABLE ===")
         print(html)
         print("===")
@@ -78,7 +78,7 @@ import Foundation
 
         More content here.
         """
-        let html = try await parser.parseToHTML(md)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(md))
         print("=== HR BETWEEN SECTIONS ===")
         print(html)
         print("===")
@@ -125,7 +125,7 @@ import Foundation
         - **Coordinator Pattern**: Gerencia navegação
         - **Repository Pattern**: Abstrai acesso ao banco
         """
-        let html = try await parser.parseToHTML(md)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(md))
         print("=== MIXED CONTENT ===")
         print(html)
         print("===")
@@ -143,7 +143,7 @@ import Foundation
         )
         let content = try String(contentsOf: fixtureURL, encoding: .utf8)
 
-        let html = try await parser.parseToHTML(content)
+        let html = try await HTMLRenderer().renderFragment(parser.parse(content))
         print("=== ACTUAL README (first 3000 chars) ===")
         print(String(html.prefix(3000)))
         print("=== ... ===")

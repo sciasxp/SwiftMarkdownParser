@@ -12,30 +12,30 @@ import Testing
     init() async throws {
         parser = SwiftMarkdownParser()
 
-        let context = RenderContext(
-            styleConfiguration: StyleConfiguration(
-                syntaxHighlighting: SyntaxHighlightingConfig(
+        let context = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
+                syntaxHighlighting: HTMLSyntaxHighlightingOptions(
                     enabled: true,
                     cssPrefix: "hljs-"
                 )
             )
         )
-        renderer = HTMLRenderer(context: context)
+        renderer = HTMLRenderer(options: context)
     }
 
     // MARK: - Theme Integration Tests
 
     // GitHub theme test
     @Test func htmlRenderer_appliesGitHubTheme() async throws {
-        let context = RenderContext(
-            styleConfiguration: StyleConfiguration(
-                syntaxHighlighting: SyntaxHighlightingConfig(
+        let context = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
+                syntaxHighlighting: HTMLSyntaxHighlightingOptions(
                     enabled: true,
                     cssPrefix: "hljs-"
                 )
             )
         )
-        let renderer = HTMLRenderer(context: context)
+        let renderer = HTMLRenderer(options: context)
 
         let markdown = """
         ```javascript
@@ -44,7 +44,7 @@ import Testing
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         // Verify theme-specific styling
         #expect(html.contains("class=\"hljs-string\""), "Should highlight strings")
@@ -53,15 +53,15 @@ import Testing
 
     // Xcode theme test
     @Test func htmlRenderer_appliesXcodeTheme() async throws {
-        let context = RenderContext(
-            styleConfiguration: StyleConfiguration(
-                syntaxHighlighting: SyntaxHighlightingConfig(
+        let context = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
+                syntaxHighlighting: HTMLSyntaxHighlightingOptions(
                     enabled: true,
                     cssPrefix: "hljs-"
                 )
             )
         )
-        let renderer = HTMLRenderer(context: context)
+        let renderer = HTMLRenderer(options: context)
 
         let markdown = """
         ```swift
@@ -72,7 +72,7 @@ import Testing
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         // Verify theme is applied
         #expect(html.contains("class=\"hljs-string\""), "Should highlight strings")
@@ -81,15 +81,15 @@ import Testing
 
     // VS Code Dark theme test
     @Test func htmlRenderer_appliesVSCodeDarkTheme() async throws {
-        let context = RenderContext(
-            styleConfiguration: StyleConfiguration(
-                syntaxHighlighting: SyntaxHighlightingConfig(
+        let context = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
+                syntaxHighlighting: HTMLSyntaxHighlightingOptions(
                     enabled: true,
                     cssPrefix: "hljs-"
                 )
             )
         )
-        let renderer = HTMLRenderer(context: context)
+        let renderer = HTMLRenderer(options: context)
 
         let markdown = """
         ```typescript
@@ -101,7 +101,7 @@ import Testing
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         // Verify theme-specific styling
         #expect(html.contains("class=\"hljs-keyword\""), "Should highlight keywords")
@@ -122,7 +122,7 @@ import Testing
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         // Verify HTML contains syntax highlighting classes
         #expect(html.contains("class=\"hljs-keyword\""), "Should contain keyword highlighting")
@@ -152,7 +152,7 @@ import Testing
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         // Verify all languages are properly highlighted
         #expect(html.contains("class=\"hljs-keyword\""), "Should highlight keywords")
@@ -174,7 +174,7 @@ import Testing
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         // Should still render as code block without highlighting
         #expect(html.contains("<pre><code"), "Should render as code block")
@@ -193,7 +193,7 @@ import Testing
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         // Verify structure is preserved
         #expect(html.contains("<pre><code"), "Should wrap in pre/code tags")
@@ -212,7 +212,7 @@ import Testing
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         // Verify HTML is properly escaped
         #expect(html.contains("&lt;div"), "Should escape < as &lt;")
@@ -223,15 +223,15 @@ import Testing
     // MARK: - Configuration Tests
 
     @Test func htmlRenderer_customCSSPrefix() async throws {
-        let context = RenderContext(
-            styleConfiguration: StyleConfiguration(
-                syntaxHighlighting: SyntaxHighlightingConfig(
+        let context = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
+                syntaxHighlighting: HTMLSyntaxHighlightingOptions(
                     enabled: true,
                     cssPrefix: "custom-"
                 )
             )
         )
-        let renderer = HTMLRenderer(context: context)
+        let renderer = HTMLRenderer(options: context)
 
         let markdown = """
         ```swift
@@ -240,7 +240,7 @@ import Testing
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         // Should use custom CSS prefix
         #expect(html.contains("class=\"custom-keyword\""), "Should use custom CSS prefix")
@@ -248,14 +248,14 @@ import Testing
     }
 
     @Test func htmlRenderer_disablesSyntaxHighlighting() async throws {
-        let context = RenderContext(
-            styleConfiguration: StyleConfiguration(
-                syntaxHighlighting: SyntaxHighlightingConfig(
+        let context = HTMLRenderOptions(
+            styleConfiguration: HTMLStyleConfiguration(
+                syntaxHighlighting: HTMLSyntaxHighlightingOptions(
                     enabled: false
                 )
             )
         )
-        let renderer = HTMLRenderer(context: context)
+        let renderer = HTMLRenderer(options: context)
 
         let markdown = """
         ```javascript
@@ -264,7 +264,7 @@ import Testing
         """
 
         let ast = try parser.parse(markdown)
-        let html = try await renderer.render(document: ast)
+        let html = try await renderer.renderFragment(ast)
 
         // Should not contain highlighting classes
         #expect(!html.contains("class=\"hljs-keyword\""), "Should not have keyword highlighting")

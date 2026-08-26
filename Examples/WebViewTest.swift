@@ -47,13 +47,15 @@ struct WebViewTest {
         
         do {
             print("🧪 Testing WebView HTML generation...")
-            
-            // Test the new WebView HTML document generation
-            let htmlDocument = try await WebViewSupport.generateMarkdownHTMLDocument(
-                testMarkdown,
-                title: "WebView Test Document",
-                includeMathSupport: true,
-                includeTaskListSupport: true
+            let document = try SwiftMarkdownParser().parse(testMarkdown)
+            let options = HTMLRenderOptions(
+                styleConfiguration: HTMLStyleConfiguration(
+                    syntaxHighlighting: HTMLSyntaxHighlightingOptions(enabled: true)
+                )
+            )
+            let htmlDocument = try await HTMLRenderer(options: options).renderDocument(
+                document,
+                metadata: HTMLDocumentMetadata(title: "WebView Test Document")
             )
             
             // Save the generated HTML to a file for inspection

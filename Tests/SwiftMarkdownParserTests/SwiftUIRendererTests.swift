@@ -1,638 +1,68 @@
-import Testing
 import SwiftUI
+import Testing
 @testable import SwiftMarkdownParser
 
-/// Comprehensive test suite for SwiftUIRenderer functionality.
-///
-/// This test suite follows Test-Driven Development (TDD) methodology and covers:
-/// - Basic SwiftUI view rendering from AST nodes
-/// - All CommonMark elements and GFM extensions
-/// - Accessibility features (VoiceOver, Dynamic Type)
-/// - Performance optimization and memory usage
-/// - Custom styling and theming
-/// - Error handling and edge cases
-@Suite struct SwiftUIRendererTests {
-
-    let renderer: SwiftUIRenderer
-    let parser: SwiftMarkdownParser
-    let context: SwiftUIRenderContext
-
-    init() {
-        context = SwiftUIRenderContext()
-        renderer = SwiftUIRenderer(context: context)
-        parser = SwiftMarkdownParser()
+@Suite("SwiftUI output seam")
+@MainActor
+struct SwiftUIRendererTests {
+    @Test(
+        "Renders representative documents through the document interface",
+        arguments: [
+            "Plain paragraph with *emphasis* and **strength**.",
+            "# Heading\n\n> Quote\n\n- One\n- Two",
+            "- [x] Complete\n- [ ] Pending",
+            "| A | B |\n|---|---|\n| 1 | 2 |",
+            "Inline $x^2$ and block math:\n\n$$\ny = mx + b\n$$",
+            "```mermaid\ngraph TD\nA --> B\n```",
+        ]
+    )
+    func representativeDocuments(markdown: String) async throws {
+        let document = try SwiftMarkdownParser().parse(markdown)
+        _ = try await SwiftUIRenderer().render(document)
     }
 
-    // MARK: - Test Utilities
-
-    /// Extract text content from a SwiftUI view for testing
-    private func extractText(from view: AnyView) -> String? {
-        // This would use ViewInspector or similar library in real implementation
-        // For now, we'll use a simplified approach
-        return nil // Placeholder for ViewInspector integration
-    }
-
-    /// Extract font information from a SwiftUI view
-    private func extractFont(from view: AnyView) -> Font? {
-        // Placeholder for font extraction logic
-        return nil
-    }
-
-    /// Extract color information from a SwiftUI view
-    private func extractColor(from view: AnyView) -> Color? {
-        // Placeholder for color extraction logic
-        return nil
-    }
-
-    /// Test accessibility properties of a view
-    private func testAccessibility(for view: AnyView, expectedLabel: String? = nil, expectedHint: String? = nil) {
-        // Placeholder for accessibility testing
-        // Would verify VoiceOver labels, hints, and traits
-    }
-
-    /// Create mock AST nodes for testing
-    private func createMockTextNode(_ content: String) -> AST.TextNode {
-        return AST.TextNode(content: content)
-    }
-
-    private func createMockParagraphNode(_ children: [ASTNode]) -> AST.ParagraphNode {
-        return AST.ParagraphNode(children: children)
-    }
-
-    private func createMockHeadingNode(level: Int, _ children: [ASTNode]) -> AST.HeadingNode {
-        return AST.HeadingNode(level: level, children: children)
-    }
-
-    private func createMockEmphasisNode(_ children: [ASTNode]) -> AST.EmphasisNode {
-        return AST.EmphasisNode(children: children)
-    }
-
-    private func createMockStrongEmphasisNode(_ children: [ASTNode]) -> AST.StrongEmphasisNode {
-        return AST.StrongEmphasisNode(children: children)
-    }
-
-    private func createMockLinkNode(url: String, title: String? = nil, _ children: [ASTNode]) -> AST.LinkNode {
-        return AST.LinkNode(url: url, title: title, children: children)
-    }
-
-    private func createMockImageNode(url: String, altText: String, title: String? = nil) -> AST.ImageNode {
-        return AST.ImageNode(url: url, altText: altText, title: title)
-    }
-
-    private func createMockCodeSpanNode(_ content: String) -> AST.CodeSpanNode {
-        return AST.CodeSpanNode(content: content)
-    }
-
-    private func createMockCodeBlockNode(_ content: String, language: String? = nil) -> AST.CodeBlockNode {
-        return AST.CodeBlockNode(content: content, language: language)
-    }
-
-    private func createMockListNode(isOrdered: Bool, items: [ASTNode]) -> AST.ListNode {
-        return AST.ListNode(isOrdered: isOrdered, items: items)
-    }
-
-    private func createMockListItemNode(_ children: [ASTNode]) -> AST.ListItemNode {
-        return AST.ListItemNode(children: children)
-    }
-
-    private func createMockBlockQuoteNode(_ children: [ASTNode]) -> AST.BlockQuoteNode {
-        return AST.BlockQuoteNode(children: children)
-    }
-
-    private func createMockThematicBreakNode() -> AST.ThematicBreakNode {
-        return AST.ThematicBreakNode()
-    }
-
-    // MARK: - Link Handling Tests
-
-    /// Test that link click handlers are properly configured and called
-    @Test func linkClickHandler_isCalled() async throws {
-        let testState = TestState()
-
-        let testURL = URL(string: "https://example.com")!
-
-        // Create context with custom link handler
-        let localContext = SwiftUIRenderContext(
-            linkHandler: { @Sendable url in
-                Task {
-                    await testState.setHandledURL(url)
-                }
-            }
+    @Test("Applies output-specific options at the document seam")
+    func customOptions() async throws {
+        let document = try SwiftMarkdownParser().parse("[Swift](guide/start) and ![Logo](logo.png)")
+        let options = SwiftUIRenderOptions(
+            baseURL: URL(string: "https://example.com/docs/"),
+            styleConfiguration: .minimal,
+            linkHandler: { _ in },
+            imageHandler: { url in AnyView(Text(url.lastPathComponent)) }
         )
 
-        let localRenderer = SwiftUIRenderer(context: localContext)
-
-        // Create a mock link node
-        let linkText = createMockTextNode("Example Link")
-        let linkNode = createMockLinkNode(
-            url: testURL.absoluteString,
-            [linkText]
-        )
-
-        // Render the link node
-        let linkView = try await localRenderer.render(node: linkNode)
-        #expect(linkView != nil, "Link view should be rendered successfully")
-
-        // Simulate link tap by calling the handler directly
-        localContext.linkHandler?(testURL)
-
-        // Wait for the async Task inside the handler to complete
-        try await Task.sleep(for: .milliseconds(100))
-
-        // Verify the correct URL was passed to the handler
-        let handledURL = await testState.getHandledURL()
-        #expect(handledURL == testURL, "The link handler should receive the correct URL")
+        _ = try await SwiftUIRenderer(options: options).render(document)
     }
 
-    /// Test that links work without a custom handler (default behavior)
-    @Test func linkWithoutHandler_rendersSuccessfully() async throws {
-        // Create context without link handler (uses default behavior)
-        let localContext = SwiftUIRenderContext()
-        let localRenderer = SwiftUIRenderer(context: localContext)
+    @Test("Rejects unsupported custom nodes atomically")
+    func unsupportedNode() async {
+        let document = AST.DocumentNode(children: [UnsupportedSwiftUITestNode()])
 
-        let testURL = URL(string: "https://example.com")!
-        let linkText = createMockTextNode("Example Link")
-        let linkNode = createMockLinkNode(
-            url: testURL.absoluteString,
-            [linkText]
-        )
-
-        // Should render successfully even without custom handler
-        let linkView = try await localRenderer.render(node: linkNode)
-        #expect(linkView != nil, "Link should render successfully without custom handler")
-    }
-
-    // MARK: - Phase 1: Foundation Tests
-
-    // MARK: 1.1 Basic Structure Tests
-
-    @Test func renderer_conformsToMarkdownRenderer() async throws {
-        // Test that SwiftUIRenderer conforms to MarkdownRenderer protocol
-        #expect(renderer != nil)
-    }
-
-    @Test func renderer_hasCorrectOutputType() async throws {
-        // Test that the renderer's output type is AnyView
-        // This is verified by the type system at compile time
-        #expect(renderer != nil)
-    }
-
-    @Test func renderer_initializesWithDefaultContext() async throws {
-        // Test that renderer can be initialized with default context
-        let defaultRenderer = SwiftUIRenderer()
-        #expect(defaultRenderer != nil)
-    }
-
-    @Test func renderer_initializesWithCustomContext() async throws {
-        // Test that renderer can be initialized with custom context
-        let customContext = SwiftUIRenderContext(
-            baseURL: URL(string: "https://example.com"),
-            styleConfiguration: SwiftUIStyleConfiguration()
-        )
-        let customRenderer = SwiftUIRenderer(context: customContext)
-        #expect(customRenderer != nil)
-    }
-
-    // MARK: 1.2 Protocol Implementation Tests
-
-    @Test func renderer_conformsToProtocol() async throws {
-        // Test that renderer properly conforms to MarkdownRenderer protocol
-        let document = AST.DocumentNode(children: [])
-        let view = try await renderer.render(document: document)
-        #expect(view != nil)
-    }
-
-    @Test func renderer_rendersDocument() async throws {
-        // Test that renderer can render a document node
-        let textNode = createMockTextNode("Hello World")
-        let paragraph = createMockParagraphNode([textNode])
-        let document = AST.DocumentNode(children: [paragraph])
-
-        let view = try await renderer.render(document: document)
-        #expect(view != nil)
-    }
-
-    @Test func renderer_rendersNode() async throws {
-        // Test that renderer can render individual nodes
-        let textNode = createMockTextNode("Hello World")
-        let view = try await renderer.render(node: textNode)
-        #expect(view != nil)
-    }
-
-    @Test func renderer_handlesErrors() async throws {
-        // Test that renderer handles errors gracefully
-        // This test will be implemented when error handling is added
-        #expect(renderer != nil)
-    }
-
-    // MARK: 1.3 Text Node Rendering Tests
-
-    @Test func renderTextNode_basicText() async throws {
-        // Test basic text rendering
-        let textNode = createMockTextNode("Hello World")
-        let view = try await renderer.render(node: textNode)
-        #expect(view != nil)
-
-        // TODO: Verify that the view contains the expected text
-        // This would use ViewInspector in real implementation
-    }
-
-    @Test func renderTextNode_emptyText() async throws {
-        // Test empty text handling
-        let textNode = createMockTextNode("")
-        let view = try await renderer.render(node: textNode)
-        #expect(view != nil)
-
-        // TODO: Verify that empty text is handled gracefully
-    }
-
-    @Test func renderTextNode_unicodeCharacters() async throws {
-        // Test Unicode character support
-        let textNode = createMockTextNode("Hello 🌍 World! 你好")
-        let view = try await renderer.render(node: textNode)
-        #expect(view != nil)
-
-        // TODO: Verify Unicode characters display correctly
-    }
-
-    @Test func renderTextNode_specialCharacters() async throws {
-        // Test special character handling
-        let textNode = createMockTextNode("Special: & < > \" '")
-        let view = try await renderer.render(node: textNode)
-        #expect(view != nil)
-
-        // TODO: Verify special characters are properly handled
-    }
-
-    // MARK: 1.4 Paragraph Node Rendering Tests
-
-    @Test func renderParagraphNode_singleText() async throws {
-        // Test paragraph with single text node
-        let textNode = createMockTextNode("This is a paragraph.")
-        let paragraph = createMockParagraphNode([textNode])
-        let view = try await renderer.render(node: paragraph)
-        #expect(view != nil)
-
-        // TODO: Verify paragraph spacing and structure
-    }
-
-    @Test func renderParagraphNode_multipleTexts() async throws {
-        // Test paragraph with multiple text nodes
-        let textNode1 = createMockTextNode("First ")
-        let textNode2 = createMockTextNode("second ")
-        let textNode3 = createMockTextNode("third.")
-        let paragraph = createMockParagraphNode([textNode1, textNode2, textNode3])
-        let view = try await renderer.render(node: paragraph)
-        #expect(view != nil)
-
-        // TODO: Verify text nodes are combined correctly
-    }
-
-    @Test func renderParagraphNode_emptyParagraph() async throws {
-        // Test empty paragraph handling
-        let paragraph = createMockParagraphNode([])
-        let view = try await renderer.render(node: paragraph)
-        #expect(view != nil)
-
-        // TODO: Verify empty paragraphs don't create visual artifacts
-    }
-
-    @Test func renderParagraphNode_nestedInlineElements() async throws {
-        // Test paragraph with nested inline elements
-        let textNode = createMockTextNode("bold")
-        let strongNode = createMockStrongEmphasisNode([textNode])
-        let paragraph = createMockParagraphNode([strongNode])
-        let view = try await renderer.render(node: paragraph)
-        #expect(view != nil)
-
-        // TODO: Verify nested inline elements are supported
-    }
-
-    // MARK: 1.5 Heading Node Rendering Tests
-
-    @Test func renderHeadingNode_allLevels() async throws {
-        // Test all heading levels (H1-H6)
-        for level in 1...6 {
-            let textNode = createMockTextNode("Heading Level \(level)")
-            let heading = createMockHeadingNode(level: level, [textNode])
-            let view = try await renderer.render(node: heading)
-            #expect(view != nil)
-
-            // TODO: Verify font size decreases with level
+        await #expect(throws: SwiftUIRenderingError.self) {
+            _ = try await SwiftUIRenderer().render(document)
         }
     }
 
-    @Test func renderHeadingNode_fontSizeProgression() async throws {
-        // Test font size progression from H1 to H6
-        let textNode = createMockTextNode("Heading")
-        let h1 = createMockHeadingNode(level: 1, [textNode])
-        let h6 = createMockHeadingNode(level: 6, [textNode])
-
-        let h1View = try await renderer.render(node: h1)
-        let h6View = try await renderer.render(node: h6)
-
-        #expect(h1View != nil)
-        #expect(h6View != nil)
-
-        // TODO: Verify H1 has larger font than H6
-    }
-
-    @Test func renderHeadingNode_fontWeights() async throws {
-        // Test heading font weights
-        let textNode = createMockTextNode("Bold Heading")
-        let heading = createMockHeadingNode(level: 1, [textNode])
-        let view = try await renderer.render(node: heading)
-        #expect(view != nil)
-
-        // TODO: Verify headings have proper font weights
-    }
-
-    @Test func renderHeadingNode_inlineContent() async throws {
-        // Test heading with inline content
-        let textNode1 = createMockTextNode("Heading with ")
-        let emphasisNode = createMockEmphasisNode([createMockTextNode("emphasis")])
-        let heading = createMockHeadingNode(level: 2, [textNode1, emphasisNode])
-        let view = try await renderer.render(node: heading)
-        #expect(view != nil)
-
-        // TODO: Verify inline content within headings is supported
-    }
-
-    // MARK: - Phase 2: Inline Elements Tests (Placeholder)
-
-    @Test func renderEmphasisNode_italic() async throws {
-        // Test italic text rendering
-        let textNode = createMockTextNode("italic text")
-        let emphasis = createMockEmphasisNode([textNode])
-        let view = try await renderer.render(node: emphasis)
-        #expect(view != nil)
-
-        // TODO: Verify italic font modifier is applied
-    }
-
-    @Test func renderStrongEmphasisNode_bold() async throws {
-        // Test bold text rendering
-        let textNode = createMockTextNode("bold text")
-        let strong = createMockStrongEmphasisNode([textNode])
-        let view = try await renderer.render(node: strong)
-        #expect(view != nil)
-
-        // TODO: Verify bold font modifier is applied
-    }
-
-    @Test func renderLinkNode_basicLink() async throws {
-        // Test basic link rendering
-        let textNode = createMockTextNode("Link Text")
-        let link = createMockLinkNode(url: "https://example.com", [textNode])
-        let view = try await renderer.render(node: link)
-        #expect(view != nil)
-
-        // TODO: Verify link styling and tap gesture
-    }
-
-    @Test func renderImageNode_basicImage() async throws {
-        // Test basic image rendering
-        let image = createMockImageNode(url: "https://example.com/image.jpg", altText: "Test Image")
-        let view = try await renderer.render(node: image)
-        #expect(view != nil)
-
-        // TODO: Verify AsyncImage integration
-    }
-
-    @Test func renderCodeSpanNode_monospaceFont() async throws {
-        // Test code span with monospace font
-        let codeSpan = createMockCodeSpanNode("console.log('Hello');")
-        let view = try await renderer.render(node: codeSpan)
-        #expect(view != nil)
-
-        // TODO: Verify monospace font and background styling
-    }
-
-    // MARK: - Phase 3: Block Elements Tests (Placeholder)
-
-    @Test func renderCodeBlockNode_basicBlock() async throws {
-        // Test basic code block rendering
-        let codeBlock = createMockCodeBlockNode("func hello() {\n    print(\"Hello\")\n}", language: "swift")
-        let view = try await renderer.render(node: codeBlock)
-        #expect(view != nil)
-
-        // TODO: Verify code block styling and syntax highlighting
-    }
-
-    @Test func renderListNode_unorderedList() async throws {
-        // Test unordered list rendering
-        let textNode = createMockTextNode("Item 1")
-        let listItem = createMockListItemNode([textNode])
-        let list = createMockListNode(isOrdered: false, items: [listItem])
-        let view = try await renderer.render(node: list)
-        #expect(view != nil)
-
-        // TODO: Verify bullet points and list structure
-    }
-
-    @Test func renderBlockQuoteNode_basicStyling() async throws {
-        // Test blockquote styling
-        let textNode = createMockTextNode("This is a quote.")
-        let paragraph = createMockParagraphNode([textNode])
-        let blockQuote = createMockBlockQuoteNode([paragraph])
-        let view = try await renderer.render(node: blockQuote)
-        #expect(view != nil)
-
-        // TODO: Verify blockquote visual styling
-    }
-
-    @Test func renderThematicBreakNode_dividerDisplay() async throws {
-        // Test thematic break as divider
-        let thematicBreak = createMockThematicBreakNode()
-        let view = try await renderer.render(node: thematicBreak)
-        #expect(view != nil)
-
-        // TODO: Verify horizontal divider display
-    }
-
-    // MARK: - Phase 4: GFM Extensions Tests (Placeholder)
-
-    @Test func renderGFMTableNode_basicTable() async throws {
-        // Test basic table rendering
-        // TODO: Implement when GFM table support is added
-        #expect(renderer != nil)
-    }
-
-    @Test func renderGFMTaskListItemNode_checkboxRendering() async throws {
-        // Test task list checkbox rendering
-        // TODO: Implement when task list support is added
-        #expect(renderer != nil)
-    }
-
-    @Test func renderStrikethroughNode_textEffect() async throws {
-        // Test strikethrough text effect
-        // TODO: Implement when strikethrough support is added
-        #expect(renderer != nil)
-    }
-
-    @Test func renderAutolinkNode_urlAutolink() async throws {
-        // Test URL autolink rendering
-        // TODO: Implement when autolink support is added
-        #expect(renderer != nil)
-    }
-
-    // MARK: - Phase 5: Styling & Accessibility Tests (Placeholder)
-
-    @Test func accessibility_voiceOverSupport() async throws {
-        // Test VoiceOver support
-        let textNode = createMockTextNode("Accessible text")
-        let view = try await renderer.render(node: textNode)
-        #expect(view != nil)
-
-        // TODO: Verify VoiceOver accessibility
-        testAccessibility(for: view, expectedLabel: "Accessible text")
-    }
-
-    @Test func accessibility_dynamicType() async throws {
-        // Test Dynamic Type support
-        let textNode = createMockTextNode("Scalable text")
-        let view = try await renderer.render(node: textNode)
-        #expect(view != nil)
-
-        // TODO: Verify Dynamic Type scaling
-    }
-
-    @Test func performance_renderingTime() async throws {
-        // Test rendering performance
-        let textNode = createMockTextNode("Performance test")
-        let paragraph = createMockParagraphNode([textNode])
-        let document = AST.DocumentNode(children: [paragraph])
-
-        let startTime = Date()
-        let view = try await renderer.render(document: document)
-        let endTime = Date()
-
-        #expect(view != nil)
-        let renderTime = endTime.timeIntervalSince(startTime)
-        print("SwiftUI renderer sample completed in \(renderTime) seconds")
-    }
-
-    @Test func integration_complexDocument() async throws {
-        // Test complex document rendering
+    @Test("Renders a complete mixed document")
+    func completeDocument() async throws {
         let markdown = """
-        # Main Title
+        # SwiftUI Markdown Renderer
 
-        This is a paragraph with **bold** and *italic* text.
+        A **complete** document with [a link](https://swift.org), `code`, and a task.
 
-        ## Code Example
+        - [x] Parsed
+        - [ ] Presented
 
         ```swift
-        let greeting = "Hello, World!"
-        print(greeting)
+        let answer = 42
         ```
 
-        ### List Example
-
-        - Item 1
-        - Item 2 with `inline code`
-        - Item 3
-
-        > This is a blockquote.
-
-        ---
+        | Feature | State |
+        |:--------|------:|
+        | AST | Ready |
         """
 
-        let document = try parser.parse(markdown)
-        let view = try await renderer.render(document: document)
-        #expect(view != nil)
-
-        // TODO: Verify complex document structure
+        let document = try SwiftMarkdownParser().parse(markdown)
+        _ = try await SwiftUIRenderer().render(document)
     }
-}
-
-// MARK: - Test Support Types
-
-extension SwiftUIRendererTests {
-
-    /// Performance testing utilities
-    func measureRenderingTime(for document: AST.DocumentNode) async throws -> TimeInterval {
-        let startTime = Date()
-        _ = try await renderer.render(document: document)
-        let endTime = Date()
-        return endTime.timeIntervalSince(startTime)
-    }
-
-    /// Memory usage testing utilities
-    func measureMemoryUsage(for document: AST.DocumentNode) async throws -> Int {
-        // Placeholder for memory usage measurement
-        // Would use Instruments or similar profiling tools
-        return 0
-    }
-}
-
-// MARK: - Actor to safely manage test state in concurrent environment
-
-@available(iOS 17.0, macOS 14.0, *)
-actor TestState {
-    var handledURL: URL?
-
-    func setHandledURL(_ url: URL) {
-        self.handledURL = url
-    }
-
-    func getHandledURL() -> URL? {
-        return self.handledURL
-    }
-}
-
-// MARK: - Mock SwiftUIRenderer (Placeholder)
-
-/// Placeholder SwiftUIRenderer for testing
-/// This will be replaced with the actual implementation
-@available(iOS 17.0, macOS 14.0, *)
-struct SwiftUIRenderer: MarkdownRenderer {
-    typealias Output = AnyView
-
-    let context: SwiftUIRenderContext
-
-    init(context: SwiftUIRenderContext = SwiftUIRenderContext()) {
-        self.context = context
-    }
-
-    func render(document: AST.DocumentNode) async throws -> AnyView {
-        // Placeholder implementation
-        return AnyView(Text("Document placeholder"))
-    }
-
-    func render(node: ASTNode) async throws -> AnyView {
-        // Placeholder implementation
-        switch node {
-        case let textNode as AST.TextNode:
-            return AnyView(Text(textNode.content))
-        default:
-            return AnyView(Text("Unsupported node: \(node.nodeType.rawValue)"))
-        }
-    }
-}
-
-// MARK: - Mock SwiftUIRenderContext (Placeholder)
-
-/// Placeholder SwiftUIRenderContext for testing
-/// This will be replaced with the actual implementation
-@available(iOS 17.0, macOS 14.0, *)
-struct SwiftUIRenderContext: Sendable {
-    let baseURL: URL?
-    let styleConfiguration: SwiftUIStyleConfiguration
-    var linkHandler: (@Sendable (URL) -> Void)?
-
-    init(baseURL: URL? = nil, styleConfiguration: SwiftUIStyleConfiguration = SwiftUIStyleConfiguration(), linkHandler: (@Sendable (URL) -> Void)? = nil) {
-        self.baseURL = baseURL
-        self.styleConfiguration = styleConfiguration
-        self.linkHandler = linkHandler
-    }
-}
-
-// MARK: - Mock SwiftUIStyleConfiguration (Placeholder)
-
-/// Placeholder SwiftUIStyleConfiguration for testing
-/// This will be replaced with the actual implementation
-@available(iOS 17.0, macOS 14.0, *)
-struct SwiftUIStyleConfiguration: Sendable {
-    // Placeholder for style configuration
-    init() {}
 }
