@@ -20,8 +20,8 @@ Thank you for your interest in contributing to SwiftMarkdownParser! We welcome c
 ### 2. Set Up Development Environment
 
 1. **Requirements**:
-   - Xcode 16.0+ with Swift 6.0+
-   - iOS 18.0+ / macOS 15.0+ SDK
+   - A Swift 6.2+ toolchain
+   - An SDK capable of targeting iOS 17.0+ or macOS 14.0+
 
 2. **Verify setup**:
    ```bash
@@ -42,7 +42,7 @@ Always create a new branch for your changes:
 git checkout -b feature/your-feature-name
 # or
 git checkout -b fix/issue-description
-# or  
+# or
 git checkout -b docs/documentation-update
 ```
 
@@ -59,8 +59,9 @@ git checkout -b docs/documentation-update
 
 - **Follow Swift conventions**: Use SwiftLint rules and Swift API Design Guidelines
 - **Write tests**: All new features should include comprehensive tests
-- **Document your code**: Add inline documentation for public APIs
+- **Document your code**: Add inline documentation for public interfaces
 - **Keep commits atomic**: One logical change per commit
+- **Preserve module depth**: Keep policy behind the existing document-level interfaces instead of exposing internal stages or adapters
 
 #### Testing Your Changes
 
@@ -68,15 +69,15 @@ git checkout -b docs/documentation-update
 # Run all tests
 swift test
 
-# Run specific test suites
-swift test --filter SwiftMarkdownParserTests
+# Run a specific test suite
+swift test --filter SyntaxHighlighterTests
 
 # Run with verbose output
 swift test --verbose
 
-# Test on different platforms (if available)
-swift test --destination platform=iOS
-swift test --destination platform=macOS
+# Build the package and its example executable
+swift build
+swift run WebViewTest
 ```
 
 #### Code Style
@@ -84,20 +85,19 @@ swift test --destination platform=macOS
 - **Indentation**: 4 spaces (no tabs)
 - **Line length**: 120 characters maximum
 - **Access control**: Explicit access levels (`public`, `internal`, `private`)
-- **Naming**: 
+- **Naming**:
   - `PascalCase` for types and protocols
   - `camelCase` for functions and variables
   - `UPPER_CASE` for constants
 
 Example:
 ```swift
-/// Parse a GFM table from markdown tokens
-/// 
-/// - Parameter tokens: The token stream to parse
-/// - Returns: A GFMTableNode or nil if parsing fails
-/// - Throws: MarkdownParsingError if the table structure is invalid
-public func parseGFMTable(_ tokens: TokenStream) throws -> AST.GFMTableNode? {
-    // Implementation here
+/// Collects links in stable document order.
+///
+/// - Parameter document: The complete semantic Markdown document.
+/// - Returns: Every link encountered during depth-first traversal.
+private func links(in document: AST.DocumentNode) -> [AST.LinkNode] {
+    document.depthFirst().compactMap { $0.node as? AST.LinkNode }
 }
 ```
 
@@ -105,12 +105,15 @@ public func parseGFMTable(_ tokens: TokenStream) throws -> AST.GFMTableNode? {
 
 Write clear, descriptive commit messages:
 
+Stage only the files that belong to the change, then check the staged diff:
+
 ```bash
-git add .
+git add Sources/SwiftMarkdownParser Tests/SwiftMarkdownParserTests README.md
+git diff --cached --check
 git commit -m "Add support for GFM table alignment
 
 - Implement left, center, right alignment parsing
-- Add alignment property to GFMTableCellNode  
+- Add alignment property to GFMTableCellNode
 - Update HTML renderer to output alignment styles
 - Add comprehensive tests for all alignment types
 
@@ -152,14 +155,14 @@ Fixes #123"
 
 ### Issue Template
 
-```markdown
+````markdown
 **Description**
 A clear description of the issue.
 
 **Expected Behavior**
 What you expected to happen.
 
-**Actual Behavior**  
+**Actual Behavior**
 What actually happened.
 
 **Minimal Reproduction**
@@ -177,7 +180,7 @@ let parser = SwiftMarkdownParser()
 
 **Additional Context**
 Any other relevant information.
-```
+````
 
 ## 🎯 Areas for Contribution
 
@@ -204,34 +207,35 @@ Any other relevant information.
 
 ### Test Structure
 ```swift
-func test_featureName_condition_expectedResult() async throws {
-    // Arrange
-    let markdown = "..."
-    let parser = SwiftMarkdownParser()
-    
-    // Act
-    let document = try parser.parse(markdown)
-    
-    // Assert
-    XCTAssertEqual(ast.children.count, 1)
-    XCTAssertTrue(ast.children.first is AST.ParagraphNode)
+import Testing
+@testable import SwiftMarkdownParser
+
+@Suite("Markdown document construction")
+struct MarkdownDocumentTests {
+    @Test("Constructs one heading from Markdown source")
+    func parseHeadingConstructsSemanticNode() throws {
+        let document = try SwiftMarkdownParser().parse("# Heading")
+
+        #expect(document.children.count == 1)
+        #expect(document.children.first is AST.HeadingNode)
+    }
 }
 ```
 
 ### Test Categories
-- **Unit tests**: Individual components and functions
-- **Integration tests**: End-to-end parsing and rendering
+- **Module tests**: Exercise behavior through the module's interface
+- **Output tests**: Verify complete Document-to-HTML or Document-to-AnyView behavior
 - **Performance tests**: Large document handling
 - **Edge case tests**: Malformed input, boundary conditions
 
 ### Coverage Goals
-- **New features**: 100% test coverage
-- **Bug fixes**: Test that reproduces the bug + fix verification
-- **Refactoring**: Maintain existing test coverage
+- **New behavior**: Cover the public interface, fallback, and important edge cases
+- **Bug fixes**: Add a regression that fails before the fix
+- **Refactoring**: Preserve behavior at the same or deeper module seam
 
 ## 📝 Documentation
 
-### API Documentation
+### Public Interface Documentation
 - Use Swift's documentation comments (`///`)
 - Include parameter descriptions and return values
 - Provide usage examples for complex APIs
@@ -241,14 +245,14 @@ func test_featureName_condition_expectedResult() async throws {
 - Keep examples current and working
 - Update feature lists when adding capabilities
 - Maintain accurate installation instructions
+- Update `Docs/Architecture.md` when module ownership or a public seam changes
 
 ### Code Examples
 ```swift
 /// Example of parsing a complex markdown document
-/// 
+///
 /// ```swift
 /// let parser = SwiftMarkdownParser()
-/// let document = try parser.parse(complexMarkdown)
 /// let document = try parser.parse(complexMarkdown)
 /// let html = try await HTMLRenderer().renderFragment(document)
 /// ```
@@ -267,7 +271,7 @@ func test_featureName_condition_expectedResult() async throws {
 - **Tests**: Are there adequate tests?
 - **Documentation**: Is it properly documented?
 - **Performance**: Does it maintain or improve performance?
-- **API design**: Is it consistent with existing APIs?
+- **Interface design**: Does it preserve depth, locality, and existing seams?
 - **Breaking changes**: Are they necessary and well-documented?
 
 ## 📋 Release Process

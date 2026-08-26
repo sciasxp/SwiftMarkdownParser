@@ -18,7 +18,7 @@ through one actor-isolated module.
 
 ### Basic HTML Rendering with Syntax Highlighting
 
-```swift
+````swift
 import SwiftMarkdownParser
 
 let codeMarkdown = """
@@ -50,7 +50,7 @@ let ast = try parser.parse(codeMarkdown)
 
 let renderer = HTMLRenderer(options: context)
 let highlightedHTML = try await renderer.renderFragment(ast)
-```
+````
 
 ### SwiftUI Integration (Basic Code Blocks Only)
 
@@ -115,6 +115,18 @@ struct MarkdownView: View {
 ```
 
 ## 📋 Supported Languages
+
+Language identifiers are trimmed and matched case-insensitively. Discovery is
+available through `await SyntaxHighlighter().supportedLanguages`.
+
+| Language | Accepted identifiers |
+| --- | --- |
+| JavaScript | `javascript`, `js`, `jsx` |
+| TypeScript | `typescript`, `ts`, `tsx` |
+| Swift | `swift` |
+| Kotlin | `kotlin`, `kt` |
+| Python | `python`, `py` |
+| Bash | `bash`, `sh`, `shell`, `zsh` |
 
 ### JavaScript
 - **ES6+ Features**: Arrow functions, destructuring, template literals
@@ -388,7 +400,7 @@ if let tokens = await highlighter.highlight(
 - **LRU Cache**: Bounded least-recently-used eviction owned by each highlighter
 - **Actor-based**: Thread-safe concurrent access
 - **Best-effort Fallback**: Unsupported languages or adapter failures return `nil`
-- **Efficient Parsing**: Single-pass tokenization
+- **Validated Results**: Tokens are sorted, non-overlapping, and tied to the supplied source
 - **Portable Cache Entries**: Cached offsets are rebound to the current source string
 
 **Note**: SwiftUI renderer performance is simpler as it doesn't perform syntax highlighting.
@@ -411,6 +423,10 @@ for token in tokens ?? [] {
 
 The six language adapters are implementation details. This keeps aliases,
 support discovery, fallback, and caching behind the same interface.
+
+Caller-registered language engines are intentionally not part of the public
+interface. Package contributors add a built-in language through an internal
+adapter plus module and HTML integration tests.
 
 ### Error Handling
 
@@ -445,7 +461,7 @@ swift test --filter SyntaxHighlightingIntegrationTests
 ### Test Coverage
 
 - **Engine Tests**: Each language engine has dedicated tests
-- **Theme Tests**: Color theme functionality (HTML only)
+- **Theme Tests**: Caller-owned semantic color palettes
 - **Module Tests**: Support truth, aliases, fallback, validation, and LRU behavior
 - **Integration Tests**: Cache reuse and gap-preserving HTML token assembly
 - **Edge Cases**: Malformed code, empty blocks, special characters
@@ -454,7 +470,7 @@ swift test --filter SyntaxHighlightingIntegrationTests
 
 ### Complete HTML Example with Syntax Highlighting
 
-```swift
+````swift
 import SwiftMarkdownParser
 
 let multiLanguageMarkdown = """
@@ -518,7 +534,7 @@ async func generateHighlightedHTML() throws -> String {
 // Usage
 let html = try await generateHighlightedHTML()
 print(html)
-```
+````
 
 ### SwiftUI Example (Basic Code Blocks)
 
@@ -588,3 +604,6 @@ struct SwiftUICodeExample: View {
 
 The HTML renderer provides cached semantic highlighting for its six built-in
 languages. SwiftUI output continues to use plain monospace code blocks.
+
+See [Architecture](Architecture.md) for module ownership and the separation
+between semantic classification and HTML presentation.

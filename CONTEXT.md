@@ -23,3 +23,19 @@ _Avoid_: Visitor framework, recursive walker
 **AST Rewrite**:
 One immutable, bottom-up pass that can retain, remove, replace, or expand nodes while preserving built-in node metadata.
 _Avoid_: Mutable AST, rewrite pipeline
+
+**Output Renderer**:
+The interpretation of a complete Markdown Document into one presentation format, with that format's rules kept together.
+_Avoid_: Shared rendering pipeline, render context
+
+**HTML Output**:
+The browser-oriented representation of a Markdown Document, either as an embeddable fragment or a complete document.
+_Avoid_: Rendered page, WebView content
+
+**Browser Enrichment**:
+The browser behavior and resources required to activate features present in HTML Output, added only when the document needs them.
+_Avoid_: Script injection, global asset bundle
+
+**Semantic Highlighting**:
+The optional interpretation of code as ordered semantic tokens whose ranges belong to that exact code source.
+_Avoid_: HTML highlighting, syntax-engine output

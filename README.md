@@ -12,7 +12,7 @@ A Swift-native Markdown parser with AST generation, HTML rendering, and SwiftUI 
 ## Features
 
 - **CommonMark 0.30** compliant with **GitHub Flavored Markdown** extensions
-- **HTML rendering** with syntax highlighting for 6+ programming languages
+- **HTML rendering** with cached syntax highlighting for 6 built-in programming languages
 - **SwiftUI rendering** for native iOS/macOS apps (requires iOS 17.0+/macOS 14.0+)
 - **AST generation** for custom processing and analysis
 - **Zero dependencies** - pure Swift implementation
@@ -40,7 +40,7 @@ dependencies: [
 
 ### HTML Rendering
 
-```swift
+````swift
 import SwiftMarkdownParser
 
 let markdown = """
@@ -59,7 +59,7 @@ let parser = SwiftMarkdownParser()
 let document = try parser.parse(markdown)
 let html = try await HTMLRenderer().renderFragment(document)
 print(html)
-```
+````
 
 ### SwiftUI Integration
 
@@ -143,9 +143,11 @@ in the same pass.
 
 ### Syntax Highlighting
 
-HTML renderer includes syntax highlighting for JavaScript, TypeScript, Swift, Kotlin, Python, and Bash:
+HTML renderer includes syntax highlighting for JavaScript, TypeScript, Swift,
+Kotlin, Python, and Bash. One `SyntaxHighlighter` owns aliases, support
+discovery, validation, fallback, and bounded caching:
 
-```swift
+````swift
 let codeMarkdown = """
 ```swift
 let parser = SwiftMarkdownParser()
@@ -163,7 +165,22 @@ let options = HTMLRenderOptions(
 )
 let html = try await HTMLRenderer(options: options).renderFragment(document)
 // Returns HTML with syntax highlighting applied
+````
+
+Use the semantic highlighting module directly when the presentation is not
+HTML:
+
+```swift
+let highlighter = SyntaxHighlighter()
+let supportedLanguages = await highlighter.supportedLanguages
+let tokens = await highlighter.highlight(
+    "let answer = 42",
+    language: "swift"
+)
 ```
+
+Unsupported languages and highlighting failures return `nil`, allowing callers
+to preserve the original source as plain text.
 
 ### Deterministic Resource Limits
 
@@ -184,7 +201,7 @@ always recognized. Every parser-produced node includes a precise source range.
 
 Both HTML and SwiftUI renderers support Mermaid diagrams:
 
-```swift
+````swift
 let diagramMarkdown = """
 ```mermaid
 graph TD
@@ -198,16 +215,37 @@ let parser = SwiftMarkdownParser()
 let document = try parser.parse(diagramMarkdown)
 let html = try await HTMLRenderer().renderFragment(document)
 // HTML output includes embedded Mermaid diagram
+````
+
+## Architecture
+
+All public work crosses a small set of document-level interfaces:
+
+```text
+Markdown Source -> SwiftMarkdownParser.parse(_:) -> AST.DocumentNode
+                                                    |-> depthFirst() / rewriting(_:)
+                                                    |-> HTMLRenderer
+                                                    `-> SwiftUIRenderer
 ```
 
-## API Reference
+Parsing constructs one complete semantic document. Traversal and rewriting
+operate on that document, while each output-specific renderer owns its own
+presentation rules. HTML rendering additionally centralizes browser feature
+discovery and asset assembly; syntax highlighting is a separate semantic module
+used by its code-block renderer.
 
-### Core Classes
+See the [Architecture Guide](Docs/Architecture.md) for module ownership,
+extension rules, source layout, and decision records.
+
+## Public Interface Reference
+
+### Core Types
 
 - `SwiftMarkdownParser` - Main parser class
 - `SwiftMarkdownParser.ResourceLimits` - Deterministic source, nesting, and work limits
 - `HTMLRenderer` - Renders AST to HTML with syntax highlighting
 - `SwiftUIRenderer` - Renders AST to SwiftUI views (iOS 17.0+/macOS 14.0+)
+- `SyntaxHighlighter` - Produces validated semantic code tokens with built-in aliases and caching
 
 ### Main Methods
 
@@ -226,10 +264,16 @@ func renderDocument(
 
 // Render a native SwiftUI view on MainActor
 @MainActor func render(_ document: AST.DocumentNode) async throws -> AnyView
+
+// Discover and use built-in semantic syntax highlighting
+let highlighter = SyntaxHighlighter()
+let supportedLanguages = await highlighter.supportedLanguages
+let tokens = await highlighter.highlight(code, language: "swift")
 ```
 
 ## Documentation
 
+- [Architecture Guide](Docs/Architecture.md) — public seams, module ownership, extension rules, and ADR index
 - [HTML Renderer Guide](Docs/HTMLRenderer.md) — HTML output with syntax highlighting and theming
 - [SwiftUI Renderer Guide](Docs/SwiftUIRenderer.md) — native SwiftUI rendering
 - [Syntax Highlighting Guide](Docs/SyntaxHighlighting.md) — code syntax highlighting details

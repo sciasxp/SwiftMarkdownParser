@@ -12,13 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **6 Programming Languages**: JavaScript, TypeScript, Swift, Kotlin, Python, Bash
   - **25+ Token Types**: Keywords, strings, comments, operators, types, functions, and more
   - **Modern Language Features**: ES6+, async/await, generics, coroutines, decorators
-  - **Built-in Themes**: GitHub, Xcode, VS Code Dark themes with professional styling
-  - **Performance Optimized**: Actor-based engine registry with LRU caching
+  - **Built-in Themes**: GitHub, Xcode, and VS Code Dark semantic color palettes
+  - **Performance Optimized**: Actor-isolated orchestration with bounded LRU caching
   - **Thread-Safe**: Built with Swift 6 concurrency patterns
-  - **Extensible**: Easy to add new languages and custom themes
+  - **Truthful Discovery**: Supported identifiers and aliases come from built-in adapters
 - **Enhanced HTML Rendering**: Syntax highlighting integration with HTML renderer
   - CSS class generation with configurable prefixes
-  - Theme-based color styling
+  - Caller-defined color styling through semantic token classes
   - Semantic HTML output with proper `<code>` and `<pre>` structure
 - **SwiftUI Code Blocks**: Basic monospace code block rendering
   - Plain text monospace rendering (no syntax highlighting)
@@ -40,10 +40,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Concurrent parsing tests to ensure thread safety
 
 ### Changed
-- **Source-Breaking Parser API**: Replaced async `parseToAST(_:)` and mode-based `Configuration` with synchronous `parse(_:)` and `ResourceLimits`
+- **Source-Breaking Parser Interface**: Replaced async `parseToAST(_:)` and mode-based `Configuration` with synchronous `parse(_:)` and `ResourceLimits`
   - The Supported Dialect is fixed to CommonMark 0.30, GFM, math, and Mermaid
   - Tokenizer, token stream, block parser, inline parser, and grammar utilities are internal
   - Parser failures use the single `MarkdownParsingError` family
+- **Output-Specific Renderers**: Removed the shared renderer protocol and split source layout by output
+  - HTML owns escaping, GFM output, browser enrichment, and document composition
+  - SwiftUI owns main-actor native view construction
+  - Both renderers accept only complete `AST.DocumentNode` values
+- **Browser Enrichment Assembly**: HTML rendering discovers required browser behavior before assembling resources
+  - Mermaid, KaTeX, footnote, and task-list requirements are deduplicated centrally
+  - Bundled Mermaid and KaTeX resources support deterministic offline output
+  - WebKit presentation reports success only after required runtimes initialize
+- **Source-Breaking Syntax Highlighting Interface**: Replaced the public registry, cache, and engine types with `SyntaxHighlighter`
+  - Built-in adapter selection, aliases, validation, fallback, and caching have one owner
+  - Unsupported languages and adapter failures preserve plain code output
+  - `HTMLSyntaxHighlightingOptions` now controls only enablement and CSS prefix
 - **Removed Artificial Block Limits**: Eliminated the hardcoded 100-block limit that was preventing large documents from being fully parsed
   - Parser can now handle documents of any reasonable size
   - Replaced with intelligent protection mechanisms that detect actual problems
@@ -73,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 For more details about these changes, see the updated documentation:
+- [Architecture Documentation](Docs/Architecture.md)
 - [Parser Usage Documentation](Docs/ParserUsage.md)
 - [HTML Renderer Documentation](Docs/HTMLRenderer.md)
 - [SwiftUI Renderer Documentation](Docs/SwiftUIRenderer.md)

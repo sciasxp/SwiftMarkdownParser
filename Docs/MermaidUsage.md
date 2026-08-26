@@ -5,7 +5,7 @@ Create interactive charts and diagrams in Markdown using [Mermaid](https://merma
 ## Supported Diagram Types
 
 - **Flowcharts**: `graph`, `flowchart`
-- **Sequence Diagrams**: `sequenceDiagram` 
+- **Sequence Diagrams**: `sequenceDiagram`
 - **Class Diagrams**: `classDiagram`
 - **State Diagrams**: `stateDiagram`
 - **Gantt Charts**: `gantt`
@@ -29,12 +29,12 @@ graph TD
 
 ## HTML Rendering
 
-```swift
+````swift
 let markdown = """
 ```mermaid
 pie title Pet Distribution
     "Dogs" : 386
-    "Cats" : 85  
+    "Cats" : 85
     "Rats" : 15
 ```
 """
@@ -42,7 +42,7 @@ pie title Pet Distribution
 let parser = SwiftMarkdownParser()
 let document = try parser.parse(markdown)
 let html = try await HTMLRenderer().renderFragment(document)
-```
+````
 
 ## SwiftUI Integration
 
@@ -53,16 +53,16 @@ import SwiftMarkdownParser
 struct ContentView: View {
     let markdown = """
     # Document with Diagram
-    
+
     ```mermaid
     graph LR
         A[Input] --> B[Process]
         B --> C[Output]
     ```
     """
-    
+
     @State private var content: AnyView?
-    
+
     var body: some View {
         Group {
             if let content = content {
@@ -77,7 +77,7 @@ struct ContentView: View {
             await loadContent()
         }
     }
-    
+
     @MainActor
     private func loadContent() async {
         do {
