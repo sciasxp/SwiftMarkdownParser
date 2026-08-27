@@ -1,6 +1,6 @@
 /// Public semantic token and theme types used by syntax highlighting.
 
-import SwiftUI
+public import SwiftUI
 
 // MARK: - Syntax Token
 

@@ -4,7 +4,8 @@
 /// in SwiftUI and UIKit/AppKit applications.
 
 #if canImport(SwiftUI) && canImport(WebKit)
-import SwiftUI
+import Foundation
+public import SwiftUI
 import WebKit
 
 enum BrowserRuntimeError: Error, LocalizedError {

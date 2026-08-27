@@ -3,7 +3,7 @@
 /// This file provides configuration settings for customizing KaTeX math expression
 /// appearance and behavior when rendering markdown with embedded math.
 
-import Foundation
+public import Foundation
 
 // MARK: - KaTeX CSS Class Names
 

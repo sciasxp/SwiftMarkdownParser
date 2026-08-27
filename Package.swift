@@ -28,6 +28,7 @@ let package = Package(
             dependencies: [],
             resources: [.copy("Resources/Browser")],
             swiftSettings: [
+                .enableUpcomingFeature("InternalImportsByDefault"),
                 .enableUpcomingFeature("MemberImportVisibility"),
                 .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
                 .strictMemorySafety(),
@@ -39,6 +40,7 @@ let package = Package(
             exclude: ["AST_Example.swift"],
             sources: ["WebViewTest.swift"],
             swiftSettings: [
+                .enableUpcomingFeature("InternalImportsByDefault"),
                 .enableUpcomingFeature("MemberImportVisibility"),
                 .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
                 .defaultIsolation(MainActor.self),
@@ -48,6 +50,7 @@ let package = Package(
             name: "SwiftMarkdownParserTests",
             dependencies: ["SwiftMarkdownParser"],
             swiftSettings: [
+                .enableUpcomingFeature("InternalImportsByDefault"),
                 .enableUpcomingFeature("MemberImportVisibility"),
                 .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
                 .strictMemorySafety(),

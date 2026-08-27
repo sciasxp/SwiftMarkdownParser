@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 /// The single error family produced while constructing a Markdown document.
 public enum MarkdownParsingError: Error, LocalizedError, Sendable, Equatable {

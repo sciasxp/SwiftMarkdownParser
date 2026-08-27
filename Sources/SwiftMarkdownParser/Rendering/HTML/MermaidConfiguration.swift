@@ -3,7 +3,7 @@
 /// This file provides configuration settings for customizing Mermaid diagram
 /// appearance and behavior when rendering markdown with embedded diagrams.
 
-import Foundation
+public import Foundation
 
 // MARK: - Mermaid Configuration
 

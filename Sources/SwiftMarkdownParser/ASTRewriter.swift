@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 /// A container node that can rebuild itself after its children are rewritten.
 ///

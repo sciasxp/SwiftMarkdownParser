@@ -3,7 +3,7 @@
 /// This renderer provides a native SwiftUI implementation for displaying markdown content
 /// with proper styling, accessibility support, and performance optimizations.
 
-import SwiftUI
+public import SwiftUI
 
 // MARK: - SwiftUIRenderer
 

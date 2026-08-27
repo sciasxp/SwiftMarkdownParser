@@ -3,8 +3,8 @@
 /// This file provides the configuration and styling system for the SwiftUI renderer,
 /// including fonts, colors, spacing, and behavior customization.
 
-import SwiftUI
-import Foundation
+public import SwiftUI
+public import Foundation
 
 // MARK: - SwiftUIRenderOptions
 

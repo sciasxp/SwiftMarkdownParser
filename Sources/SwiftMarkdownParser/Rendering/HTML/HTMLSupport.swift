@@ -1,5 +1,5 @@
 /// HTML-specific rendering options, errors, and implementation support.
-import Foundation
+public import Foundation
 
 // MARK: - HTML Options
 
