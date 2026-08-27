@@ -52,31 +52,6 @@ private extension SwiftUIRichContentRequest {
     }
 }
 
-@available(iOS 17.0, macOS 14.0, *)
-@MainActor
-private func makeNativeInlineProjection(
-    options: SwiftUIRenderOptions = SwiftUIRenderOptions()
-) -> NativeInlineProjection {
-    let semantics = NativePresentationSemantics()
-    let materializer = NativeViewMaterializer()
-    let adaptivePresentation = NativeAdaptivePresentation(
-        options: options,
-        semantics: semantics,
-        materializer: materializer
-    )
-    let richContentProjection = NativeRichContentProjection(
-        options: options,
-        adaptivePresentation: adaptivePresentation,
-        semantics: semantics,
-        materializer: materializer
-    )
-    return NativeInlineProjection(
-        options: options,
-        richContentProjection: richContentProjection,
-        materializer: materializer
-    )
-}
-
 @Suite("SwiftUI output seam")
 @MainActor
 struct SwiftUIRendererTests {
@@ -184,10 +159,30 @@ struct SwiftUIRendererTests {
         #expect(recorder.urls == [URL(string: "https://example.com/docs/images/logo.png")!])
     }
 
-    @Test("Does not send unsafe image destinations to the host adapter")
-    func rejectsUnsafeImageDestination() async throws {
+    @Test("Invokes the image adapter at most once when it declines")
+    func imageAdapterDecline() async throws {
+        let recorder = RichContentRecorder()
+        let document = try SwiftMarkdownParser().parse("![Logo](images/logo.png)")
+        let options = SwiftUIRenderOptions(
+            baseURL: URL(string: "https://example.com/docs/"),
+            richContentAdapter: SwiftUIRichContentAdapter { request in
+                recorder.record(request.testDescription)
+                return nil
+            }
+        )
+
+        _ = try await SwiftUIRenderer(options: options).render(document)
+
+        #expect(recorder.values == ["image:Logo:logo.png"])
+    }
+
+    @Test(
+        "Does not send invalid image destinations to the host adapter",
+        arguments: ["javascript:alert(1)", "data:text/plain,unsafe", "   "]
+    )
+    func rejectsInvalidImageDestination(destination: String) async throws {
         let document = AST.DocumentNode(children: [
-            AST.ImageNode(url: "javascript:alert(1)", altText: "Unsafe", title: nil)
+            AST.ImageNode(url: destination, altText: "Unavailable", title: nil)
         ])
         let recorder = URLRecorder()
         let options = SwiftUIRenderOptions(
@@ -280,25 +275,6 @@ struct SwiftUIRendererTests {
         _ = try await SwiftUIRenderer().render(document)
     }
 
-    @Test("Projects one accessible inline meaning through the native seam")
-    func nativeInlineAccessibility() throws {
-        let nodes: [any ASTNode] = [
-            AST.TextNode(content: "Read "),
-            AST.LinkNode(
-                url: "javascript:alert(1)",
-                children: [AST.StrongEmphasisNode(children: [AST.TextNode(content: "this")])]
-            ),
-            AST.ImageNode(url: "data:text/plain,unsafe", altText: " diagram"),
-            AST.FootnoteReferenceNode(identifier: "source")
-        ]
-
-        let content = try makeNativeInlineProjection(
-            options: SwiftUIRenderOptions(baseURL: URL(string: "https://example.com/docs/"))
-        ).project(nodes)
-
-        #expect(content.accessibilityText == "Read this diagram[source]")
-    }
-
     @Test("Routes rich inline adapters through every native container")
     func richInlineAdaptersAcrossContainers() async throws {
         let recorder = RichContentRecorder()
@@ -379,9 +355,9 @@ struct SwiftUIRendererTests {
     }
 
     @Test("Validates the complete inline tree before invoking adapters")
-    func inlineFailureIsAtomic() {
+    func inlineFailureIsAtomic() async {
         let recorder = RichContentRecorder()
-        let projection = makeNativeInlineProjection(options: SwiftUIRenderOptions(
+        let options = SwiftUIRenderOptions(
             richContentAdapter: SwiftUIRichContentAdapter { request in
                 if case let .inlineMath(node) = request {
                     recorder.record(node.content)
@@ -389,16 +365,18 @@ struct SwiftUIRendererTests {
                 }
                 return nil
             }
-        ))
-        let nodes: [any ASTNode] = [
-            AST.StrongEmphasisNode(children: [
-                AST.InlineMathNode(content: "must-not-run"),
-                UnsupportedSwiftUITestNode()
+        )
+        let document = AST.DocumentNode(children: [
+            AST.ParagraphNode(children: [
+                AST.StrongEmphasisNode(children: [
+                    AST.InlineMathNode(content: "must-not-run"),
+                    UnsupportedSwiftUITestNode()
+                ])
             ])
-        ]
+        ])
 
-        #expect(throws: SwiftUIRenderingError.self) {
-            _ = try projection.project(nodes)
+        await #expect(throws: SwiftUIRenderingError.self) {
+            _ = try await SwiftUIRenderer(options: options).render(document)
         }
         #expect(recorder.values.isEmpty)
     }
@@ -490,8 +468,8 @@ struct SwiftUIRendererTests {
     }
 
     @Test("Materializes wrapping mixed inline content into pixels")
-    func materializesMixedInlineContent() throws {
-        let projection = makeNativeInlineProjection(options: SwiftUIRenderOptions(
+    func materializesMixedInlineContent() async throws {
+        let options = SwiftUIRenderOptions(
             baseURL: URL(string: "https://example.com/docs/"),
             richContentAdapter: SwiftUIRichContentAdapter { request in
                 switch request {
@@ -517,18 +495,26 @@ struct SwiftUIRendererTests {
                     nil
                 }
             }
-        ))
-        let content = try projection.project([
-            AST.TextNode(content: "A long native inline flow with "),
-            AST.StrongEmphasisNode(children: [AST.TextNode(content: "formatting")]),
-            AST.TextNode(content: ", "),
-            AST.InlineMathNode(content: "x²"),
-            AST.TextNode(content: ", an "),
-            AST.ImageNode(url: "images/icon.png", altText: "icon"),
-            AST.TextNode(content: ", and "),
-            AST.HTMLInlineNode(content: "<kbd>K</kbd>"),
-            AST.TextNode(content: " that must wrap without losing order.")
+        )
+        let document = AST.DocumentNode(children: [
+            AST.ParagraphNode(children: [
+                AST.TextNode(content: "A long native inline flow with "),
+                AST.StrongEmphasisNode(children: [AST.TextNode(content: "formatting")]),
+                AST.TextNode(content: ", "),
+                AST.InlineMathNode(content: "x²"),
+                AST.TextNode(content: ", an "),
+                AST.ImageNode(url: "images/icon.png", altText: "icon"),
+                AST.TextNode(content: ", and "),
+                AST.HTMLInlineNode(content: "<kbd>K</kbd>"),
+                AST.TextNode(content: ", plus "),
+                AST.LinkNode(
+                    url: "https://example.com/fallback",
+                    children: [AST.ImageNode(url: "data:text/plain,unsafe", altText: "fallback")]
+                ),
+                AST.TextNode(content: " that must wrap without losing order.")
+            ])
         ])
+        let content = try await SwiftUIRenderer(options: options).render(document)
 
         let renderer = ImageRenderer(content:
             content
@@ -542,7 +528,6 @@ struct SwiftUIRendererTests {
         let image = try #require(renderer.cgImage)
         #expect(image.width == 568)
         #expect(image.height > 80)
-        #expect(content.accessibilityText == "A long native inline flow with formatting, x², an icon, and <kbd>K</kbd> that must wrap without losing order.")
 
         if let output = ProcessInfo.processInfo.environment["SWIFTMARKDOWNPARSER_RENDER_OUTPUT"] {
             let representation = NSBitmapImageRep(cgImage: image)

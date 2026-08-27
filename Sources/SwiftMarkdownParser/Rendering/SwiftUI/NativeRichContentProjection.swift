@@ -1,11 +1,11 @@
 import SwiftUI
 
-/// Owns one-time host adaptation and readable native fallbacks for rich SwiftUI output.
+/// Owns rich destination resolution, one-time host adaptation, and readable native fallbacks.
 @available(iOS 17.0, macOS 14.0, *)
 @MainActor
 struct NativeRichContentProjection {
     enum Request {
-        case image(node: AST.ImageNode, source: URL?)
+        case image(AST.ImageNode)
         case mermaid(node: AST.MermaidDiagramNode, configuration: MermaidConfiguration)
         case mathBlock(AST.MathBlockNode)
         case inlineMath(AST.InlineMathNode)
@@ -14,6 +14,7 @@ struct NativeRichContentProjection {
     }
 
     private let adapter: SwiftUIRichContentAdapter?
+    private let baseURL: URL?
     private let style: SwiftUIStyleConfiguration
     private let adaptivePresentation: NativeAdaptivePresentation
     private let semantics: NativePresentationSemantics
@@ -26,6 +27,7 @@ struct NativeRichContentProjection {
         materializer: NativeViewMaterializer
     ) {
         self.adapter = options.richContentAdapter
+        self.baseURL = options.baseURL
         self.style = options.styleConfiguration
         self.adaptivePresentation = adaptivePresentation
         self.semantics = semantics
@@ -34,58 +36,77 @@ struct NativeRichContentProjection {
 
     /// Invokes the host adapter at most once, then materializes a readable fallback if declined.
     func project(_ request: Request) -> NativeMaterializedView {
-        if let adapterRequest = adapterRequest(for: request),
-           let adapted = adapter?.render(adapterRequest) {
-            return materializer.materialize(adapted)
-        }
-        return fallback(for: request)
-    }
-
-    private func adapterRequest(for request: Request) -> SwiftUIRichContentRequest? {
         switch request {
-        case let .image(node, source):
-            guard let source else { return nil }
-            return .image(node: node, source: source)
+        case let .image(node):
+            return projectImage(node)
         case let .mermaid(node, configuration):
-            return .mermaid(node: node, configuration: configuration)
+            return adaptOrFallback(.mermaid(node: node, configuration: configuration)) {
+                adaptivePresentation.present(.mermaidFallback(
+                    diagramType: node.diagramType,
+                    source: node.content
+                ))
+            }
         case let .mathBlock(node):
-            return .mathBlock(node)
+            return adaptOrFallback(.mathBlock(node)) {
+                mathBlockFallback(node)
+            }
         case let .inlineMath(node):
-            return .inlineMath(node)
+            return adaptOrFallback(.inlineMath(node)) {
+                inlineSourceFallback(
+                    source: node.content,
+                    accessibilityLabel: semantics.localized(.inlineMath(content: node.content))
+                )
+            }
         case let .htmlBlock(node):
-            return .htmlBlock(node)
+            return adaptOrFallback(.htmlBlock(node)) {
+                blockSourceFallback(
+                    source: node.content,
+                    accessibilityLabel: semantics.localized(.htmlBlock)
+                )
+            }
         case let .htmlInline(node):
-            return .htmlInline(node)
+            return adaptOrFallback(.htmlInline(node)) {
+                inlineSourceFallback(
+                    source: node.content,
+                    accessibilityLabel: semantics.localized(.htmlInline(content: node.content))
+                )
+            }
         }
     }
 
-    private func fallback(for request: Request) -> NativeMaterializedView {
-        switch request {
-        case let .image(node, source):
-            return imageFallback(node: node, source: source)
-        case let .mermaid(node, _):
-            return adaptivePresentation.present(.mermaidFallback(
-                diagramType: node.diagramType,
-                source: node.content
-            ))
-        case let .mathBlock(node):
-            return mathBlockFallback(node)
-        case let .inlineMath(node):
-            return inlineSourceFallback(
-                source: node.content,
-                accessibilityLabel: semantics.localized(.inlineMath(content: node.content))
-            )
-        case let .htmlBlock(node):
-            return blockSourceFallback(
-                source: node.content,
-                accessibilityLabel: semantics.localized(.htmlBlock)
-            )
-        case let .htmlInline(node):
-            return inlineSourceFallback(
-                source: node.content,
-                accessibilityLabel: semantics.localized(.htmlInline(content: node.content))
-            )
+    private func projectImage(_ node: AST.ImageNode) -> NativeMaterializedView {
+        guard let source = resolvedImageURL(for: node.url) else {
+            return imageFallback(node: node, source: nil)
         }
+
+        return adaptOrFallback(.image(node: node, source: source)) {
+            imageFallback(node: node, source: source)
+        }
+    }
+
+    private func adaptOrFallback(
+        _ request: SwiftUIRichContentRequest,
+        fallback: () -> NativeMaterializedView
+    ) -> NativeMaterializedView {
+        guard let adapted = adapter?.render(request) else {
+            return fallback()
+        }
+        return materializer.materialize(adapted)
+    }
+
+    private func resolvedImageURL(for destination: String) -> URL? {
+        let trimmed = destination.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lowercased = trimmed.lowercased()
+        guard !trimmed.isEmpty,
+              !lowercased.hasPrefix("javascript:"),
+              !lowercased.hasPrefix("data:") else {
+            return nil
+        }
+
+        if let baseURL {
+            return URL(string: trimmed, relativeTo: baseURL)?.absoluteURL
+        }
+        return URL(string: trimmed)
     }
 
     private func imageFallback(node: AST.ImageNode, source: URL?) -> NativeMaterializedView {

@@ -48,6 +48,7 @@ maintaining a compatibility shim.
 ## Validation
 
 Tests exercise every request through the same adapter, adapter decline, resolved
-and unsafe image destinations, rich inline content in each native container,
-single materialization across adaptive layouts, and pixel materialization of
-mixed rich inline output.
+and unsafe image destinations through the public document interface, rich inline
+content in each native container, single materialization across adaptive layouts,
+inline failure before adapter effects, and pixel materialization of mixed rich
+inline output including an invalid image inside a valid link.

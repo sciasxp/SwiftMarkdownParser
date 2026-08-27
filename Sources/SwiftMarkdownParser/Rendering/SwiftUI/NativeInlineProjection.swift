@@ -50,8 +50,8 @@ struct NativeInlineProjection {
                     ),
                     startsNewLine: true
                 ))
-            case let .image(node, source, styles, link):
-                let image = richContentProjection.project(.image(node: node, source: source))
+            case let .image(node, styles, link):
+                let image = richContentProjection.project(.image(node))
                 materialized.append(NativeInlineContent.Fragment(
                     content: styled(image, styles: styles, link: link),
                     startsNewLine: false
@@ -224,7 +224,7 @@ private struct NativeInlinePlan {
     enum Fragment {
         case text(String, styles: Styles, link: URL?)
         case lineBreak
-        case image(AST.ImageNode, source: URL?, styles: Styles, link: URL?)
+        case image(AST.ImageNode, styles: Styles, link: URL?)
         case inlineMath(AST.InlineMathNode, styles: Styles, link: URL?)
         case htmlInline(AST.HTMLInlineNode, styles: Styles, link: URL?)
 
@@ -279,7 +279,6 @@ private struct NativeInlinePlan {
             case let image as AST.ImageNode:
                 fragments.append(.image(
                     image,
-                    source: Self.resolvedURL(for: image.url, relativeTo: baseURL),
                     styles: styles,
                     link: link
                 ))

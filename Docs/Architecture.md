@@ -86,9 +86,10 @@ independent forms of output policy. `NativePresentationSemantics` maps typed
 roles to deferred package-localized meaning and owns pure ordered-marker and
 code-token continuity decisions. `NativeViewMaterializer` assigns stable unary
 view identity and centralizes internal type erasure. `NativeInlineProjection`
-validates and materializes ordered inline meaning once.
-`NativeRichContentProjection` projects image, Mermaid, math, and HTML requests
-through one optional host adapter and owns their readable native fallbacks.
+validates and materializes ordered inline meaning once while leaving image
+destination policy outside its seam. `NativeRichContentProjection` resolves and
+validates image destinations, projects image, Mermaid, math, and HTML requests
+through one optional host adapter, and owns their readable native fallbacks.
 `NativeAdaptivePresentation` then presents projected blocks according to the
 container proposal and Dynamic Type category.
 
