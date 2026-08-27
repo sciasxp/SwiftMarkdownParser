@@ -15,11 +15,13 @@ public struct SwiftUIRenderer {
     public let options: SwiftUIRenderOptions
 
     private let syntaxHighlighter: SyntaxHighlighter
+    private let nativeInlineProjection: NativeInlineProjection
 
     /// Initialize with rendering options
     public init(options: SwiftUIRenderOptions = .init()) {
         self.options = options
         self.syntaxHighlighter = SyntaxHighlighter()
+        self.nativeInlineProjection = NativeInlineProjection(options: options)
     }
 
     /// Render a complete document AST to SwiftUI view
@@ -42,29 +44,30 @@ public struct SwiftUIRenderer {
     /// Render any AST node to SwiftUI view
     private func render(node: any ASTNode) async throws -> AnyView {
         switch node {
-        case let textNode as AST.TextNode:
-            return renderText(textNode)
+        case is AST.TextNode,
+             is AST.EmphasisNode,
+             is AST.StrongEmphasisNode,
+             is AST.LinkNode,
+             is AST.ImageNode,
+             is AST.CodeSpanNode,
+             is AST.LineBreakNode,
+             is AST.SoftBreakNode,
+             is AST.AutolinkNode,
+             is AST.HTMLInlineNode,
+             is AST.StrikethroughNode,
+             is AST.FootnoteReferenceNode,
+             is AST.InlineMathNode:
+            return AnyView(
+                try nativeInlineProjection.project([node])
+                    .font(options.styleConfiguration.bodyFont)
+                    .foregroundStyle(options.styleConfiguration.textColor)
+            )
 
         case let paragraphNode as AST.ParagraphNode:
             return try await renderParagraph(paragraphNode)
 
         case let headingNode as AST.HeadingNode:
             return try await renderHeading(headingNode)
-
-        case let emphasisNode as AST.EmphasisNode:
-            return try await renderEmphasis(emphasisNode)
-
-        case let strongNode as AST.StrongEmphasisNode:
-            return try await renderStrongEmphasis(strongNode)
-
-        case let linkNode as AST.LinkNode:
-            return try await renderLink(linkNode)
-
-        case let imageNode as AST.ImageNode:
-            return renderImage(imageNode)
-
-        case let codeSpanNode as AST.CodeSpanNode:
-            return renderCodeSpan(codeSpanNode)
 
         case let codeBlockNode as AST.CodeBlockNode:
             return await renderCodeBlock(codeBlockNode)
@@ -81,35 +84,17 @@ public struct SwiftUIRenderer {
         case let thematicBreakNode as AST.ThematicBreakNode:
             return renderThematicBreak(thematicBreakNode)
 
-        case let lineBreakNode as AST.LineBreakNode:
-            return renderLineBreak(lineBreakNode)
-
-        case _ as AST.SoftBreakNode:
-            return renderSoftBreak()
-
-        case let autolinkNode as AST.AutolinkNode:
-            return renderAutolink(autolinkNode)
-
         case let htmlBlockNode as AST.HTMLBlockNode:
             return renderHTMLBlock(htmlBlockNode)
-
-        case let htmlInlineNode as AST.HTMLInlineNode:
-            return renderHTMLInline(htmlInlineNode)
 
         // GFM Extensions
         case let taskListItemNode as AST.GFMTaskListItemNode:
             return try await renderTaskListItem(taskListItemNode)
 
-        case let strikethroughNode as AST.StrikethroughNode:
-            return try await renderStrikethrough(strikethroughNode)
-
         case let tableNode as AST.GFMTableNode:
             return try await renderTable(tableNode)
 
         // Footnote Support
-        case let footnoteReferenceNode as AST.FootnoteReferenceNode:
-            return renderFootnoteReference(footnoteReferenceNode)
-
         case let footnoteDefinitionNode as AST.FootnoteDefinitionNode:
             return try await renderFootnoteDefinition(footnoteDefinitionNode)
 
@@ -121,51 +106,8 @@ public struct SwiftUIRenderer {
         case let mathBlockNode as AST.MathBlockNode:
             return renderMathBlock(mathBlockNode)
 
-        case let inlineMathNode as AST.InlineMathNode:
-            return renderInlineMath(inlineMathNode)
-
         default:
             throw SwiftUIRenderingError.unsupportedNodeType(node.nodeType)
-        }
-    }
-}
-
-// MARK: - Text Rendering
-
-@available(iOS 17.0, macOS 14.0, *)
-extension SwiftUIRenderer {
-
-    /// Render text node
-    private func renderText(_ node: AST.TextNode) -> AnyView {
-        return AnyView(
-            Text(node.content)
-                .font(options.styleConfiguration.bodyFont)
-                .foregroundStyle(options.styleConfiguration.textColor)
-                .accessibilityLabel(node.content)
-        )
-    }
-
-    /// Render soft break (space)
-    private func renderSoftBreak() -> AnyView {
-        return AnyView(
-            Text(" ")
-                .font(options.styleConfiguration.bodyFont)
-        )
-    }
-
-    /// Render line break
-    private func renderLineBreak(_ node: AST.LineBreakNode) -> AnyView {
-        if node.isHard {
-            return AnyView(
-                Rectangle()
-                    .fill(Color.clear)
-                    .frame(height: options.styleConfiguration.lineBreakSpacing)
-            )
-        } else {
-            return AnyView(
-                Text("\n")
-                    .font(options.styleConfiguration.bodyFont)
-            )
         }
     }
 }
@@ -177,184 +119,26 @@ extension SwiftUIRenderer {
 
     /// Render paragraph node
     private func renderParagraph(_ node: AST.ParagraphNode) async throws -> AnyView {
-        // Check if paragraph contains only text-compatible elements
-        if canUseTextCombination(for: node.children) {
-            // Use combined text approach for proper wrapping
-            let combinedText = try await createCombinedText(from: node.children)
-
-            return AnyView(
-                combinedText
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.bottom, options.styleConfiguration.paragraphSpacing)
-                    .accessibilityElement(children: .combine)
-            )
-        } else {
-            // Use separate views for mixed content with links and images
-            let childViews = try await node.children.asyncMap { child in
-                try await render(node: child)
-            }
-
-            return AnyView(
-                // Use flexible layout that handles both inline and block elements
-                HStack(spacing: 0) {
-                    ForEach(IdentifiedValue.wrap(childViews)) { item in
-                        item.value
-                    }
-                }
+        let content = try nativeInlineProjection.project(node.children)
+        return AnyView(
+            content
+                .font(options.styleConfiguration.bodyFont)
+                .foregroundStyle(options.styleConfiguration.textColor)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.bottom, options.styleConfiguration.paragraphSpacing)
                 .accessibilityElement(children: .combine)
-            )
-        }
-    }
-
-    /// Check if nodes can be combined into a single Text view
-    private func canUseTextCombination(for nodes: [any ASTNode]) -> Bool {
-        if nodes.contains(where: requiresRichInlineAdapter) {
-            return false
-        }
-        return SwiftUIRenderSemantics.inlineRuns(for: nodes, relativeTo: options.baseURL) != nil
-    }
-
-    private func requiresRichInlineAdapter(_ node: any ASTNode) -> Bool {
-        if node is AST.InlineMathNode, options.richContentHandlers.inlineMath != nil {
-            return true
-        }
-        if node is AST.HTMLInlineNode, options.richContentHandlers.htmlInline != nil {
-            return true
-        }
-        return node.children.contains(where: requiresRichInlineAdapter)
-    }
-
-    /// Create a combined Text view from child nodes that supports proper text wrapping
-    private func createCombinedText(from nodes: [any ASTNode]) async throws -> Text {
-        if let runs = SwiftUIRenderSemantics.inlineRuns(for: nodes, relativeTo: options.baseURL) {
-            return createCombinedText(from: runs)
-        }
-
-        var combinedText = Text("")
-
-        for node in nodes {
-            let textComponent = try await createTextComponent(from: node)
-            combinedText = combinedText + textComponent
-        }
-
-        return combinedText
-            .font(options.styleConfiguration.bodyFont)
-            .foregroundStyle(options.styleConfiguration.textColor)
-    }
-
-    /// Materialize semantic inline runs as one wrapping `Text` value.
-    private func createCombinedText(from runs: [SwiftUIRenderSemantics.InlineRun]) -> Text {
-        var combinedText = Text("")
-
-        for run in runs {
-            var attributed = AttributedString(run.text)
-            attributed.link = run.link
-            var component = Text(attributed)
-
-            if run.styles.contains(.emphasis) {
-                component = component.italic()
-            }
-            if run.styles.contains(.strong) {
-                component = component.fontWeight(.bold)
-            }
-            if run.styles.contains(.code) {
-                component = component
-                    .font(options.styleConfiguration.codeFont)
-                    .foregroundStyle(options.styleConfiguration.codeTextColor)
-            }
-            if run.styles.contains(.strikethrough) {
-                component = component
-                    .strikethrough()
-                    .foregroundStyle(options.styleConfiguration.strikethroughColor)
-            }
-            if run.styles.contains(.footnote) {
-                component = component
-                    .font(.footnote)
-                    .baselineOffset(4)
-            }
-            if run.link != nil {
-                component = component
-                    .foregroundStyle(options.styleConfiguration.linkColor)
-                    .underline()
-            }
-
-            combinedText = combinedText + component
-        }
-
-        return combinedText
-            .font(options.styleConfiguration.bodyFont)
-            .foregroundStyle(options.styleConfiguration.textColor)
-    }
-
-    /// Create a Text component from an AST node
-    private func createTextComponent(from node: any ASTNode) async throws -> Text {
-        switch node {
-        case let textNode as AST.TextNode:
-            return Text(textNode.content)
-
-        case let emphasisNode as AST.EmphasisNode:
-            let childText = try await createCombinedText(from: emphasisNode.children)
-            return childText.italic()
-
-        case let strongNode as AST.StrongEmphasisNode:
-            let childText = try await createCombinedText(from: strongNode.children)
-            return childText.fontWeight(.bold)
-
-        case let codeSpanNode as AST.CodeSpanNode:
-            return Text(codeSpanNode.content)
-                .font(options.styleConfiguration.codeFont)
-                .foregroundStyle(options.styleConfiguration.codeTextColor)
-
-        case let inlineMathNode as AST.InlineMathNode:
-            return Text(inlineMathNode.content)
-                .font(options.styleConfiguration.codeFont)
-                .foregroundStyle(options.styleConfiguration.codeTextColor)
-
-        case let strikethroughNode as AST.StrikethroughNode:
-            let childText = try await createCombinedText(from: strikethroughNode.children)
-            return childText
-                .strikethrough()
-                .foregroundStyle(options.styleConfiguration.strikethroughColor)
-
-        case _ as AST.LineBreakNode:
-            return Text("\n")
-
-        case _ as AST.SoftBreakNode:
-            return Text(" ")
-
-        case let htmlInlineNode as AST.HTMLInlineNode:
-            // For HTML inline, just render as plain text
-            return Text(htmlInlineNode.content)
-                .font(options.styleConfiguration.codeFont)
-                .foregroundStyle(options.styleConfiguration.codeTextColor)
-
-        case let footnoteReferenceNode as AST.FootnoteReferenceNode:
-            return Text("[\(footnoteReferenceNode.identifier)]")
-                .font(.footnote)
-                .foregroundStyle(options.styleConfiguration.linkColor)
-                .baselineOffset(4)
-
-        default:
-            // For other node types, try to extract text content
-            if !node.children.isEmpty {
-                return try await createCombinedText(from: node.children)
-            } else {
-                return Text("")
-            }
-        }
+        )
     }
 
     /// Render heading node
     private func renderHeading(_ node: AST.HeadingNode) async throws -> AnyView {
-        let combinedText = try await createCombinedText(from: node.children)
+        let content = try nativeInlineProjection.project(node.children)
 
         let font = options.styleConfiguration.headingFont(for: node.level)
         let spacing = options.styleConfiguration.headingSpacing(for: node.level)
 
         return AnyView(
-            combinedText
+            content
                 .font(font)
                 .fontWeight(.bold)
                 .foregroundStyle(options.styleConfiguration.headingColor)
@@ -402,205 +186,6 @@ extension SwiftUIRenderer {
                 .accessibilityLabel("Section divider")
                 .accessibilityAddTraits(.isStaticText)
         )
-    }
-}
-
-// MARK: - Inline Element Rendering
-
-@available(iOS 17.0, macOS 14.0, *)
-extension SwiftUIRenderer {
-
-    /// Render emphasis (italic) node
-    private func renderEmphasis(_ node: AST.EmphasisNode) async throws -> AnyView {
-        let childViews = try await node.children.asyncMap { child in
-            try await render(node: child)
-        }
-
-        return AnyView(
-            HStack(spacing: 0) {
-                ForEach(IdentifiedValue.wrap(childViews)) { item in
-                    item.value
-                }
-            }
-            .italic()
-            .accessibilityAddTraits(.isStaticText)
-        )
-    }
-
-    /// Render strong emphasis (bold) node
-    private func renderStrongEmphasis(_ node: AST.StrongEmphasisNode) async throws -> AnyView {
-        let childViews = try await node.children.asyncMap { child in
-            try await render(node: child)
-        }
-
-        return AnyView(
-            HStack(spacing: 0) {
-                ForEach(IdentifiedValue.wrap(childViews)) { item in
-                    item.value
-                }
-            }
-            .fontWeight(.bold)
-            .accessibilityAddTraits(.isStaticText)
-        )
-    }
-
-    /// Render link node
-    private func renderLink(_ node: AST.LinkNode) async throws -> AnyView {
-        let childViews = try await node.children.asyncMap { child in
-            try await render(node: child)
-        }
-
-        guard let url = resolvedURL(for: node.url) else {
-            // Invalid URL, render as plain text
-            return AnyView(
-                HStack(spacing: 0) {
-                    ForEach(IdentifiedValue.wrap(childViews)) { item in
-                        item.value
-                    }
-                }
-            )
-        }
-
-        guard let linkHandler = options.linkHandler else {
-            return AnyView(
-                Link(destination: url) {
-                    HStack(spacing: 0) {
-                        ForEach(IdentifiedValue.wrap(childViews)) { item in
-                            item.value
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(options.styleConfiguration.linkColor)
-                .underline()
-                .accessibilityLabel("Link: \(node.url)")
-                .accessibilityHint("Double tap to open link")
-            )
-        }
-
-        return AnyView(
-            Button(action: {
-                linkHandler(url)
-            }) {
-                HStack(spacing: 0) {
-                    ForEach(IdentifiedValue.wrap(childViews)) { item in
-                        item.value
-                    }
-                }
-            }
-            .buttonStyle(PlainButtonStyle())
-            .foregroundStyle(options.styleConfiguration.linkColor)
-            .underline()
-            .accessibilityLabel("Link: \(node.url)")
-            .accessibilityAddTraits(.isLink)
-            .accessibilityHint("Double tap to open link")
-        )
-    }
-
-    /// Render image node
-    private func renderImage(_ node: AST.ImageNode) -> AnyView {
-        guard let url = resolvedURL(for: node.url) else {
-            // Invalid URL, show alt text
-            return AnyView(
-                Text(node.altText)
-                    .font(options.styleConfiguration.bodyFont)
-                    .foregroundStyle(options.styleConfiguration.textColor)
-                    .accessibilityLabel(node.altText)
-            )
-        }
-
-        if let imageHandler = options.imageHandler {
-            return imageHandler(url)
-        }
-
-        return AnyView(
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .empty:
-                    ProgressView()
-                        .frame(height: options.styleConfiguration.imagePlaceholderHeight)
-                        .accessibilityLabel("Loading image: \(node.altText)")
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: options.styleConfiguration.imageMaxWidth)
-                        .clipShape(.rect(cornerRadius: options.styleConfiguration.imageCornerRadius))
-                case .failure:
-                    VStack(spacing: 8) {
-                        Image(systemName: "photo")
-                            .foregroundStyle(.secondary)
-                            .accessibilityHidden(true)
-                        Text(node.altText)
-                            .font(options.styleConfiguration.bodyFont)
-                            .foregroundStyle(options.styleConfiguration.textColor)
-                    }
-                    .frame(maxWidth: options.styleConfiguration.imageMaxWidth)
-                    .frame(minHeight: options.styleConfiguration.imagePlaceholderHeight)
-                @unknown default:
-                    Text(node.altText)
-                        .font(options.styleConfiguration.bodyFont)
-                }
-            }
-            .accessibilityLabel(node.altText)
-            .accessibilityAddTraits(.isImage)
-        )
-    }
-
-    /// Render code span node
-    private func renderCodeSpan(_ node: AST.CodeSpanNode) -> AnyView {
-        return AnyView(
-            Text(node.content)
-                .font(options.styleConfiguration.codeFont)
-                .foregroundStyle(options.styleConfiguration.codeTextColor)
-                .padding(.horizontal, options.styleConfiguration.codeSpanPadding)
-                .background(options.styleConfiguration.codeBackgroundColor)
-                .clipShape(.rect(cornerRadius: options.styleConfiguration.codeCornerRadius))
-                .accessibilityLabel("Code: \(node.content)")
-                .accessibilityAddTraits(.isStaticText)
-        )
-    }
-
-    /// Render autolink node
-    private func renderAutolink(_ node: AST.AutolinkNode) -> AnyView {
-        guard let url = resolvedURL(for: node.url) else {
-            return AnyView(
-                Text(node.text)
-                    .font(options.styleConfiguration.bodyFont)
-                    .foregroundStyle(options.styleConfiguration.textColor)
-            )
-        }
-
-        guard let linkHandler = options.linkHandler else {
-            return AnyView(
-                Link(node.text, destination: url)
-                    .font(options.styleConfiguration.bodyFont)
-                    .foregroundStyle(options.styleConfiguration.linkColor)
-                    .underline()
-                    .accessibilityLabel("Link: \(node.url)")
-                    .accessibilityHint("Double tap to open link")
-            )
-        }
-
-        return AnyView(
-            Button(action: {
-                linkHandler(url)
-            }) {
-                Text(node.text)
-                    .font(options.styleConfiguration.bodyFont)
-            }
-            .buttonStyle(PlainButtonStyle())
-            .foregroundStyle(options.styleConfiguration.linkColor)
-            .underline()
-            .accessibilityLabel("Link: \(node.url)")
-            .accessibilityAddTraits(.isLink)
-            .accessibilityHint("Double tap to open link")
-        )
-    }
-
-    /// Resolve a Markdown destination once and reject executable URL schemes.
-    private func resolvedURL(for destination: String) -> URL? {
-        SwiftUIRenderSemantics.resolvedURL(for: destination, relativeTo: options.baseURL)
     }
 }
 
@@ -716,18 +301,6 @@ extension SwiftUIRenderer {
 @available(iOS 17.0, macOS 14.0, *)
 extension SwiftUIRenderer {
 
-    /// Render a read-only footnote reference without advertising unavailable navigation.
-    private func renderFootnoteReference(_ node: AST.FootnoteReferenceNode) -> AnyView {
-        AnyView(
-            Text("[\(node.identifier)]")
-                .font(.footnote)
-                .foregroundStyle(options.styleConfiguration.linkColor)
-                .baselineOffset(4)
-                .accessibilityLabel("Footnote \(node.identifier)")
-                .accessibilityAddTraits(.isStaticText)
-        )
-    }
-
     /// Render a footnote definition and preserve its complete block content.
     private func renderFootnoteDefinition(_ node: AST.FootnoteDefinitionNode) async throws -> AnyView {
         let childViews = try await node.children.asyncMap { child in
@@ -755,15 +328,7 @@ extension SwiftUIRenderer {
 
     /// Render task list item node
     private func renderTaskListItem(_ node: AST.GFMTaskListItemNode) async throws -> AnyView {
-        let accessibilityText = SwiftUIRenderSemantics.plainText(for: node.children)
-        let childViews: [AnyView]
-        if canUseTextCombination(for: node.children) {
-            childViews = [AnyView(try await createCombinedText(from: node.children))]
-        } else {
-            childViews = try await node.children.asyncMap { child in
-                try await render(node: child)
-            }
-        }
+        let content = try nativeInlineProjection.project(node.children)
 
         return AnyView(
             HStack(alignment: .top, spacing: options.styleConfiguration.taskListSpacing) {
@@ -772,13 +337,11 @@ extension SwiftUIRenderer {
                     .font(.system(size: 18, weight: node.isChecked ? .bold : .regular))
                     .accessibilityHidden(true)
 
-                VStack(alignment: .leading, spacing: options.styleConfiguration.taskListContentSpacing) {
-                    ForEach(IdentifiedValue.wrap(childViews)) { item in
-                        item.value
-                            .opacity(node.isChecked ? 0.7 : 1.0)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                content
+                    .font(options.styleConfiguration.bodyFont)
+                    .foregroundStyle(options.styleConfiguration.textColor)
+                    .opacity(node.isChecked ? 0.7 : 1.0)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.vertical, 2)
             .background(
@@ -789,26 +352,8 @@ extension SwiftUIRenderer {
             )
             .accessibilityElement(children: .combine)
             .accessibilityLabel(
-                "\(node.isChecked ? "Completed task" : "Incomplete task"): \(accessibilityText)"
+                "\(node.isChecked ? "Completed task" : "Incomplete task"): \(content.accessibilityText)"
             )
-        )
-    }
-
-    /// Render strikethrough node
-    private func renderStrikethrough(_ node: AST.StrikethroughNode) async throws -> AnyView {
-        let childViews = try await node.children.asyncMap { child in
-            try await render(node: child)
-        }
-
-        return AnyView(
-            HStack(spacing: 0) {
-                ForEach(IdentifiedValue.wrap(childViews)) { item in
-                    item.value
-                }
-            }
-            .strikethrough()
-            .foregroundStyle(options.styleConfiguration.strikethroughColor)
-            .accessibilityAddTraits(.isStaticText)
         )
     }
 
@@ -864,18 +409,17 @@ extension SwiftUIRenderer {
 
     /// Render table row
     private func renderTableRow(_ row: AST.GFMTableRowNode, alignments: [GFMTableAlignment], isHeader: Bool) async throws -> AnyView {
-        let cellTexts = try await row.cells.asyncMap { cell in
-            if cell.children.isEmpty {
-                return Text(cell.content)
-            }
-            return try await createCombinedText(from: cell.children)
+        let cellContents = try row.cells.map { cell in
+            let nodes: [any ASTNode] = cell.children.isEmpty
+                ? [AST.TextNode(content: cell.content)]
+                : cell.children
+            return try nativeInlineProjection.project(nodes)
         }
 
         return AnyView(
             GridRow(alignment: .top) {
-                ForEach(IdentifiedValue.wrap(cellTexts)) { item in
+                ForEach(IdentifiedValue.wrap(cellContents)) { item in
                     let alignment = item.index < alignments.count ? alignments[item.index] : .none
-                    let cell = row.cells[item.index]
 
                     item.value
                         .font(isHeader ? options.styleConfiguration.tableHeaderFont : options.styleConfiguration.tableBodyFont)
@@ -888,7 +432,7 @@ extension SwiftUIRenderer {
                             Rectangle()
                                 .stroke(options.styleConfiguration.tableBorderColor, lineWidth: options.styleConfiguration.tableBorderWidth)
                         )
-                        .accessibilityLabel(isHeader ? "Header: \(cell.content)" : cell.content)
+                        .accessibilityLabel(isHeader ? "Header: \(item.value.accessibilityText)" : item.value.accessibilityText)
                         .accessibilityAddTraits(isHeader ? .isHeader : .isStaticText)
                 }
             }
@@ -931,24 +475,6 @@ extension SwiftUIRenderer {
                 .accessibilityAddTraits(.isStaticText)
         )
     }
-
-    /// Render HTML inline node (fallback to plain text)
-    private func renderHTMLInline(_ node: AST.HTMLInlineNode) -> AnyView {
-        if let handler = options.richContentHandlers.htmlInline {
-            return handler(node)
-        }
-
-        return AnyView(
-            Text(node.content)
-                .font(options.styleConfiguration.codeFont)
-                .foregroundStyle(options.styleConfiguration.codeTextColor)
-                .padding(.horizontal, options.styleConfiguration.codeSpanPadding)
-                .background(options.styleConfiguration.codeBackgroundColor)
-                .clipShape(.rect(cornerRadius: options.styleConfiguration.codeCornerRadius))
-                .accessibilityLabel("HTML: \(node.content)")
-                .accessibilityAddTraits(.isStaticText)
-        )
-    }
 }
 
 // MARK: - Math Rendering
@@ -975,24 +501,6 @@ extension SwiftUIRenderer {
             .accessibilityLabel("Math expression")
             .accessibilityValue(node.content)
             .accessibilityAddTraits(.isStaticText)
-        )
-    }
-
-    /// Render inline math node
-    private func renderInlineMath(_ node: AST.InlineMathNode) -> AnyView {
-        if let handler = options.richContentHandlers.inlineMath {
-            return handler(node)
-        }
-
-        return AnyView(
-            Text(node.content)
-                .font(options.styleConfiguration.codeFont)
-                .foregroundStyle(options.styleConfiguration.codeTextColor)
-                .padding(.horizontal, options.styleConfiguration.codeSpanPadding)
-                .background(options.styleConfiguration.codeBackgroundColor)
-                .clipShape(.rect(cornerRadius: options.styleConfiguration.codeCornerRadius))
-                .accessibilityLabel("Math: \(node.content)")
-                .accessibilityAddTraits(.isStaticText)
         )
     }
 }

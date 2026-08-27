@@ -28,6 +28,10 @@ _Avoid_: Mutable AST, rewrite pipeline
 The interpretation of a complete Markdown Document into one presentation format, with that format's rules kept together.
 _Avoid_: Shared rendering pipeline, render context
 
+**Native Inline Projection**:
+The SwiftUI-output interpretation of inline Markdown meaning into an ordered native presentation independent of its containing block, preserving styles, safe destinations, breaks, references, and rich-content requirements without silently discarding unsupported meaning.
+_Avoid_: Inline rendering pipeline, text flattening
+
 **HTML Output**:
 The browser-oriented representation of a Markdown Document, either as an embeddable fragment or a complete document.
 _Avoid_: Rendered page, WebView content

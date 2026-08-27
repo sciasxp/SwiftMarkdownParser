@@ -1,6 +1,9 @@
 import Foundation
 import SwiftUI
 import Testing
+#if os(macOS)
+import AppKit
+#endif
 @testable import SwiftMarkdownParser
 
 private final class URLRecorder: @unchecked Sendable {
@@ -160,41 +163,187 @@ struct SwiftUIRendererTests {
         _ = try await SwiftUIRenderer().render(document)
     }
 
-    @Test("Projects formatted links into wrapping inline runs")
-    func inlineRuns() throws {
+    @Test("Projects one accessible inline meaning through the native seam")
+    func nativeInlineAccessibility() throws {
         let nodes: [any ASTNode] = [
             AST.TextNode(content: "Read "),
             AST.LinkNode(
-                url: "guide/start",
+                url: "javascript:alert(1)",
                 children: [AST.StrongEmphasisNode(children: [AST.TextNode(content: "this")])]
             ),
-            AST.TextNode(content: " now")
+            AST.ImageNode(url: "data:text/plain,unsafe", altText: " diagram"),
+            AST.FootnoteReferenceNode(identifier: "source")
         ]
 
-        let runs = try #require(
-            SwiftUIRenderSemantics.inlineRuns(
-                for: nodes,
-                relativeTo: URL(string: "https://example.com/docs/")
+        let content = try NativeInlineProjection(
+            options: SwiftUIRenderOptions(baseURL: URL(string: "https://example.com/docs/"))
+        ).project(nodes)
+
+        #expect(content.accessibilityText == "Read this diagram[source]")
+    }
+
+    @Test("Routes rich inline adapters through every native container")
+    func richInlineAdaptersAcrossContainers() async throws {
+        let recorder = RichContentRecorder()
+        let handlers = SwiftUIRichContentHandlers(
+            inlineMath: { node in
+                recorder.record("math:\(node.content)")
+                return AnyView(Text(node.content))
+            },
+            htmlInline: { node in
+                recorder.record("html:\(node.content)")
+                return AnyView(Text(node.content))
+            }
+        )
+        let document = AST.DocumentNode(children: [
+            AST.ParagraphNode(children: [AST.InlineMathNode(content: "paragraph")]),
+            AST.HeadingNode(level: 2, children: [AST.HTMLInlineNode(content: "heading")]),
+            AST.GFMTableNode(
+                rows: [AST.GFMTableRowNode(
+                    cells: [AST.GFMTableCellNode(
+                        children: [AST.InlineMathNode(content: "table")],
+                        isHeader: false
+                    )],
+                    isHeader: false
+                )],
+                alignments: [.left]
+            ),
+            AST.GFMTaskListItemNode(
+                isChecked: true,
+                children: [AST.HTMLInlineNode(content: "task")]
             )
-        )
+        ])
 
-        #expect(runs.map(\.text) == ["Read ", "this", " now"])
-        #expect(runs[1].styles.contains(.strong))
-        #expect(runs[1].link == URL(string: "https://example.com/docs/guide/start"))
+        _ = try await SwiftUIRenderer(
+            options: SwiftUIRenderOptions(richContentHandlers: handlers)
+        ).render(document)
+
+        #expect(recorder.values == [
+            "math:paragraph",
+            "html:heading",
+            "math:table",
+            "html:task"
+        ])
     }
 
-    @Test("Keeps flattened task-list inline content in one text flow")
-    func taskListInlineFlow() throws {
-        let document = try SwiftMarkdownParser().parse("- [x] Completed **task**")
-        let list = try #require(document.children.first as? AST.ListNode)
-        let task = try #require(list.items.first as? AST.GFMTaskListItemNode)
-        let runs = try #require(
-            SwiftUIRenderSemantics.inlineRuns(for: task.children, relativeTo: nil)
-        )
+    @Test("Routes inline images through every native container")
+    func inlineImagesAcrossContainers() async throws {
+        let recorder = URLRecorder()
+        let image: @Sendable (String) -> AST.ImageNode = { name in
+            AST.ImageNode(url: "images/\(name).png", altText: name)
+        }
+        let document = AST.DocumentNode(children: [
+            AST.ParagraphNode(children: [image("paragraph")]),
+            AST.HeadingNode(level: 2, children: [image("heading")]),
+            AST.GFMTableNode(
+                rows: [AST.GFMTableRowNode(
+                    cells: [AST.GFMTableCellNode(children: [image("table")], isHeader: false)],
+                    isHeader: false
+                )],
+                alignments: [.left]
+            ),
+            AST.GFMTaskListItemNode(isChecked: false, children: [image("task")])
+        ])
 
-        #expect(runs.map(\.text).joined() == "Completed task")
-        #expect(runs.contains { $0.text == "task" && $0.styles.contains(.strong) })
+        _ = try await SwiftUIRenderer(options: SwiftUIRenderOptions(
+            baseURL: URL(string: "https://example.com/docs/"),
+            imageHandler: { url in
+                recorder.record(url)
+                return AnyView(Text(url.lastPathComponent))
+            }
+        )).render(document)
+
+        #expect(recorder.urls.map(\.lastPathComponent) == [
+            "paragraph.png", "heading.png", "table.png", "task.png"
+        ])
     }
+
+    @Test("Validates the complete inline tree before invoking adapters")
+    func inlineFailureIsAtomic() {
+        let recorder = RichContentRecorder()
+        let projection = NativeInlineProjection(options: SwiftUIRenderOptions(
+            richContentHandlers: SwiftUIRichContentHandlers(
+                inlineMath: { node in
+                    recorder.record(node.content)
+                    return AnyView(Text(node.content))
+                }
+            )
+        ))
+        let nodes: [any ASTNode] = [
+            AST.StrongEmphasisNode(children: [
+                AST.InlineMathNode(content: "must-not-run"),
+                UnsupportedSwiftUITestNode()
+            ])
+        ]
+
+        #expect(throws: SwiftUIRenderingError.self) {
+            _ = try projection.project(nodes)
+        }
+        #expect(recorder.values.isEmpty)
+    }
+
+    #if os(macOS)
+    @Test("Materializes wrapping mixed inline content into pixels")
+    func materializesMixedInlineContent() throws {
+        let projection = NativeInlineProjection(options: SwiftUIRenderOptions(
+            baseURL: URL(string: "https://example.com/docs/"),
+            richContentHandlers: SwiftUIRichContentHandlers(
+                inlineMath: { node in
+                    AnyView(
+                        Text(node.content)
+                            .padding(.horizontal, 4)
+                            .background(.yellow.opacity(0.35), in: Capsule())
+                    )
+                },
+                htmlInline: { node in
+                    AnyView(
+                        Text(node.content)
+                            .padding(.horizontal, 4)
+                            .background(.mint.opacity(0.35), in: Capsule())
+                    )
+                }
+            ),
+            imageHandler: { url in
+                AnyView(
+                    Text(url.deletingPathExtension().lastPathComponent.uppercased())
+                        .padding(.horizontal, 4)
+                        .background(.blue.opacity(0.2), in: Capsule())
+                )
+            }
+        ))
+        let content = try projection.project([
+            AST.TextNode(content: "A long native inline flow with "),
+            AST.StrongEmphasisNode(children: [AST.TextNode(content: "formatting")]),
+            AST.TextNode(content: ", "),
+            AST.InlineMathNode(content: "x²"),
+            AST.TextNode(content: ", an "),
+            AST.ImageNode(url: "images/icon.png", altText: "icon"),
+            AST.TextNode(content: ", and "),
+            AST.HTMLInlineNode(content: "<kbd>K</kbd>"),
+            AST.TextNode(content: " that must wrap without losing order.")
+        ])
+
+        let renderer = ImageRenderer(content:
+            content
+                .font(.body)
+                .foregroundStyle(.primary)
+                .frame(width: 260, alignment: .leading)
+                .padding(12)
+                .background(.white)
+        )
+        renderer.scale = 2
+        let image = try #require(renderer.cgImage)
+        #expect(image.width == 568)
+        #expect(image.height > 80)
+        #expect(content.accessibilityText == "A long native inline flow with formatting, x², an icon, and <kbd>K</kbd> that must wrap without losing order.")
+
+        if let output = ProcessInfo.processInfo.environment["SWIFTMARKDOWNPARSER_RENDER_OUTPUT"] {
+            let representation = NSBitmapImageRep(cgImage: image)
+            let data = try #require(representation.representation(using: .png, properties: [:]))
+            try data.write(to: URL(fileURLWithPath: output), options: .atomic)
+        }
+    }
+    #endif
 
     @Test("Preserves unhighlighted gaps around semantic syntax tokens")
     func syntaxRunsPreserveSource() {
