@@ -187,12 +187,9 @@ private struct NativeAdaptiveList: View {
         VStack(alignment: .leading, spacing: style.listItemSpacing) {
             ForEach(items) { item in
                 if let marker = item.marker {
-                    NativeAdaptiveLabelLayout(
-                        horizontalSpacing: style.listMarkerSpacing,
-                        verticalSpacing: style.listItemContentSpacing,
-                        minimumContentWidth: minimumContentWidth
-                    ) {
+                    NativeAdaptiveLabelContent(role: .listMarker, style: style) {
                         markerView(marker)
+                    } content: {
                         item.content.frame(maxWidth: .infinity, alignment: .leading)
                     }
                 } else {
@@ -224,16 +221,10 @@ private struct NativeAdaptiveList: View {
     private var listIndentation: CGFloat {
         dynamicTypeSize.isAccessibilitySize ? style.listIndentation * 0.5 : style.listIndentation
     }
-
-    private var minimumContentWidth: CGFloat {
-        max(style.listMarkerWidth * 4, style.listMarkerSpacing * 8)
-    }
 }
 
 @available(iOS 17.0, macOS 14.0, *)
 private struct NativeAdaptiveFootnote: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
     let identifier: String
     let children: [NativeMaterializedView]
     let style: SwiftUIStyleConfiguration
@@ -252,17 +243,12 @@ private struct NativeAdaptiveFootnote: View {
     }
 
     var body: some View {
-        NativeAdaptiveLabelLayout(
-            horizontalSpacing: style.listMarkerSpacing,
-            verticalSpacing: style.listItemContentSpacing,
-            minimumContentWidth: max(style.listMarkerWidth * 4, style.listMarkerSpacing * 8),
-            prefersVertical: dynamicTypeSize.isAccessibilitySize
-        ) {
+        NativeAdaptiveLabelContent(role: .footnoteIdentifier, style: style) {
             Text(verbatim: "[\(identifier)]")
                 .font(style.bodyFont)
                 .foregroundStyle(style.textColor.opacity(0.65))
                 .accessibilityHidden(true)
-
+        } content: {
             VStack(alignment: .leading, spacing: style.listItemContentSpacing) {
                 ForEach(children) { child in
                     child
@@ -283,16 +269,12 @@ private struct NativeAdaptiveTask: View {
     let semantics: NativePresentationSemantics
 
     var body: some View {
-        NativeAdaptiveLabelLayout(
-            horizontalSpacing: style.taskListSpacing,
-            verticalSpacing: style.taskListContentSpacing,
-            minimumContentWidth: max(style.listMarkerWidth * 4, style.taskListSpacing * 8)
-        ) {
+        NativeAdaptiveLabelContent(role: .taskStatus, style: style) {
             Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(isChecked ? style.taskListCheckedColor : style.taskListUncheckedColor)
                 .font(style.taskListCheckboxFont.weight(isChecked ? .bold : .regular))
                 .accessibilityHidden(true)
-
+        } content: {
             content
                 .font(style.bodyFont)
                 .foregroundStyle(style.textColor)
@@ -362,22 +344,19 @@ private struct NativeAdaptiveTable: View {
             ForEach(rowsForStackedPresentation) { row in
                 VStack(alignment: .leading, spacing: style.tableCellPadding) {
                     ForEach(row.cells) { cell in
-                        VStack(alignment: .leading, spacing: style.tableCellPadding * 0.5) {
-                            if let header = headerContent(at: cell.columnIndex) {
+                        if let header = headerContent(at: cell.columnIndex) {
+                            NativeAdaptiveLabelContent(role: .tableField, style: style) {
                                 header
                                     .font(style.tableHeaderFont)
                                     .foregroundStyle(style.tableHeaderTextColor)
                                     .fontWeight(.semibold)
                                     .accessibilityAddTraits(.isHeader)
+                            } content: {
+                                stackedValue(cell)
                             }
-
-                            cell.content
-                                .font(style.tableBodyFont)
-                                .foregroundStyle(style.tableBodyTextColor)
-                                .frame(maxWidth: .infinity, alignment: alignment(for: cell.alignment))
-                                .accessibilityLabel(cell.content.accessibilityText)
+                        } else {
+                            stackedValue(cell)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .padding(style.tableCellPadding)
@@ -388,6 +367,16 @@ private struct NativeAdaptiveTable: View {
                 )
             }
         }
+    }
+
+    private func stackedValue(
+        _ cell: NativeAdaptivePresentation.Table.Cell
+    ) -> some View {
+        cell.content
+            .font(style.tableBodyFont)
+            .foregroundStyle(style.tableBodyTextColor)
+            .frame(maxWidth: .infinity, alignment: alignment(for: cell.alignment))
+            .accessibilityLabel(cell.content.accessibilityText)
     }
 
     private func tableCell(
@@ -445,8 +434,6 @@ private struct NativeAdaptiveTable: View {
 
 @available(iOS 17.0, macOS 14.0, *)
 private struct NativeAdaptiveMermaidFallback: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
     let diagramType: String?
     let source: String
     let style: SwiftUIStyleConfiguration
@@ -454,16 +441,11 @@ private struct NativeAdaptiveMermaidFallback: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: style.listItemSpacing) {
-            NativeAdaptiveLabelLayout(
-                horizontalSpacing: style.listMarkerSpacing,
-                verticalSpacing: style.listItemContentSpacing,
-                minimumContentWidth: max(style.listMarkerWidth * 4, style.listMarkerSpacing * 8),
-                prefersVertical: dynamicTypeSize.isAccessibilitySize
-            ) {
+            NativeAdaptiveLabelContent(role: .mermaidTitle, style: style) {
                 Image(systemName: "chart.bar.fill")
                     .foregroundStyle(.blue)
                     .accessibilityHidden(true)
-
+            } content: {
                 VStack(alignment: .leading, spacing: style.listItemContentSpacing) {
                     Text(semantics.localized(.mermaidTitle))
                         .font(style.codeFont.bold())
@@ -479,14 +461,13 @@ private struct NativeAdaptiveMermaidFallback: View {
             .padding(.horizontal, style.codeBlockPadding)
             .padding(.top, style.codeBlockPadding)
 
-            ScrollView(.horizontal) {
-                Text(source)
-                    .font(style.codeFont)
-                    .foregroundStyle(style.codeTextColor)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, style.codeBlockPadding)
-                    .padding(.bottom, style.codeBlockPadding)
-            }
+            Text(source)
+                .font(style.codeFont)
+                .foregroundStyle(style.codeTextColor)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, style.codeBlockPadding)
+                .padding(.bottom, style.codeBlockPadding)
         }
         .background(style.codeBackgroundColor)
         .overlay(
@@ -498,83 +479,5 @@ private struct NativeAdaptiveMermaidFallback: View {
         .accessibilityLabel(Text(semantics.localized(.mermaidDiagram(type: diagramType))))
         .accessibilityValue(source)
         .accessibilityAddTraits(.isStaticText)
-    }
-}
-
-@available(iOS 17.0, macOS 14.0, *)
-private struct NativeAdaptiveLabelLayout: Layout {
-    let horizontalSpacing: CGFloat
-    let verticalSpacing: CGFloat
-    let minimumContentWidth: CGFloat
-    var prefersVertical = false
-
-    func sizeThatFits(
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout ()
-    ) -> CGSize {
-        guard subviews.count == 2 else { return .zero }
-        let labelSize = subviews[0].sizeThatFits(.unspecified)
-        let axis = axis(for: proposal.width, labelWidth: labelSize.width)
-
-        switch axis {
-        case .horizontal:
-            let contentWidth = proposal.width.map { max(0, $0 - labelSize.width - horizontalSpacing) }
-            let contentSize = subviews[1].sizeThatFits(ProposedViewSize(width: contentWidth, height: proposal.height))
-            return CGSize(
-                width: proposal.width ?? labelSize.width + horizontalSpacing + contentSize.width,
-                height: max(labelSize.height, contentSize.height)
-            )
-        case .vertical:
-            let contentSize = subviews[1].sizeThatFits(ProposedViewSize(width: proposal.width, height: proposal.height))
-            return CGSize(
-                width: proposal.width ?? max(labelSize.width, contentSize.width),
-                height: labelSize.height + verticalSpacing + contentSize.height
-            )
-        }
-    }
-
-    func placeSubviews(
-        in bounds: CGRect,
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout ()
-    ) {
-        guard subviews.count == 2 else { return }
-        let labelSize = subviews[0].sizeThatFits(.unspecified)
-        let axis = axis(for: bounds.width, labelWidth: labelSize.width)
-
-        switch axis {
-        case .horizontal:
-            subviews[0].place(
-                at: bounds.origin,
-                anchor: .topLeading,
-                proposal: ProposedViewSize(labelSize)
-            )
-            subviews[1].place(
-                at: CGPoint(x: bounds.minX + labelSize.width + horizontalSpacing, y: bounds.minY),
-                anchor: .topLeading,
-                proposal: ProposedViewSize(
-                    width: max(0, bounds.width - labelSize.width - horizontalSpacing),
-                    height: nil
-                )
-            )
-        case .vertical:
-            subviews[0].place(
-                at: bounds.origin,
-                anchor: .topLeading,
-                proposal: ProposedViewSize(labelSize)
-            )
-            subviews[1].place(
-                at: CGPoint(x: bounds.minX, y: bounds.minY + labelSize.height + verticalSpacing),
-                anchor: .topLeading,
-                proposal: ProposedViewSize(width: bounds.width, height: nil)
-            )
-        }
-    }
-
-    private func axis(for width: CGFloat?, labelWidth: CGFloat) -> Axis {
-        guard !prefersVertical, let width, width.isFinite else { return prefersVertical ? .vertical : .horizontal }
-        return width >= labelWidth + horizontalSpacing + minimumContentWidth ? .horizontal : .vertical
     }
 }

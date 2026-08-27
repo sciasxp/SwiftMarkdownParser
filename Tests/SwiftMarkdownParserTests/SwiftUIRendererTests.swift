@@ -206,6 +206,132 @@ struct SwiftUIRendererTests {
         #expect(semantics.orderedListMarker(startNumber: nil, index: 1) == "2.")
     }
 
+    @Test("Owns Dynamic Type policy for every adaptive label/content role")
+    func adaptiveLabelContentRolePolicy() {
+        let style = SwiftUIStyleConfiguration.github
+
+        #expect(!NativeAdaptiveLabelContentRole.listMarker.metrics(
+            style: style,
+            accessibilitySize: true
+        ).prefersVertical)
+        #expect(!NativeAdaptiveLabelContentRole.taskStatus.metrics(
+            style: style,
+            accessibilitySize: true
+        ).prefersVertical)
+        #expect(NativeAdaptiveLabelContentRole.footnoteIdentifier.metrics(
+            style: style,
+            accessibilitySize: true
+        ).prefersVertical)
+        #expect(NativeAdaptiveLabelContentRole.mermaidTitle.metrics(
+            style: style,
+            accessibilitySize: true
+        ).prefersVertical)
+        #expect(NativeAdaptiveLabelContentRole.tableField.metrics(
+            style: style,
+            accessibilitySize: false
+        ).prefersVertical)
+    }
+
+    @Test("Chooses the label/content axis at a finite deterministic threshold")
+    func adaptiveLabelContentAxisThreshold() {
+        let metrics = NativeAdaptiveLabelContentGeometry.Metrics(
+            horizontalSpacing: 8,
+            verticalSpacing: 4,
+            minimumContentWidth: 32,
+            prefersVertical: false,
+            alignment: .firstBaseline
+        )
+
+        #expect(NativeAdaptiveLabelContentGeometry.axis(
+            availableWidth: 60,
+            intrinsicLabelWidth: 20,
+            metrics: metrics
+        ) == .horizontal)
+        #expect(NativeAdaptiveLabelContentGeometry.axis(
+            availableWidth: 59,
+            intrinsicLabelWidth: 20,
+            metrics: metrics
+        ) == .vertical)
+        #expect(NativeAdaptiveLabelContentGeometry.axis(
+            availableWidth: 0,
+            intrinsicLabelWidth: 20,
+            metrics: metrics
+        ) == .vertical)
+        #expect(NativeAdaptiveLabelContentGeometry.axis(
+            availableWidth: nil,
+            intrinsicLabelWidth: 20,
+            metrics: metrics
+        ) == .horizontal)
+        #expect(NativeAdaptiveLabelContentGeometry.normalizedWidth(-10) == 0)
+        #expect(NativeAdaptiveLabelContentGeometry.normalizedWidth(.infinity) == nil)
+        #expect(NativeAdaptiveLabelContentGeometry.normalizedWidth(.nan) == nil)
+    }
+
+    @Test("Aligns baselines and mirrors horizontal label/content geometry in RTL")
+    func adaptiveLabelContentBaselineAndRTL() {
+        let metrics = NativeAdaptiveLabelContentGeometry.Metrics(
+            horizontalSpacing: 8,
+            verticalSpacing: 4,
+            minimumContentWidth: 0,
+            prefersVertical: false,
+            alignment: .firstBaseline
+        )
+        let plan = NativeAdaptiveLabelContentGeometry.plan(
+            axis: .horizontal,
+            availableWidth: 100,
+            label: .init(size: CGSize(width: 20, height: 10), firstBaseline: 8),
+            content: .init(size: CGSize(width: 30, height: 20), firstBaseline: 12),
+            metrics: metrics,
+            layoutDirection: .rightToLeft
+        )
+
+        #expect(plan.size == CGSize(width: 100, height: 20))
+        #expect(plan.labelFrame == CGRect(x: 80, y: 4, width: 20, height: 10))
+        #expect(plan.contentFrame == CGRect(x: 42, y: 0, width: 30, height: 20))
+    }
+
+    @Test("Keeps oversized and unconstrained label/content geometry finite")
+    func adaptiveLabelContentFiniteGeometry() {
+        let metrics = NativeAdaptiveLabelContentGeometry.Metrics(
+            horizontalSpacing: 8,
+            verticalSpacing: 4,
+            minimumContentWidth: 32,
+            prefersVertical: false,
+            alignment: .top
+        )
+        let label = NativeAdaptiveLabelContentGeometry.Measurement(
+            size: CGSize(width: 80, height: 10),
+            firstBaseline: nil
+        )
+        let content = NativeAdaptiveLabelContentGeometry.Measurement(
+            size: CGSize(width: 40, height: 20),
+            firstBaseline: nil
+        )
+        let constrained = NativeAdaptiveLabelContentGeometry.plan(
+            axis: .vertical,
+            availableWidth: 30,
+            label: label,
+            content: content,
+            metrics: metrics,
+            layoutDirection: .rightToLeft
+        )
+        let unconstrained = NativeAdaptiveLabelContentGeometry.plan(
+            axis: .horizontal,
+            availableWidth: .infinity,
+            label: label,
+            content: content,
+            metrics: metrics,
+            layoutDirection: .leftToRight
+        )
+
+        #expect(constrained.size == CGSize(width: 30, height: 34))
+        #expect(constrained.labelFrame.width == 30)
+        #expect(constrained.contentFrame.width == 30)
+        #expect(unconstrained.size == CGSize(width: 128, height: 20))
+        #expect(unconstrained.size.width.isFinite)
+        #expect(unconstrained.size.height.isFinite)
+    }
+
     @Test("Owns unique identity and preserves it through view transformations")
     func nativeViewMaterializationIdentity() throws {
         let materializer = NativeViewMaterializer()
@@ -474,6 +600,11 @@ struct SwiftUIRendererTests {
         | Tables | Become labeled rows when a grid no longer fits | Ready |
         | Type | Honors accessibility Dynamic Type sizes | Ready |
 
+        ```mermaid
+        flowchart LR
+            Source --> Native
+        ```
+
         A claim with a note[^source].
 
         [^source]: Supporting evidence that can move below its identifier.
@@ -517,6 +648,39 @@ struct SwiftUIRendererTests {
         }
     }
 
+    @Test("Does not reinvoke rich adapters across adaptive recomposition")
+    func adaptiveRecompositionPreservesRichAdapterEffects() async throws {
+        let recorder = RichContentRecorder()
+        let document = AST.DocumentNode(children: [
+            AST.MermaidDiagramNode(content: "flowchart LR; Source-->Native")
+        ])
+        let content = try await SwiftUIRenderer(options: SwiftUIRenderOptions(
+            richContentAdapter: SwiftUIRichContentAdapter { request in
+                recorder.record(request.testDescription)
+                return AnyView(Text(request.testDescription))
+            }
+        )).render(document)
+        #expect(recorder.values.count == 1)
+
+        let wide = ImageRenderer(content:
+            content.frame(width: 720, alignment: .leading)
+        )
+        let narrow = ImageRenderer(content:
+            content.frame(width: 180, alignment: .leading)
+        )
+        let accessibility = ImageRenderer(content:
+            content
+                .environment(\.dynamicTypeSize, .accessibility3)
+                .environment(\.layoutDirection, .rightToLeft)
+                .frame(width: 320, alignment: .leading)
+        )
+
+        _ = try #require(wide.cgImage)
+        _ = try #require(narrow.cgImage)
+        _ = try #require(accessibility.cgImage)
+        #expect(recorder.values.count == 1)
+    }
+
     @Test("Materializes package-localized native fallback text")
     func materializesLocalizedNativeFallback() async throws {
         let document = AST.DocumentNode(children: [
@@ -543,6 +707,32 @@ struct SwiftUIRendererTests {
             let data = try #require(representation.representation(using: .png, properties: [:]))
             try data.write(to: URL(fileURLWithPath: output), options: .atomic)
         }
+    }
+
+    @Test("Materializes Mermaid source as visible fallback content")
+    func materializesVisibleMermaidSource() async throws {
+        let first = try await SwiftUIRenderer().render(AST.DocumentNode(children: [
+            AST.MermaidDiagramNode(content: "flowchart LR; Alpha-->Beta")
+        ]))
+        let second = try await SwiftUIRenderer().render(AST.DocumentNode(children: [
+            AST.MermaidDiagramNode(content: "flowchart LR; Gamma-->Delta")
+        ]))
+        let firstImage = try #require(ImageRenderer(content:
+            first.frame(width: 320, alignment: .leading)
+        ).cgImage)
+        let secondImage = try #require(ImageRenderer(content:
+            second.frame(width: 320, alignment: .leading)
+        ).cgImage)
+        let firstData = try #require(NSBitmapImageRep(cgImage: firstImage).representation(
+            using: .png,
+            properties: [:]
+        ))
+        let secondData = try #require(NSBitmapImageRep(cgImage: secondImage).representation(
+            using: .png,
+            properties: [:]
+        ))
+
+        #expect(firstData != secondData)
     }
 
     @Test("Materializes wrapping mixed inline content into pixels")

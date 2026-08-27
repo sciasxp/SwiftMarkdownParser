@@ -52,6 +52,10 @@ _Avoid_: Rich-content handler bag, per-node closure bundle
 The SwiftUI-output interpretation of projected block content into container-aware native forms, choosing layout from available space and accessibility text size while preserving document order, labels, alignment, and host-provided content.
 _Avoid_: Device-specific layout, screen-size branching
 
+**Native Adaptive Label/Content**:
+The native presentation relationship between one role-bearing label and its content, choosing axis, spacing, alignment, and content reservation from available space and accessibility text size while preserving semantic ownership and reading order.
+_Avoid_: Per-caller label thresholds, visual label as accessibility meaning
+
 **HTML Output**:
 The browser-oriented representation of a Markdown Document, either as an embeddable fragment or a complete document.
 _Avoid_: Rendered page, WebView content

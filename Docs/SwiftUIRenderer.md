@@ -115,6 +115,18 @@ accessibility text size, the same projected cells become labeled rows that keep
 column headers beside their values. Rich inline adapters are materialized once;
 choosing a presentation does not reinvoke host adapters.
 
+List markers, task states, footnote identifiers, Mermaid titles, and stacked
+table fields share one role-aware label/content module. Each role owns its
+horizontal-to-vertical policy without exposing thresholds to callers. The
+module keeps measurement and placement on one finite geometry plan, aligns
+textual pairs by first baseline when available, mirrors placement for
+right-to-left layouts, and constrains oversized labels to their container.
+VoiceOver copy and grouping remain owned by native semantics and the presenting
+view rather than inferred from visual placement.
+
+The Mermaid fallback keeps its source visible and wraps it within the proposed
+container instead of depending on an unbounded horizontal scroll measurement.
+
 Native content is materialized before SwiftUI evaluates `body`. One internal
 owner assigns stable identity to document children, list items, table rows and
 cells, and rich inline fragments. Adaptive alternatives reuse those concrete
