@@ -32,6 +32,10 @@ _Avoid_: Shared rendering pipeline, render context
 The SwiftUI-output interpretation of inline Markdown meaning into an ordered native presentation independent of its containing block, preserving styles, safe destinations, breaks, references, and rich-content requirements without silently discarding unsupported meaning.
 _Avoid_: Inline rendering pipeline, text flattening
 
+**Native Adaptive Presentation**:
+The SwiftUI-output interpretation of projected block content into container-aware native forms, choosing layout from available space and accessibility text size while preserving document order, labels, alignment, and host-provided content.
+_Avoid_: Device-specific layout, screen-size branching
+
 **HTML Output**:
 The browser-oriented representation of a Markdown Document, either as an embeddable fragment or a complete document.
 _Avoid_: Rendered page, WebView content

@@ -40,7 +40,7 @@ replaceable at explicit seams.
 | AST Rewrite | `AST.DocumentNode.rewriting(_:)` | One bottom-up immutable pass, metadata preservation, and typed-child validation |
 | Syntax Highlighting | `SyntaxHighlighter.highlight(_:language:)` | Built-in adapter selection, aliases, support discovery, token validation, best-effort fallback, and bounded LRU caching |
 | HTML Output | `HTMLRenderer.renderFragment(_:)` and `renderDocument(_:assembly:)` | HTML escaping, GFM output, semantic code spans, feature discovery, browser assets, host styles/scripts/regions, bootstrap behavior, and document composition |
-| Native SwiftUI Output | `SwiftUIRenderer.render(_:)` | Main-actor construction of native SwiftUI presentation from the completed document |
+| Native SwiftUI Output | `SwiftUIRenderer.render(_:)` | Main-actor semantic projection plus container-aware native presentation from the completed document |
 | WebKit Presentation | `MarkdownWebView` | Loading complete HTML and reporting semantic browser-runtime readiness or failure |
 
 The deletion test explains the depth of each module: removing one would force
@@ -79,6 +79,20 @@ gap. Keeping semantic classification separate from HTML presentation lets the
 same public highlighting interface serve non-HTML callers without exposing the
 adapter registry or cache representation.
 
+## Native SwiftUI presentation
+
+`SwiftUIRenderer` interprets the complete document and delegates two independent
+forms of output policy. `NativeInlineProjection` validates and materializes
+ordered inline meaning once. `NativeAdaptivePresentation` then presents
+projected blocks according to the container proposal and Dynamic Type category.
+
+The adaptive module owns document laziness, decoration budgets, marker/content
+layout, accessible footnotes, task rows, Mermaid fallback composition, and the
+choice between a dense table grid and labeled rows. It does not inspect device
+models, screen bounds, or host window state. Host rich-content adapters remain
+outside this seam and are invoked once before alternative table layouts are
+considered.
+
 ## Extension rules
 
 - Change Markdown semantics inside document construction and verify them from
@@ -114,3 +128,4 @@ Sources/SwiftMarkdownParser/
 - [ADR 0003: Keep renderers output-specific](adr/0003-keep-renderers-output-specific.md)
 - [ADR 0004: Assemble browser enrichment from discovered requirements](adr/0004-assemble-browser-enrichment-from-requirements.md)
 - [ADR 0005: Centralize syntax-highlighting orchestration](adr/0005-centralize-syntax-highlighting-orchestration.md)
+- [ADR 0006: Deepen native adaptive presentation](adr/0006-deepen-native-adaptive-presentation.md)

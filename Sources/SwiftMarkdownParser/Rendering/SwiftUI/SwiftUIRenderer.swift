@@ -16,12 +16,14 @@ public struct SwiftUIRenderer {
 
     private let syntaxHighlighter: SyntaxHighlighter
     private let nativeInlineProjection: NativeInlineProjection
+    private let nativeAdaptivePresentation: NativeAdaptivePresentation
 
     /// Initialize with rendering options
     public init(options: SwiftUIRenderOptions = .init()) {
         self.options = options
         self.syntaxHighlighter = SyntaxHighlighter()
         self.nativeInlineProjection = NativeInlineProjection(options: options)
+        self.nativeAdaptivePresentation = NativeAdaptivePresentation(options: options)
     }
 
     /// Render a complete document AST to SwiftUI view
@@ -31,12 +33,7 @@ public struct SwiftUIRenderer {
         }
 
         return AnyView(
-            VStack(alignment: .leading, spacing: options.styleConfiguration.documentSpacing) {
-                ForEach(IdentifiedValue.wrap(views)) { item in
-                    item.value
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            nativeAdaptivePresentation.present(.document(views))
             .modifier(SwiftUILinkActionModifier(handler: options.linkHandler))
         )
     }
@@ -155,26 +152,7 @@ extension SwiftUIRenderer {
             try await render(node: child)
         }
 
-        return AnyView(
-            HStack(alignment: .top, spacing: options.styleConfiguration.blockQuoteSpacing) {
-                Rectangle()
-                    .fill(options.styleConfiguration.blockQuoteBorderColor)
-                    .frame(width: options.styleConfiguration.blockQuoteBorderWidth)
-
-                VStack(alignment: .leading, spacing: options.styleConfiguration.blockQuoteContentSpacing) {
-                    ForEach(IdentifiedValue.wrap(childViews)) { item in
-                        item.value
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.leading, options.styleConfiguration.blockQuotePadding)
-            .padding(.vertical, options.styleConfiguration.blockQuoteVerticalPadding)
-            .background(options.styleConfiguration.blockQuoteBackgroundColor)
-            .clipShape(.rect(cornerRadius: options.styleConfiguration.blockQuoteCornerRadius))
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isStaticText)
-        )
+        return nativeAdaptivePresentation.present(.blockQuote(childViews))
     }
 
     /// Render thematic break (horizontal rule)
@@ -243,39 +221,22 @@ extension SwiftUIRenderer {
         let itemViews = try await node.items.asyncMap { item in
             try await render(node: item)
         }
-        // Determine if each item is a task-list item so we can suppress the normal list marker.
-        let isTaskListFlags: [Bool] = node.items.map { $0 is AST.GFMTaskListItemNode }
-
-        return AnyView(
-            VStack(alignment: .leading, spacing: options.styleConfiguration.listItemSpacing) {
-                ForEach(IdentifiedValue.wrap(itemViews)) { item in
-                    HStack(alignment: .top, spacing: options.styleConfiguration.listMarkerSpacing) {
-                        // Only show the default list marker when this item is NOT a GFM task-list item.
-                        if !isTaskListFlags[item.index] {
-                            if node.isOrdered {
-                                Text(SwiftUIRenderSemantics.orderedListMarker(
-                                    startNumber: node.startNumber,
-                                    index: item.index
-                                ))
-                                    .font(options.styleConfiguration.bodyFont)
-                                    .foregroundStyle(options.styleConfiguration.listMarkerColor)
-                                    .frame(minWidth: options.styleConfiguration.listMarkerWidth, alignment: .trailing)
-                            } else {
-                                Text("•")
-                                    .font(options.styleConfiguration.bodyFont)
-                                    .foregroundStyle(options.styleConfiguration.listMarkerColor)
-                                    .frame(width: options.styleConfiguration.listMarkerWidth, alignment: .center)
-                            }
-                        }
-                        item.value
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
+        let items = zip(node.items.indices, itemViews).map { index, view in
+            let marker: NativeAdaptivePresentation.ListItem.Marker?
+            if node.items[index] is AST.GFMTaskListItemNode {
+                marker = nil
+            } else if node.isOrdered {
+                marker = .ordered(SwiftUIRenderSemantics.orderedListMarker(
+                    startNumber: node.startNumber,
+                    index: index
+                ))
+            } else {
+                marker = .bullet
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, options.styleConfiguration.listIndentation)
-            .accessibilityElement(children: .contain)
-        )
+            return NativeAdaptivePresentation.ListItem(marker: marker, content: view)
+        }
+
+        return nativeAdaptivePresentation.present(.list(items))
     }
 
     /// Render list item node
@@ -284,15 +245,7 @@ extension SwiftUIRenderer {
             try await render(node: child)
         }
 
-        return AnyView(
-            VStack(alignment: .leading, spacing: options.styleConfiguration.listItemContentSpacing) {
-                ForEach(IdentifiedValue.wrap(childViews)) { item in
-                    item.value
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
-        )
+        return nativeAdaptivePresentation.present(.content(childViews))
     }
 }
 
@@ -307,148 +260,39 @@ extension SwiftUIRenderer {
             try await render(node: child)
         }
 
-        return AnyView(
-            HStack(alignment: .top, spacing: options.styleConfiguration.listMarkerSpacing) {
-                Text("[\(node.identifier)]")
-                    .font(options.styleConfiguration.bodyFont)
-                    .foregroundStyle(options.styleConfiguration.textColor.opacity(0.65))
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: options.styleConfiguration.listItemContentSpacing) {
-                    ForEach(IdentifiedValue.wrap(childViews)) { item in
-                        item.value
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Footnote \(node.identifier)")
-        )
+        return nativeAdaptivePresentation.present(.footnote(
+            identifier: node.identifier,
+            children: childViews
+        ))
     }
 
     /// Render task list item node
     private func renderTaskListItem(_ node: AST.GFMTaskListItemNode) async throws -> AnyView {
         let content = try nativeInlineProjection.project(node.children)
 
-        return AnyView(
-            HStack(alignment: .top, spacing: options.styleConfiguration.taskListSpacing) {
-                Image(systemName: node.isChecked ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(node.isChecked ? options.styleConfiguration.taskListCheckedColor : options.styleConfiguration.taskListUncheckedColor)
-                    .font(.system(size: 18, weight: node.isChecked ? .bold : .regular))
-                    .accessibilityHidden(true)
-
-                content
-                    .font(options.styleConfiguration.bodyFont)
-                    .foregroundStyle(options.styleConfiguration.textColor)
-                    .opacity(node.isChecked ? 0.7 : 1.0)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.vertical, 2)
-            .background(
-                node.isChecked ?
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(options.styleConfiguration.taskListCheckedColor.opacity(0.08))
-                : nil
-            )
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(
-                "\(node.isChecked ? "Completed task" : "Incomplete task"): \(content.accessibilityText)"
-            )
-        )
+        return nativeAdaptivePresentation.present(.task(
+            isChecked: node.isChecked,
+            content: content
+        ))
     }
 
     /// Render table node
     private func renderTable(_ node: AST.GFMTableNode) async throws -> AnyView {
-        let headerRows = node.rows.filter { $0.isHeader }
-        let bodyRows = node.rows.filter { !$0.isHeader }
-
-        let headerViews = try await headerRows.asyncMap { row in
-            try await renderTableRow(row, alignments: node.alignments, isHeader: true)
-        }
-
-        let bodyViews = try await bodyRows.asyncMap { row in
-            try await renderTableRow(row, alignments: node.alignments, isHeader: false)
-        }
-
-        return AnyView(
-            ScrollView(.horizontal, showsIndicators: true) {
-                Grid(alignment: .topLeading, horizontalSpacing: 0, verticalSpacing: 0) {
-                    // Header
-                    if !headerViews.isEmpty {
-                        ForEach(IdentifiedValue.wrap(headerViews)) { item in
-                            item.value
-                        }
-
-                        Divider()
-                            .background(options.styleConfiguration.tableBorderColor)
-                            .gridCellUnsizedAxes(.horizontal)
-                    }
-
-                    // Body
-                    ForEach(IdentifiedValue.wrap(bodyViews)) { item in
-                        item.value
-
-                        if item.index < bodyViews.count - 1 {
-                            Divider()
-                                .background(options.styleConfiguration.tableBorderColor)
-                                .gridCellUnsizedAxes(.horizontal)
-                        }
-                    }
-                }
-                .background(options.styleConfiguration.tableBackgroundColor)
-                .clipShape(.rect(cornerRadius: options.styleConfiguration.tableCornerRadius))
-                .overlay(
-                    RoundedRectangle(cornerRadius: options.styleConfiguration.tableCornerRadius)
-                        .stroke(options.styleConfiguration.tableBorderColor, lineWidth: options.styleConfiguration.tableBorderWidth)
+        let rows = try node.rows.map { row in
+            let cells = try row.cells.enumerated().map { index, cell in
+                let nodes: [any ASTNode] = cell.children.isEmpty
+                    ? [AST.TextNode(content: cell.content)]
+                    : cell.children
+                return NativeAdaptivePresentation.Table.Cell(
+                    content: try nativeInlineProjection.project(nodes),
+                    alignment: index < node.alignments.count ? node.alignments[index] : .none,
+                    columnIndex: index
                 )
             }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("Table")
-        )
-    }
-
-    /// Render table row
-    private func renderTableRow(_ row: AST.GFMTableRowNode, alignments: [GFMTableAlignment], isHeader: Bool) async throws -> AnyView {
-        let cellContents = try row.cells.map { cell in
-            let nodes: [any ASTNode] = cell.children.isEmpty
-                ? [AST.TextNode(content: cell.content)]
-                : cell.children
-            return try nativeInlineProjection.project(nodes)
+            return NativeAdaptivePresentation.Table.Row(isHeader: row.isHeader, cells: cells)
         }
 
-        return AnyView(
-            GridRow(alignment: .top) {
-                ForEach(IdentifiedValue.wrap(cellContents)) { item in
-                    let alignment = item.index < alignments.count ? alignments[item.index] : .none
-
-                    item.value
-                        .font(isHeader ? options.styleConfiguration.tableHeaderFont : options.styleConfiguration.tableBodyFont)
-                        .foregroundStyle(isHeader ? options.styleConfiguration.tableHeaderTextColor : options.styleConfiguration.tableBodyTextColor)
-                        .fontWeight(isHeader ? .bold : .regular)
-                        .frame(maxWidth: .infinity, alignment: swiftUIAlignment(from: alignment))
-                        .padding(options.styleConfiguration.tableCellPadding)
-                        .background(isHeader ? options.styleConfiguration.tableHeaderBackgroundColor : options.styleConfiguration.tableCellBackgroundColor)
-                        .overlay(
-                            Rectangle()
-                                .stroke(options.styleConfiguration.tableBorderColor, lineWidth: options.styleConfiguration.tableBorderWidth)
-                        )
-                        .accessibilityLabel(isHeader ? "Header: \(item.value.accessibilityText)" : item.value.accessibilityText)
-                        .accessibilityAddTraits(isHeader ? .isHeader : .isStaticText)
-                }
-            }
-        )
-    }
-
-    /// Convert GFM table alignment to SwiftUI alignment
-    private func swiftUIAlignment(from alignment: GFMTableAlignment) -> Alignment {
-        switch alignment {
-        case .left, .none:
-            return .leading
-        case .center:
-            return .center
-        case .right:
-            return .trailing
-        }
+        return nativeAdaptivePresentation.present(.table(.init(rows: rows)))
     }
 }
 
@@ -521,57 +365,10 @@ extension SwiftUIRenderer {
 
     /// Fallback rendering for Mermaid when WebView is not available
     private func renderMermaidFallback(_ node: AST.MermaidDiagramNode) -> AnyView {
-        return AnyView(
-            VStack(alignment: .leading, spacing: 8) {
-                // Header with diagram type
-                HStack {
-                    Image(systemName: "chart.bar.fill")
-                        .foregroundStyle(.blue)
-                    Text("Mermaid Diagram")
-                        .font(options.styleConfiguration.codeFont.bold())
-                        .foregroundStyle(options.styleConfiguration.textColor)
-
-                    if let diagramType = node.diagramType {
-                        Text("(\(diagramType))")
-                            .font(options.styleConfiguration.codeFont)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.horizontal, options.styleConfiguration.codeBlockPadding)
-                .padding(.top, options.styleConfiguration.codeBlockPadding)
-
-                // Code content
-                ScrollView(.horizontal) {
-                    Text(node.content)
-                        .font(options.styleConfiguration.codeFont)
-                        .foregroundStyle(options.styleConfiguration.codeTextColor)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, options.styleConfiguration.codeBlockPadding)
-                        .padding(.bottom, options.styleConfiguration.codeBlockPadding)
-                }
-            }
-            .background(options.styleConfiguration.codeBackgroundColor)
-            .clipShape(.rect(cornerRadius: options.styleConfiguration.codeCornerRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: options.styleConfiguration.codeCornerRadius)
-                    .stroke(Color.blue.opacity(0.3), lineWidth: 2)
-            )
-            .accessibilityLabel("Mermaid diagram: \(node.diagramType ?? "unknown type")")
-            .accessibilityValue(node.content)
-            .accessibilityAddTraits(.isStaticText)
-        )
-    }
-}
-
-private struct IdentifiedValue<Value>: Identifiable {
-    let id: Int
-    let index: Int
-    let value: Value
-
-    static func wrap(_ values: [Value]) -> [Self] {
-        values.enumerated().map { index, value in
-            Self(id: index, index: index, value: value)
-        }
+        nativeAdaptivePresentation.present(.mermaidFallback(
+            diagramType: node.diagramType,
+            source: node.content
+        ))
     }
 }
 

@@ -94,9 +94,14 @@ struct SwiftUIRendererTests {
             AST.HTMLInlineNode(content: "<kbd>K</kbd>")
         ])
 
-        _ = try await SwiftUIRenderer(
+        let rendered = try await SwiftUIRenderer(
             options: SwiftUIRenderOptions(richContentHandlers: handlers)
         ).render(document)
+
+        #if os(macOS)
+        let image = ImageRenderer(content: rendered.frame(width: 240, alignment: .leading))
+        _ = try #require(image.cgImage)
+        #endif
 
         #expect(recorder.values == [
             "mermaid:graph TD; A-->B",
@@ -283,6 +288,63 @@ struct SwiftUIRendererTests {
     }
 
     #if os(macOS)
+    @Test("Adapts native containers to width and accessibility text sizes")
+    func adaptiveNativePresentation() async throws {
+        let markdown = """
+        > A quoted explanation that remains readable without spending the narrow viewport on decoration.
+
+        7. A numbered item with enough content to exercise the adaptive marker layout.
+
+        - [x] A completed task with a descriptive label.
+
+        | Capability | Native behavior | Status |
+        |:-----------|:----------------|-------:|
+        | Tables | Become labeled rows when a grid no longer fits | Ready |
+        | Type | Honors accessibility Dynamic Type sizes | Ready |
+
+        A claim with a note[^source].
+
+        [^source]: Supporting evidence that can move below its identifier.
+        """
+        let document = try SwiftMarkdownParser().parse(markdown)
+        let content = try await SwiftUIRenderer().render(document)
+
+        let wideRenderer = ImageRenderer(content:
+            content
+                .frame(width: 720, alignment: .leading)
+                .padding(12)
+                .background(.white)
+        )
+        let narrowRenderer = ImageRenderer(content:
+            content
+                .frame(width: 240, alignment: .leading)
+                .padding(12)
+                .background(.white)
+        )
+        let accessibilityRenderer = ImageRenderer(content:
+            content
+                .environment(\.dynamicTypeSize, .accessibility3)
+                .frame(width: 720, alignment: .leading)
+                .padding(12)
+                .background(.white)
+        )
+
+        let wide = try #require(wideRenderer.cgImage)
+        let narrow = try #require(narrowRenderer.cgImage)
+        let accessibility = try #require(accessibilityRenderer.cgImage)
+        #expect(wide.width == 744)
+        #expect(narrow.width == 264)
+        #expect(accessibility.width == 744)
+        #expect(narrow.height > wide.height)
+        #expect(accessibility.height > wide.height)
+
+        if let output = ProcessInfo.processInfo.environment["SWIFTMARKDOWNPARSER_ADAPTIVE_RENDER_OUTPUT"] {
+            let representation = NSBitmapImageRep(cgImage: accessibility)
+            let data = try #require(representation.representation(using: .png, properties: [:]))
+            try data.write(to: URL(fileURLWithPath: output), options: .atomic)
+        }
+    }
+
     @Test("Materializes wrapping mixed inline content into pixels")
     func materializesMixedInlineContent() throws {
         let projection = NativeInlineProjection(options: SwiftUIRenderOptions(

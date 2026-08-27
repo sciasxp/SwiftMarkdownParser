@@ -81,6 +81,18 @@ task lists, code blocks, and images. Semantic code highlighting is opt-in via
 Unsupported and unlabelled languages retain the plain code style without losing
 source text.
 
+## Adaptive native presentation
+
+The returned view is container-aware. It does not assume a device class or read
+global screen bounds. Native lists, task rows, block quotes, footnotes, tables,
+and Mermaid fallbacks adapt to the width proposed by their host and to
+accessibility Dynamic Type categories.
+
+Tables use a dense aligned grid while it fits. In narrow containers, or at an
+accessibility text size, the same projected cells become labeled rows that keep
+column headers beside their values. Rich inline handlers are materialized once;
+choosing a presentation does not reinvoke host adapters.
+
 ## Supported document content
 
 The native renderer handles CommonMark nodes, GFM tables, task lists,
