@@ -32,6 +32,42 @@ private final class RichContentRecorder: @unchecked Sendable {
     }
 }
 
+@available(iOS 17.0, macOS 14.0, *)
+private extension SwiftUIRichContentRequest {
+    var testDescription: String {
+        switch self {
+        case let .image(node, source):
+            "image:\(node.altText):\(source.lastPathComponent)"
+        case let .mermaid(node, configuration):
+            "mermaid:\(configuration.theme.rawValue):\(node.content)"
+        case let .mathBlock(node):
+            "math-block:\(node.content)"
+        case let .inlineMath(node):
+            "math-inline:\(node.content)"
+        case let .htmlBlock(node):
+            "html-block:\(node.content)"
+        case let .htmlInline(node):
+            "html-inline:\(node.content)"
+        }
+    }
+}
+
+@available(iOS 17.0, macOS 14.0, *)
+@MainActor
+private func makeNativeInlineProjection(
+    options: SwiftUIRenderOptions = SwiftUIRenderOptions()
+) -> NativeInlineProjection {
+    let adaptivePresentation = NativeAdaptivePresentation(options: options)
+    let richContentProjection = NativeRichContentProjection(
+        options: options,
+        adaptivePresentation: adaptivePresentation
+    )
+    return NativeInlineProjection(
+        options: options,
+        richContentProjection: richContentProjection
+    )
+}
+
 @Suite("SwiftUI output seam")
 @MainActor
 struct SwiftUIRendererTests {
@@ -58,8 +94,11 @@ struct SwiftUIRendererTests {
             baseURL: URL(string: "https://example.com/docs/"),
             styleConfiguration: .minimal,
             syntaxHighlightingTheme: .xcode,
-            linkHandler: { _ in },
-            imageHandler: { url in AnyView(Text(url.lastPathComponent)) }
+            richContentAdapter: SwiftUIRichContentAdapter { request in
+                guard case let .image(_, source) = request else { return nil }
+                return AnyView(Text(source.lastPathComponent))
+            },
+            linkHandler: { _ in }
         )
 
         _ = try await SwiftUIRenderer(options: options).render(document)
@@ -76,26 +115,31 @@ struct SwiftUIRendererTests {
         ]))
     }
 
-    @Test("Routes rich nodes through host adapters")
+    @Test("Routes every rich request through one host adapter and honors decline")
     func richContentAdapters() async throws {
         let recorder = RichContentRecorder()
-        let handlers = SwiftUIRichContentHandlers(
-            mermaid: { node, _ in recorder.record("mermaid:\(node.content)"); return AnyView(EmptyView()) },
-            mathBlock: { node in recorder.record("math-block:\(node.content)"); return AnyView(EmptyView()) },
-            inlineMath: { node in recorder.record("math-inline:\(node.content)"); return AnyView(EmptyView()) },
-            htmlBlock: { node in recorder.record("html-block:\(node.content)"); return AnyView(EmptyView()) },
-            htmlInline: { node in recorder.record("html-inline:\(node.content)"); return AnyView(EmptyView()) }
-        )
+        let adapter = SwiftUIRichContentAdapter { request in
+            let description = request.testDescription
+            recorder.record(description)
+            if case .htmlBlock = request {
+                return nil
+            }
+            return AnyView(Text(description))
+        }
         let document = AST.DocumentNode(children: [
             AST.MermaidDiagramNode(content: "graph TD; A-->B"),
             AST.MathBlockNode(content: "x^2"),
             AST.InlineMathNode(content: "x"),
             AST.HTMLBlockNode(content: "<aside>Note</aside>"),
-            AST.HTMLInlineNode(content: "<kbd>K</kbd>")
+            AST.HTMLInlineNode(content: "<kbd>K</kbd>"),
+            AST.ImageNode(url: "https://example.com/logo.png", altText: "Logo")
         ])
 
         let rendered = try await SwiftUIRenderer(
-            options: SwiftUIRenderOptions(richContentHandlers: handlers)
+            options: SwiftUIRenderOptions(
+                mermaidConfiguration: MermaidConfiguration(theme: .dark),
+                richContentAdapter: adapter
+            )
         ).render(document)
 
         #if os(macOS)
@@ -104,22 +148,24 @@ struct SwiftUIRendererTests {
         #endif
 
         #expect(recorder.values == [
-            "mermaid:graph TD; A-->B",
+            "mermaid:dark:graph TD; A-->B",
             "math-block:x^2",
             "math-inline:x",
             "html-block:<aside>Note</aside>",
-            "html-inline:<kbd>K</kbd>"
+            "html-inline:<kbd>K</kbd>",
+            "image:Logo:logo.png"
         ])
     }
 
-    @Test("Resolves image destinations before invoking the host handler")
+    @Test("Resolves image destinations before invoking the host adapter")
     func resolvesImageDestination() async throws {
         let document = try SwiftMarkdownParser().parse("![Logo](images/logo.png)")
         let recorder = URLRecorder()
         let options = SwiftUIRenderOptions(
             baseURL: URL(string: "https://example.com/docs/")!,
-            imageHandler: { url in
-                recorder.record(url)
+            richContentAdapter: SwiftUIRichContentAdapter { request in
+                guard case let .image(_, source) = request else { return nil }
+                recorder.record(source)
                 return AnyView(EmptyView())
             }
         )
@@ -129,16 +175,19 @@ struct SwiftUIRendererTests {
         #expect(recorder.urls == [URL(string: "https://example.com/docs/images/logo.png")!])
     }
 
-    @Test("Does not send unsafe image destinations to the host handler")
+    @Test("Does not send unsafe image destinations to the host adapter")
     func rejectsUnsafeImageDestination() async throws {
         let document = AST.DocumentNode(children: [
             AST.ImageNode(url: "javascript:alert(1)", altText: "Unsafe", title: nil)
         ])
         let recorder = URLRecorder()
-        let options = SwiftUIRenderOptions(imageHandler: { url in
-            recorder.record(url)
-            return AnyView(EmptyView())
-        })
+        let options = SwiftUIRenderOptions(
+            richContentAdapter: SwiftUIRichContentAdapter { request in
+                guard case let .image(_, source) = request else { return nil }
+                recorder.record(source)
+                return AnyView(EmptyView())
+            }
+        )
 
         _ = try await SwiftUIRenderer(options: options).render(document)
 
@@ -180,7 +229,7 @@ struct SwiftUIRendererTests {
             AST.FootnoteReferenceNode(identifier: "source")
         ]
 
-        let content = try NativeInlineProjection(
+        let content = try makeNativeInlineProjection(
             options: SwiftUIRenderOptions(baseURL: URL(string: "https://example.com/docs/"))
         ).project(nodes)
 
@@ -190,16 +239,18 @@ struct SwiftUIRendererTests {
     @Test("Routes rich inline adapters through every native container")
     func richInlineAdaptersAcrossContainers() async throws {
         let recorder = RichContentRecorder()
-        let handlers = SwiftUIRichContentHandlers(
-            inlineMath: { node in
+        let adapter = SwiftUIRichContentAdapter { request in
+            switch request {
+            case let .inlineMath(node):
                 recorder.record("math:\(node.content)")
                 return AnyView(Text(node.content))
-            },
-            htmlInline: { node in
+            case let .htmlInline(node):
                 recorder.record("html:\(node.content)")
                 return AnyView(Text(node.content))
+            case .image, .mermaid, .mathBlock, .htmlBlock:
+                return nil
             }
-        )
+        }
         let document = AST.DocumentNode(children: [
             AST.ParagraphNode(children: [AST.InlineMathNode(content: "paragraph")]),
             AST.HeadingNode(level: 2, children: [AST.HTMLInlineNode(content: "heading")]),
@@ -220,7 +271,7 @@ struct SwiftUIRendererTests {
         ])
 
         _ = try await SwiftUIRenderer(
-            options: SwiftUIRenderOptions(richContentHandlers: handlers)
+            options: SwiftUIRenderOptions(richContentAdapter: adapter)
         ).render(document)
 
         #expect(recorder.values == [
@@ -252,9 +303,10 @@ struct SwiftUIRendererTests {
 
         _ = try await SwiftUIRenderer(options: SwiftUIRenderOptions(
             baseURL: URL(string: "https://example.com/docs/"),
-            imageHandler: { url in
-                recorder.record(url)
-                return AnyView(Text(url.lastPathComponent))
+            richContentAdapter: SwiftUIRichContentAdapter { request in
+                guard case let .image(_, source) = request else { return nil }
+                recorder.record(source)
+                return AnyView(Text(source.lastPathComponent))
             }
         )).render(document)
 
@@ -266,13 +318,14 @@ struct SwiftUIRendererTests {
     @Test("Validates the complete inline tree before invoking adapters")
     func inlineFailureIsAtomic() {
         let recorder = RichContentRecorder()
-        let projection = NativeInlineProjection(options: SwiftUIRenderOptions(
-            richContentHandlers: SwiftUIRichContentHandlers(
-                inlineMath: { node in
+        let projection = makeNativeInlineProjection(options: SwiftUIRenderOptions(
+            richContentAdapter: SwiftUIRichContentAdapter { request in
+                if case let .inlineMath(node) = request {
                     recorder.record(node.content)
                     return AnyView(Text(node.content))
                 }
-            )
+                return nil
+            }
         ))
         let nodes: [any ASTNode] = [
             AST.StrongEmphasisNode(children: [
@@ -347,30 +400,31 @@ struct SwiftUIRendererTests {
 
     @Test("Materializes wrapping mixed inline content into pixels")
     func materializesMixedInlineContent() throws {
-        let projection = NativeInlineProjection(options: SwiftUIRenderOptions(
+        let projection = makeNativeInlineProjection(options: SwiftUIRenderOptions(
             baseURL: URL(string: "https://example.com/docs/"),
-            richContentHandlers: SwiftUIRichContentHandlers(
-                inlineMath: { node in
+            richContentAdapter: SwiftUIRichContentAdapter { request in
+                switch request {
+                case let .inlineMath(node):
                     AnyView(
                         Text(node.content)
                             .padding(.horizontal, 4)
                             .background(.yellow.opacity(0.35), in: Capsule())
                     )
-                },
-                htmlInline: { node in
+                case let .htmlInline(node):
                     AnyView(
                         Text(node.content)
                             .padding(.horizontal, 4)
                             .background(.mint.opacity(0.35), in: Capsule())
                     )
+                case let .image(_, source):
+                    AnyView(
+                        Text(source.deletingPathExtension().lastPathComponent.uppercased())
+                            .padding(.horizontal, 4)
+                            .background(.blue.opacity(0.2), in: Capsule())
+                    )
+                case .mermaid, .mathBlock, .htmlBlock:
+                    nil
                 }
-            ),
-            imageHandler: { url in
-                AnyView(
-                    Text(url.deletingPathExtension().lastPathComponent.uppercased())
-                        .padding(.horizontal, 4)
-                        .background(.blue.opacity(0.2), in: Capsule())
-                )
             }
         ))
         let content = try projection.project([

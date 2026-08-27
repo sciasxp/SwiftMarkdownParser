@@ -7,14 +7,12 @@ import SwiftUI
 struct NativeInlineProjection {
     private let baseURL: URL?
     private let style: SwiftUIStyleConfiguration
-    private let handlers: SwiftUIRichContentHandlers
-    private let imageHandler: (@Sendable (URL) -> AnyView)?
+    private let richContentProjection: NativeRichContentProjection
 
-    init(options: SwiftUIRenderOptions) {
+    init(options: SwiftUIRenderOptions, richContentProjection: NativeRichContentProjection) {
         self.baseURL = options.baseURL
         self.style = options.styleConfiguration
-        self.handlers = options.richContentHandlers
-        self.imageHandler = options.imageHandler
+        self.richContentProjection = richContentProjection
     }
 
     /// Validates the complete inline tree before invoking any host adapter.
@@ -41,13 +39,13 @@ struct NativeInlineProjection {
             case .lineBreak:
                 materialized.append(.lineBreak())
             case let .image(node, source, styles, link):
-                let image = imageView(for: node, source: source)
+                let image = richContentProjection.project(.image(node: node, source: source))
                 materialized.append(.view(styled(image, styles: styles, link: link)))
             case let .inlineMath(node, styles, link):
-                let content = handlers.inlineMath?(node) ?? inlineMathFallback(node)
+                let content = richContentProjection.project(.inlineMath(node))
                 materialized.append(.view(styled(content, styles: styles, link: link)))
             case let .htmlInline(node, styles, link):
-                let content = handlers.htmlInline?(node) ?? htmlInlineFallback(node)
+                let content = richContentProjection.project(.htmlInline(node))
                 materialized.append(.view(styled(content, styles: styles, link: link)))
             }
         }
@@ -147,72 +145,6 @@ struct NativeInlineProjection {
         )
     }
 
-    private func imageView(for node: AST.ImageNode, source: URL?) -> AnyView {
-        guard let source else {
-            return AnyView(
-                Text(node.altText)
-                    .accessibilityLabel(node.altText)
-            )
-        }
-        if let imageHandler {
-            return imageHandler(source)
-        }
-        return AnyView(
-            AsyncImage(url: source) { phase in
-                switch phase {
-                case .empty:
-                    ProgressView()
-                        .frame(height: style.imagePlaceholderHeight)
-                        .accessibilityLabel("Loading image: \(node.altText)")
-                case let .success(image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: style.imageMaxWidth)
-                        .clipShape(.rect(cornerRadius: style.imageCornerRadius))
-                case .failure:
-                    VStack(spacing: 8) {
-                        Image(systemName: "photo")
-                            .foregroundStyle(.secondary)
-                            .accessibilityHidden(true)
-                        Text(node.altText)
-                    }
-                    .frame(maxWidth: style.imageMaxWidth)
-                    .frame(minHeight: style.imagePlaceholderHeight)
-                @unknown default:
-                    Text(node.altText)
-                }
-            }
-            .accessibilityLabel(node.altText)
-            .accessibilityAddTraits(.isImage)
-        )
-    }
-
-    private func inlineMathFallback(_ node: AST.InlineMathNode) -> AnyView {
-        AnyView(
-            Text(node.content)
-                .font(style.codeFont)
-                .foregroundStyle(style.codeTextColor)
-                .padding(.horizontal, style.codeSpanPadding)
-                .background(style.codeBackgroundColor)
-                .clipShape(.rect(cornerRadius: style.codeCornerRadius))
-                .accessibilityLabel("Math: \(node.content)")
-                .accessibilityAddTraits(.isStaticText)
-        )
-    }
-
-    private func htmlInlineFallback(_ node: AST.HTMLInlineNode) -> AnyView {
-        AnyView(
-            Text(node.content)
-                .font(style.codeFont)
-                .foregroundStyle(style.codeTextColor)
-                .padding(.horizontal, style.codeSpanPadding)
-                .background(style.codeBackgroundColor)
-                .clipShape(.rect(cornerRadius: style.codeCornerRadius))
-                .accessibilityLabel("HTML: \(node.content)")
-                .accessibilityAddTraits(.isStaticText)
-        )
-    }
 }
 
 @available(iOS 17.0, macOS 14.0, *)

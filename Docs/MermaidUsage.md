@@ -47,9 +47,10 @@ let html = try await HTMLRenderer().renderFragment(document)
 ## SwiftUI Integration
 
 The native renderer shows an accessible source fallback by default. Supply a
-`SwiftUIRichContentHandlers.mermaid` adapter when the application owns a visual
-Mermaid implementation; the adapter receives the configured
-`MermaidConfiguration`.
+`SwiftUIRichContentAdapter` when the application owns a visual Mermaid
+implementation; its Mermaid request receives the configured
+`MermaidConfiguration`. Return `nil` for requests that should keep their native
+fallback.
 
 ```swift
 import SwiftUI
@@ -90,9 +91,15 @@ struct ContentView: View {
             let ast = try parser.parse(markdown)
             let renderer = SwiftUIRenderer(options: SwiftUIRenderOptions(
                 mermaidConfiguration: .default,
-                richContentHandlers: .init(mermaid: { node, configuration in
-                    AnyView(MyMermaidView(source: node.content, configuration: configuration))
-                })
+                richContentAdapter: SwiftUIRichContentAdapter { request in
+                    guard case let .mermaid(node, configuration) = request else {
+                        return nil
+                    }
+                    return AnyView(MyMermaidView(
+                        source: node.content,
+                        configuration: configuration
+                    ))
+                }
             ))
             self.content = try await renderer.render(ast)
         } catch {

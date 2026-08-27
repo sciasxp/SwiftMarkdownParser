@@ -8,28 +8,34 @@ public import Foundation
 
 // MARK: - SwiftUIRenderOptions
 
-/// Host adapters for rich content that has no faithful system SwiftUI primitive.
-/// Missing adapters deliberately fall back to readable source content.
+/// One semantic request at the native rich-content seam.
 @available(iOS 17.0, macOS 14.0, *)
-public struct SwiftUIRichContentHandlers: Sendable {
-    public let mermaid: (@Sendable (AST.MermaidDiagramNode, MermaidConfiguration) -> AnyView)?
-    public let mathBlock: (@Sendable (AST.MathBlockNode) -> AnyView)?
-    public let inlineMath: (@Sendable (AST.InlineMathNode) -> AnyView)?
-    public let htmlBlock: (@Sendable (AST.HTMLBlockNode) -> AnyView)?
-    public let htmlInline: (@Sendable (AST.HTMLInlineNode) -> AnyView)?
+public enum SwiftUIRichContentRequest: Sendable {
+    /// A validated image destination. Unsafe or unresolved destinations never reach the adapter.
+    case image(node: AST.ImageNode, source: URL)
+    case mermaid(node: AST.MermaidDiagramNode, configuration: MermaidConfiguration)
+    case mathBlock(AST.MathBlockNode)
+    case inlineMath(AST.InlineMathNode)
+    case htmlBlock(AST.HTMLBlockNode)
+    case htmlInline(AST.HTMLInlineNode)
+}
 
-    public init(
-        mermaid: (@Sendable (AST.MermaidDiagramNode, MermaidConfiguration) -> AnyView)? = nil,
-        mathBlock: (@Sendable (AST.MathBlockNode) -> AnyView)? = nil,
-        inlineMath: (@Sendable (AST.InlineMathNode) -> AnyView)? = nil,
-        htmlBlock: (@Sendable (AST.HTMLBlockNode) -> AnyView)? = nil,
-        htmlInline: (@Sendable (AST.HTMLInlineNode) -> AnyView)? = nil
-    ) {
-        self.mermaid = mermaid
-        self.mathBlock = mathBlock
-        self.inlineMath = inlineMath
-        self.htmlBlock = htmlBlock
-        self.htmlInline = htmlInline
+/// Host adapter for rich content that has no single faithful system SwiftUI primitive.
+/// Returning `nil` declines a request and selects the renderer's readable native fallback.
+@available(iOS 17.0, macOS 14.0, *)
+public struct SwiftUIRichContentAdapter: Sendable {
+    public typealias Renderer = @MainActor @Sendable (SwiftUIRichContentRequest) -> AnyView?
+
+    private let renderer: Renderer
+
+    public init(render: @escaping Renderer) {
+        self.renderer = render
+    }
+
+    /// Materialize a request or return `nil` to use the native fallback.
+    @MainActor
+    public func render(_ request: SwiftUIRichContentRequest) -> AnyView? {
+        renderer(request)
     }
 }
 
@@ -49,31 +55,26 @@ public struct SwiftUIRenderOptions: Sendable {
     /// Unsupported or unlabelled blocks retain the configured plain-code appearance.
     public let syntaxHighlightingTheme: SyntaxHighlightingTheme?
 
-    /// Optional host renderers for Mermaid, math, and raw HTML.
-    public let richContentHandlers: SwiftUIRichContentHandlers
+    /// Optional host adapter for images, Mermaid, math, and raw HTML.
+    public let richContentAdapter: SwiftUIRichContentAdapter?
 
     /// Link handler for tap actions
     public let linkHandler: (@Sendable (URL) -> Void)?
-
-    /// Image handler for custom image loading
-    public let imageHandler: (@Sendable (URL) -> AnyView)?
 
     public init(
         baseURL: URL? = nil,
         styleConfiguration: SwiftUIStyleConfiguration = SwiftUIStyleConfiguration(),
         mermaidConfiguration: MermaidConfiguration = .default,
         syntaxHighlightingTheme: SyntaxHighlightingTheme? = nil,
-        richContentHandlers: SwiftUIRichContentHandlers = .init(),
-        linkHandler: (@Sendable (URL) -> Void)? = nil,
-        imageHandler: (@Sendable (URL) -> AnyView)? = nil
+        richContentAdapter: SwiftUIRichContentAdapter? = nil,
+        linkHandler: (@Sendable (URL) -> Void)? = nil
     ) {
         self.baseURL = baseURL
         self.styleConfiguration = styleConfiguration
         self.mermaidConfiguration = mermaidConfiguration
         self.syntaxHighlightingTheme = syntaxHighlightingTheme
-        self.richContentHandlers = richContentHandlers
+        self.richContentAdapter = richContentAdapter
         self.linkHandler = linkHandler
-        self.imageHandler = imageHandler
     }
 }
 

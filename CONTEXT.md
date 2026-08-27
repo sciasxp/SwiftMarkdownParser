@@ -32,6 +32,10 @@ _Avoid_: Shared rendering pipeline, render context
 The SwiftUI-output interpretation of inline Markdown meaning into an ordered native presentation independent of its containing block, preserving styles, safe destinations, breaks, references, and rich-content requirements without silently discarding unsupported meaning.
 _Avoid_: Inline rendering pipeline, text flattening
 
+**Native Rich Content Seam**:
+The SwiftUI-output boundary where one host adapter may materialize a validated rich-content request or decline it, while native projection preserves readable accessible fallbacks and unsafe image destinations never cross the boundary.
+_Avoid_: Rich-content handler bag, per-node closure bundle
+
 **Native Adaptive Presentation**:
 The SwiftUI-output interpretation of projected block content into container-aware native forms, choosing layout from available space and accessibility text size while preserving document order, labels, alignment, and host-provided content.
 _Avoid_: Device-specific layout, screen-size branching

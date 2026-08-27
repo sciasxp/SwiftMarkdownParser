@@ -17,13 +17,24 @@ public struct SwiftUIRenderer {
     private let syntaxHighlighter: SyntaxHighlighter
     private let nativeInlineProjection: NativeInlineProjection
     private let nativeAdaptivePresentation: NativeAdaptivePresentation
+    private let nativeRichContentProjection: NativeRichContentProjection
 
     /// Initialize with rendering options
     public init(options: SwiftUIRenderOptions = .init()) {
+        let adaptivePresentation = NativeAdaptivePresentation(options: options)
+        let richContentProjection = NativeRichContentProjection(
+            options: options,
+            adaptivePresentation: adaptivePresentation
+        )
+
         self.options = options
         self.syntaxHighlighter = SyntaxHighlighter()
-        self.nativeInlineProjection = NativeInlineProjection(options: options)
-        self.nativeAdaptivePresentation = NativeAdaptivePresentation(options: options)
+        self.nativeInlineProjection = NativeInlineProjection(
+            options: options,
+            richContentProjection: richContentProjection
+        )
+        self.nativeAdaptivePresentation = adaptivePresentation
+        self.nativeRichContentProjection = richContentProjection
     }
 
     /// Render a complete document AST to SwiftUI view
@@ -82,7 +93,7 @@ public struct SwiftUIRenderer {
             return renderThematicBreak(thematicBreakNode)
 
         case let htmlBlockNode as AST.HTMLBlockNode:
-            return renderHTMLBlock(htmlBlockNode)
+            return nativeRichContentProjection.project(.htmlBlock(htmlBlockNode))
 
         // GFM Extensions
         case let taskListItemNode as AST.GFMTaskListItemNode:
@@ -97,11 +108,14 @@ public struct SwiftUIRenderer {
 
         // Mermaid Support
         case let mermaidNode as AST.MermaidDiagramNode:
-            return renderMermaidDiagram(mermaidNode)
+            return nativeRichContentProjection.project(.mermaid(
+                node: mermaidNode,
+                configuration: options.mermaidConfiguration
+            ))
 
         // Math Support
         case let mathBlockNode as AST.MathBlockNode:
-            return renderMathBlock(mathBlockNode)
+            return nativeRichContentProjection.project(.mathBlock(mathBlockNode))
 
         default:
             throw SwiftUIRenderingError.unsupportedNodeType(node.nodeType)
@@ -293,82 +307,6 @@ extension SwiftUIRenderer {
         }
 
         return nativeAdaptivePresentation.present(.table(.init(rows: rows)))
-    }
-}
-
-// MARK: - HTML Rendering (Fallback)
-
-@available(iOS 17.0, macOS 14.0, *)
-extension SwiftUIRenderer {
-
-    /// Render HTML block node (fallback to plain text)
-    private func renderHTMLBlock(_ node: AST.HTMLBlockNode) -> AnyView {
-        if let handler = options.richContentHandlers.htmlBlock {
-            return handler(node)
-        }
-
-        return AnyView(
-            Text(node.content)
-                .font(options.styleConfiguration.codeFont)
-                .foregroundStyle(options.styleConfiguration.codeTextColor)
-                .padding(options.styleConfiguration.codeBlockPadding)
-                .background(options.styleConfiguration.codeBackgroundColor)
-                .clipShape(.rect(cornerRadius: options.styleConfiguration.codeCornerRadius))
-                .accessibilityLabel("HTML content")
-                .accessibilityValue(node.content)
-                .accessibilityAddTraits(.isStaticText)
-        )
-    }
-}
-
-// MARK: - Math Rendering
-
-@available(iOS 17.0, macOS 14.0, *)
-extension SwiftUIRenderer {
-
-    /// Render math block node (display math)
-    private func renderMathBlock(_ node: AST.MathBlockNode) -> AnyView {
-        if let handler = options.richContentHandlers.mathBlock {
-            return handler(node)
-        }
-
-        return AnyView(
-            ScrollView(.horizontal, showsIndicators: true) {
-                Text(node.content)
-                    .font(options.styleConfiguration.codeFont)
-                    .foregroundStyle(options.styleConfiguration.codeTextColor)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(options.styleConfiguration.codeBlockPadding)
-            }
-            .background(options.styleConfiguration.codeBackgroundColor)
-            .clipShape(.rect(cornerRadius: options.styleConfiguration.codeCornerRadius))
-            .accessibilityLabel("Math expression")
-            .accessibilityValue(node.content)
-            .accessibilityAddTraits(.isStaticText)
-        )
-    }
-}
-
-// MARK: - Mermaid Rendering
-
-@available(iOS 17.0, macOS 14.0, *)
-extension SwiftUIRenderer {
-
-    /// Render Mermaid diagram node
-    private func renderMermaidDiagram(_ node: AST.MermaidDiagramNode) -> AnyView {
-        if let handler = options.richContentHandlers.mermaid {
-            return handler(node, options.mermaidConfiguration)
-        }
-
-        return renderMermaidFallback(node)
-    }
-
-    /// Fallback rendering for Mermaid when WebView is not available
-    private func renderMermaidFallback(_ node: AST.MermaidDiagramNode) -> AnyView {
-        nativeAdaptivePresentation.present(.mermaidFallback(
-            diagramType: node.diagramType,
-            source: node.content
-        ))
     }
 }
 

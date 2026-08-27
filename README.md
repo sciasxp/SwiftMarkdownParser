@@ -201,7 +201,7 @@ always recognized. Every parser-produced node includes a precise source range.
 
 HTML renders Mermaid through the configured browser runtime. Native SwiftUI
 preserves a readable source fallback and can delegate visual rendering through
-`SwiftUIRichContentHandlers.mermaid`:
+one `SwiftUIRichContentAdapter`:
 
 ````swift
 let diagramMarkdown = """
@@ -219,9 +219,15 @@ let html = try await HTMLRenderer().renderFragment(document)
 // HTML output includes embedded Mermaid diagram
 
 let nativeOptions = SwiftUIRenderOptions(
-    richContentHandlers: .init(mermaid: { node, configuration in
-        AnyView(MyMermaidView(source: node.content, configuration: configuration))
-    })
+    richContentAdapter: SwiftUIRichContentAdapter { request in
+        guard case let .mermaid(node, configuration) = request else {
+            return nil
+        }
+        return AnyView(MyMermaidView(
+            source: node.content,
+            configuration: configuration
+        ))
+    }
 )
 let nativeView = try await SwiftUIRenderer(options: nativeOptions).render(document)
 ````

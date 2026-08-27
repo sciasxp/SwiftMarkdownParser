@@ -55,19 +55,23 @@ let options = SwiftUIRenderOptions(
     styleConfiguration: .github,
     mermaidConfiguration: MermaidConfiguration(theme: .dark),
     syntaxHighlightingTheme: .xcode,
-    richContentHandlers: SwiftUIRichContentHandlers(
-        mermaid: { node, configuration in
+    richContentAdapter: SwiftUIRichContentAdapter { request in
+        switch request {
+        case let .mermaid(node, configuration):
             AnyView(MyMermaidView(source: node.content, configuration: configuration))
-        },
-        mathBlock: { node in
+
+        case let .mathBlock(node):
             AnyView(MyMathView(source: node.content, displayMode: true))
+
+        case let .image(_, source):
+            AnyView(AsyncImage(url: source))
+
+        case .inlineMath, .htmlBlock, .htmlInline:
+            nil
         }
-    ),
+    },
     linkHandler: { url in
         // Route the URL through the host application.
-    },
-    imageHandler: { url in
-        AnyView(AsyncImage(url: url))
     }
 )
 
@@ -90,7 +94,7 @@ accessibility Dynamic Type categories.
 
 Tables use a dense aligned grid while it fits. In narrow containers, or at an
 accessibility text size, the same projected cells become labeled rows that keep
-column headers beside their values. Rich inline handlers are materialized once;
+column headers beside their values. Rich inline adapters are materialized once;
 choosing a presentation does not reinvoke host adapters.
 
 ## Supported document content
@@ -99,9 +103,12 @@ The native renderer handles CommonMark nodes, GFM tables, task lists,
 strikethrough, footnotes, wrapping formatted links, relative image URLs, and
 semantic code highlighting. Raw HTML, math, and Mermaid have readable,
 accessible source fallbacks. Applications that need visual rendering for those
-formats provide the corresponding closure in `SwiftUIRichContentHandlers`.
-This keeps WebKit, KaTeX, Mermaid, or another rendering dependency under host
-ownership on both iOS and macOS.
+formats provide one `SwiftUIRichContentAdapter`. Its single `render(_:)`
+operation receives a typed request and may return `nil` to retain the native
+fallback. Image requests cross this seam only after their destination has been
+resolved and validated. This keeps WebKit, KaTeX, Mermaid, or another rendering
+dependency under host ownership on both iOS and macOS without distributing
+fallback policy across per-node closures.
 
 The public interface intentionally renders only complete documents. To render a
 single programmatically-created node, place it in a document first:
