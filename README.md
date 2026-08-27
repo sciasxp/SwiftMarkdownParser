@@ -1,7 +1,7 @@
 # SwiftMarkdownParser
 
 [![CI](https://github.com/sciasxp/SwiftMarkdownParser/actions/workflows/ci.yml/badge.svg)](https://github.com/sciasxp/SwiftMarkdownParser/actions/workflows/ci.yml)
-[![Swift 6.2+](https://img.shields.io/badge/Swift-6.2+-orange.svg)](https://swift.org)
+[![Swift 6.4+](https://img.shields.io/badge/Swift-6.4+-orange.svg)](https://swift.org)
 [![iOS 17.0+](https://img.shields.io/badge/iOS-17.0+-blue.svg)](https://developer.apple.com/ios/)
 [![macOS 14.0+](https://img.shields.io/badge/macOS-14.0+-blue.svg)](https://developer.apple.com/macos/)
 [![SPM Compatible](https://img.shields.io/badge/SPM-Compatible-brightgreen.svg)](https://swift.org/package-manager/)
@@ -22,7 +22,7 @@ A Swift-native Markdown parser with AST generation, HTML rendering, and SwiftUI 
 
 ## Requirements
 
-- **Swift 6.2+**
+- **Swift 6.4+** (Xcode 27 beta or a compatible Swift toolchain)
 - **iOS 17.0+**
 - **macOS 14.0+**
 

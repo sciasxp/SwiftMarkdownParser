@@ -8,15 +8,15 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: xcode-27
 
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Swift
-      uses: swift-actions/setup-swift@v2
-      with:
-        swift-version: '6.0'
+    - name: Verify Xcode and Swift toolchain
+      run: |
+        xcodebuild -version
+        swift --version
     - name: Build
       run: swift build --build-tests
     - name: Run tests
-      run: swift test 
+      run: swift test

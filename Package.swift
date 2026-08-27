@@ -1,4 +1,4 @@
-// swift-tools-version:6.2
+// swift-tools-version: 6.4
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -29,6 +29,7 @@ let package = Package(
             resources: [.copy("Resources/Browser")],
             swiftSettings: [
                 .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+                .strictMemorySafety(),
             ]),
         .executableTarget(
             name: "WebViewTest",
@@ -39,12 +40,15 @@ let package = Package(
             swiftSettings: [
                 .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
                 .defaultIsolation(MainActor.self),
+                .strictMemorySafety(),
             ]),
         .testTarget(
             name: "SwiftMarkdownParserTests",
             dependencies: ["SwiftMarkdownParser"],
             swiftSettings: [
                 .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+                .strictMemorySafety(),
             ]),
-    ]
+    ],
+    swiftLanguageModes: [.v6]
 )
