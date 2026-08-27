@@ -22,8 +22,14 @@ enum BrowserRuntimeError: Error, LocalizedError {
 }
 
 enum BrowserRuntimeReport: Equatable {
-    case ready
-    case failed(String)
+    static let currentVersion = 1
+
+    case ready(requiredFeatures: Set<BrowserFeature>)
+    case failed(
+        requiredFeatures: Set<BrowserFeature>,
+        failedFeatures: Set<BrowserFeature>,
+        detail: String
+    )
 
     init(messageBody: Any) throws {
         guard
@@ -33,14 +39,50 @@ enum BrowserRuntimeReport: Equatable {
             throw BrowserRuntimeError.invalidReport
         }
 
+        let requiredFeatures: Set<BrowserFeature>
+        let failedFeatures: Set<BrowserFeature>
+        if let version = payload["version"] as? Int {
+            guard version == Self.currentVersion else {
+                throw BrowserRuntimeError.invalidReport
+            }
+            requiredFeatures = try Self.features(in: payload, key: "requiredFeatures")
+            failedFeatures = try Self.features(in: payload, key: "failedFeatures")
+            guard failedFeatures.isSubset(of: requiredFeatures) else {
+                throw BrowserRuntimeError.invalidReport
+            }
+        } else if payload["version"] == nil {
+            requiredFeatures = []
+            failedFeatures = []
+        } else {
+            throw BrowserRuntimeError.invalidReport
+        }
+
         switch status {
         case "ready":
-            self = .ready
+            guard failedFeatures.isEmpty else {
+                throw BrowserRuntimeError.invalidReport
+            }
+            self = .ready(requiredFeatures: requiredFeatures)
         case "failed":
-            self = .failed(payload["detail"] as? String ?? "Unknown browser runtime failure")
+            self = .failed(
+                requiredFeatures: requiredFeatures,
+                failedFeatures: failedFeatures,
+                detail: payload["detail"] as? String ?? "Unknown browser runtime failure"
+            )
         default:
             throw BrowserRuntimeError.invalidReport
         }
+    }
+
+    private static func features(in payload: [String: Any], key: String) throws -> Set<BrowserFeature> {
+        guard let rawFeatures = payload[key] as? [String] else {
+            throw BrowserRuntimeError.invalidReport
+        }
+        let features = rawFeatures.compactMap(BrowserFeature.init(rawValue:))
+        guard features.count == rawFeatures.count, Set(rawFeatures).count == rawFeatures.count else {
+            throw BrowserRuntimeError.invalidReport
+        }
+        return Set(features)
     }
 }
 
@@ -268,7 +310,7 @@ struct MarkdownWebViewRepresentable: NSViewRepresentable {
                 switch try BrowserRuntimeReport(messageBody: message.body) {
                 case .ready:
                     finish(with: .success(()))
-                case .failed(let detail):
+                case .failed(_, _, let detail):
                     finish(with: .failure(BrowserRuntimeError.failed(detail)))
                 }
             } catch {
@@ -366,7 +408,7 @@ struct MermaidWebViewRepresentable: NSViewRepresentable {
                 switch try BrowserRuntimeReport(messageBody: message.body) {
                 case .ready:
                     finish(with: .success(()))
-                case .failed(let detail):
+                case .failed(_, _, let detail):
                     finish(with: .failure(BrowserRuntimeError.failed(detail)))
                 }
             } catch {

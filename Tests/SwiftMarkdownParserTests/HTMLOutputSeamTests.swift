@@ -45,6 +45,18 @@ struct HTMLOutputSeamTests {
         #expect(html.contains("<title>Math &amp; Diagrams</title>"))
     }
 
+    @Test("Allows a presentation owner to replace default document styles")
+    func completeDocumentWithoutDefaultStyles() async throws {
+        let document = try SwiftMarkdownParser().parse("# Styled by the host")
+        let options = HTMLRenderOptions(includeDefaultStyles: false)
+
+        let html = try await HTMLRenderer(options: options).renderDocument(document)
+
+        #expect(html.contains("<!DOCTYPE html>"))
+        #expect(html.contains("<h1>Styled by the host</h1>"))
+        #expect(!html.contains("/* Base styling */"))
+    }
+
     @Test(
         "Owns Mermaid theme generation",
         arguments: [
@@ -64,6 +76,29 @@ struct HTMLOutputSeamTests {
 
         #expect(html.contains(expected))
         #expect(html.contains("class=\"mermaid\""))
+    }
+
+    @Test("Encodes typed Mermaid theme variables as configuration data")
+    func mermaidThemeVariables() async throws {
+        let document = try SwiftMarkdownParser().parse("```mermaid\ngraph TD\nA --> B\n```")
+        let variables = MermaidConfiguration.ThemeVariables(
+            primaryColor: "#112233",
+            lineColor: "#445566",
+            darkMode: true
+        )
+        let options = HTMLRenderOptions(
+            mermaidConfiguration: MermaidConfiguration(
+                theme: .base,
+                themeVariables: variables
+            )
+        )
+
+        let html = try await HTMLRenderer(options: options).renderDocument(document)
+
+        #expect(html.contains("\"theme\":\"base\""))
+        #expect(html.contains("\"themeVariables\":{\"darkMode\":true"))
+        #expect(html.contains("\"lineColor\":\"#445566\""))
+        #expect(html.contains("\"primaryColor\":\"#112233\""))
     }
 
     @Test("Uses configured KaTeX assets")
@@ -127,6 +162,11 @@ struct HTMLOutputSeamTests {
         #expect(html.occurrences(of: "mermaid@10.9.1/dist/mermaid.min.js") == 1)
         #expect(html.occurrences(of: "katex@0.16.21/dist/katex.min.js") == 1)
         #expect(html.occurrences(of: "const requiredFeatures = [\"katex\",\"mermaid\"]") == 1)
+        #expect(html.contains("version: 1"))
+        #expect(html.contains("requiredFeatures: requiredFeatures"))
+        #expect(html.contains("failedFeatures:"))
+        #expect(html.contains("if (didReport) { return; }"))
+        #expect(html.contains("activeFeature = requiredFeatures.includes('mermaid') ? 'mermaid' : null"))
     }
 
     @Test("Produces a self-contained document with bundled runtimes")
@@ -143,6 +183,40 @@ struct HTMLOutputSeamTests {
         #expect(html.contains("data:font/woff2;base64,"))
         #expect(html.contains("mermaid.initialize(mermaidConfiguration)"))
         #expect(html.contains("katex.render(element.textContent"))
+    }
+
+    @Test("Caches successful bundled fragments and retries failed construction")
+    func bundledAssetCache() {
+        let cache = BundledBrowserAssetCache()
+        var successfulLoads = 0
+
+        let first = cache.value(for: "success") {
+            successfulLoads += 1
+            return "fragment"
+        }
+        let second = cache.value(for: "success") {
+            successfulLoads += 1
+            return "different"
+        }
+
+        #expect(first == "fragment")
+        #expect(second == "fragment")
+        #expect(successfulLoads == 1)
+
+        var failedLoads = 0
+        #expect(throws: AssetCacheFixtureError.failed) {
+            try cache.value(for: "failure") {
+                failedLoads += 1
+                throw AssetCacheFixtureError.failed
+            }
+        }
+        let recovered = cache.value(for: "failure") {
+            failedLoads += 1
+            return "recovered"
+        }
+
+        #expect(recovered == "recovered")
+        #expect(failedLoads == 2)
     }
 
     @Test("Rejects unsafe custom runtime URLs")
@@ -165,7 +239,8 @@ struct HTMLOutputSeamTests {
         let options = HTMLRenderOptions(
             mermaidConfiguration: MermaidConfiguration(
                 fontFamily: attack,
-                customCSS: attack
+                customCSS: attack,
+                themeVariables: .init(primaryColor: attack)
             )
         )
 
@@ -196,6 +271,10 @@ private struct MissingBrowserAssetLoader: BrowserAssetLoading {
     func data(named name: String) throws -> Data {
         throw HTMLRenderingError.bundledAssetUnavailable(name)
     }
+}
+
+private enum AssetCacheFixtureError: Error {
+    case failed
 }
 
 private extension String {

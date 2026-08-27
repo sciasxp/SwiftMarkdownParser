@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Wall-clock time no longer changes parser correctness
 - **Complete Source Ranges**: Parser-produced nodes now carry half-open start/end ranges
 - **Atomic Document Construction**: References, tables, task lists, and inline GFM semantics are resolved before `parse(_:)` returns
+- **Typed Mermaid Theme Variables**: `MermaidConfiguration.ThemeVariables` carries caller-owned palettes as inert configuration data
+- **Replaceable Document Styling**: `HTMLRenderOptions.includeDefaultStyles` lets host presentations own visual CSS while the renderer retains document and runtime assembly
 - **AST Traversal and Rewriting**: Added lazy contextual preorder traversal and immutable bottom-up document rewriting
   - Rewrites can retain, remove, replace, or expand nodes without revisiting replacements
   - Built-in containers preserve metadata and typed table relationships are validated
@@ -51,7 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Browser Enrichment Assembly**: HTML rendering discovers required browser behavior before assembling resources
   - Mermaid, KaTeX, footnote, and task-list requirements are deduplicated centrally
   - Bundled Mermaid and KaTeX resources support deterministic offline output
-  - WebKit presentation reports success only after required runtimes initialize
+  - Versioned runtime observations report required and failed features exactly once
+  - WebKit presentation reports success only after required runtimes initialize while preserving its public callback
 - **Source-Breaking Syntax Highlighting Interface**: Replaced the public registry, cache, and engine types with `SyntaxHighlighter`
   - Built-in adapter selection, aliases, validation, fallback, and caching have one owner
   - Unsupported languages and adapter failures preserve plain code output

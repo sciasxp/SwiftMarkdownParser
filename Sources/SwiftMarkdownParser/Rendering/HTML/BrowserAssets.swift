@@ -43,12 +43,39 @@ struct PackageBrowserAssetLoader: BrowserAssetLoading {
     }
 }
 
+/// Process-wide cache for immutable, package-owned browser fragments.
+///
+/// The lock protects both lookup and construction so concurrent first renders
+/// cannot repeat the expensive stylesheet rewriting and font encoding work.
+final class BundledBrowserAssetCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var fragments: [String: String] = [:]
+
+    func value(
+        for key: String,
+        create: () throws -> String
+    ) rethrows -> String {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if let cached = fragments[key] {
+            return cached
+        }
+
+        let fragment = try create()
+        fragments[key] = fragment
+        return fragment
+    }
+}
+
 struct BrowserAssets: Sendable {
     let head: String
     let bootstrap: String
 }
 
 struct BrowserAssetAssembler: Sendable {
+    private static let bundledAssetCache = BundledBrowserAssetCache()
+
     private static let katexFontNames = [
         "KaTeX_AMS-Regular.woff2",
         "KaTeX_Caligraphic-Bold.woff2",
@@ -105,7 +132,9 @@ struct BrowserAssetAssembler: Sendable {
     private func mermaidAssets() throws -> String {
         switch options.mermaidConfiguration.assetSource {
         case .bundled:
-            return try inlineScript(loader.text(named: "mermaid.min.js"))
+            return try cachedBundledAsset(for: "mermaid-runtime") {
+                try inlineScript(loader.text(named: "mermaid.min.js"))
+            }
         case .cdn(let version):
             let encodedVersion = try validatedPackageVersion(version, feature: "Mermaid")
             let url = try validatedRemoteURL(
@@ -124,9 +153,11 @@ struct BrowserAssetAssembler: Sendable {
     private func katexAssets() throws -> String {
         switch options.katexConfiguration.assetSource {
         case .bundled:
-            let stylesheet = try bundledKaTeXStylesheet()
-            let script = try loader.text(named: "katex.min.js")
-            return "<style>\(stylesheet)</style>\n\(inlineScript(script))"
+            return try cachedBundledAsset(for: "katex-runtime") {
+                let stylesheet = try bundledKaTeXStylesheet()
+                let script = try loader.text(named: "katex.min.js")
+                return "<style>\(stylesheet)</style>\n\(inlineScript(script))"
+            }
         case .cdn(let version):
             let encodedVersion = try validatedPackageVersion(version, feature: "KaTeX")
             let baseURL = try validatedRemoteURL(
@@ -189,6 +220,16 @@ struct BrowserAssetAssembler: Sendable {
             with: "<\\/style",
             options: .caseInsensitive
         )
+    }
+
+    private func cachedBundledAsset(
+        for key: String,
+        create: () throws -> String
+    ) rethrows -> String {
+        guard loader is PackageBrowserAssetLoader else {
+            return try create()
+        }
+        return try Self.bundledAssetCache.value(for: key, create: create)
     }
 
     private func validatedRemoteURL(_ value: String, feature: String) throws -> URL {
@@ -263,11 +304,30 @@ struct BrowserAssetAssembler: Sendable {
             const katexConfiguration = \(katexConfiguration);
             const customStyles = \(customStyles);
 
-            function report(status, detail) {
-                const payload = { status: status, detail: detail || null };
+            let didReport = false;
+            let activeFeature = null;
+
+            function report(status, failedFeatures, detail) {
+                if (didReport) { return; }
+                didReport = true;
+                const payload = {
+                    version: 1,
+                    status: status,
+                    requiredFeatures: requiredFeatures,
+                    failedFeatures: Array.from(new Set(failedFeatures || [])).sort(),
+                    detail: detail || null
+                };
                 window.dispatchEvent(new CustomEvent('swift-markdown-runtime', { detail: payload }));
                 const handler = window.webkit && window.webkit.messageHandlers.markdownRuntime;
                 if (handler) { handler.postMessage(payload); }
+            }
+
+            function failedAssetFeatures() {
+                return window.__swiftMarkdownAssetFailures.flatMap(function(asset) {
+                    if (asset === 'mermaid') { return ['mermaid']; }
+                    if (asset === 'katex' || asset === 'katex-css') { return ['katex']; }
+                    return [];
+                });
             }
 
             function installCustomStyles() {
@@ -303,19 +363,33 @@ struct BrowserAssetAssembler: Sendable {
             async function initialize() {
                 try {
                     if (window.__swiftMarkdownAssetFailures.length > 0) {
-                        throw new Error('Failed browser assets: ' + window.__swiftMarkdownAssetFailures.join(', '));
+                        report(
+                            'failed',
+                            failedAssetFeatures(),
+                            'Failed browser assets: ' + window.__swiftMarkdownAssetFailures.join(', ')
+                        );
+                        return;
                     }
 
                     installCustomStyles();
 
+                    activeFeature = requiredFeatures.includes('katex') ? 'katex' : null;
         \(katexInitialization)
+                    activeFeature = requiredFeatures.includes('mermaid') ? 'mermaid' : null;
         \(mermaidInitialization)
 
-                    if (requiredFeatures.includes('footnotes')) { initializeFootnotes(); }
-                    if (requiredFeatures.includes('taskLists')) { initializeTaskLists(); }
-                    report('ready');
+                    activeFeature = requiredFeatures.includes('footnotes') ? 'footnotes' : null;
+                    if (activeFeature) { initializeFootnotes(); }
+                    activeFeature = requiredFeatures.includes('taskLists') ? 'taskLists' : null;
+                    if (activeFeature) { initializeTaskLists(); }
+                    activeFeature = null;
+                    report('ready', []);
                 } catch (error) {
-                    report('failed', error instanceof Error ? error.message : String(error));
+                    report(
+                        'failed',
+                        activeFeature ? [activeFeature] : [],
+                        error instanceof Error ? error.message : String(error)
+                    );
                 }
             }
 
@@ -331,7 +405,7 @@ struct BrowserAssetAssembler: Sendable {
 
     private var mermaidConfigurationObject: [String: Any] {
         let configuration = options.mermaidConfiguration
-        return [
+        var result: [String: Any] = [
             "startOnLoad": configuration.startOnLoad,
             "theme": configuration.theme.rawValue,
             "securityLevel": configuration.securityLevel.rawValue,
@@ -358,6 +432,10 @@ struct BrowserAssetAssembler: Sendable {
                 "useMaxWidth": configuration.sequence.useMaxWidth,
             ],
         ]
+        if let themeVariables = configuration.themeVariables {
+            result["themeVariables"] = themeVariables.browserConfiguration
+        }
+        return result
     }
 
     private var katexConfigurationObject: [String: Any] {

@@ -41,45 +41,13 @@ public actor SyntaxHighlighter {
         let tokenType: SyntaxTokenType
         let lowerOffset: Int
         let upperOffset: Int
-
-        init(_ token: SyntaxToken, source: String) {
-            content = token.content
-            tokenType = token.tokenType
-            lowerOffset = source.distance(from: source.startIndex, to: token.range.lowerBound)
-            upperOffset = source.distance(from: source.startIndex, to: token.range.upperBound)
-        }
-
-        func materialized(in source: String) -> SyntaxToken? {
-            guard
-                lowerOffset >= 0,
-                upperOffset >= lowerOffset,
-                let lowerBound = source.index(
-                    source.startIndex,
-                    offsetBy: lowerOffset,
-                    limitedBy: source.endIndex
-                ),
-                let upperBound = source.index(
-                    source.startIndex,
-                    offsetBy: upperOffset,
-                    limitedBy: source.endIndex
-                )
-            else {
-                return nil
-            }
-
-            let range = lowerBound..<upperBound
-            guard String(source[range]) == content else {
-                return nil
-            }
-
-            return SyntaxToken(content: content, tokenType: tokenType, range: range)
-        }
     }
 
     private let adaptersByLanguage: [String: Adapter]
     private let cacheCapacity: Int
     private var cache: [CacheKey: [CachedToken]] = [:]
-    private var accessOrder: [CacheKey] = []
+    private var lastAccessByKey: [CacheKey: UInt64] = [:]
+    private var accessSequence: UInt64 = 0
 
     public init() {
         let engines: [any SyntaxHighlightingEngine] = [
@@ -168,7 +136,7 @@ public actor SyntaxHighlighter {
                 token.range.lowerBound >= previousUpperBound,
                 token.range.upperBound >= token.range.lowerBound,
                 token.range.upperBound <= source.endIndex,
-                String(source[token.range]) == token.content
+                source[token.range] == token.content
             else {
                 return false
             }
@@ -183,10 +151,9 @@ public actor SyntaxHighlighter {
             return nil
         }
 
-        let tokens = cachedTokens.compactMap { $0.materialized(in: source) }
-        guard tokens.count == cachedTokens.count else {
+        guard let tokens = Self.materialize(cachedTokens, in: source) else {
             cache.removeValue(forKey: key)
-            accessOrder.removeAll { $0 == key }
+            lastAccessByKey.removeValue(forKey: key)
             return nil
         }
 
@@ -199,17 +166,84 @@ public actor SyntaxHighlighter {
             return
         }
 
-        cache[key] = tokens.map { CachedToken($0, source: source) }
+        cache[key] = Self.cachedRepresentation(of: tokens, in: source)
         touch(key)
 
-        while cache.count > cacheCapacity, let oldestKey = accessOrder.first {
-            accessOrder.removeFirst()
+        while cache.count > cacheCapacity,
+              let oldestKey = lastAccessByKey.min(by: { $0.value < $1.value })?.key {
             cache.removeValue(forKey: oldestKey)
+            lastAccessByKey.removeValue(forKey: oldestKey)
         }
     }
 
     private func touch(_ key: CacheKey) {
-        accessOrder.removeAll { $0 == key }
-        accessOrder.append(key)
+        accessSequence += 1
+        lastAccessByKey[key] = accessSequence
+    }
+
+    private static func cachedRepresentation(
+        of tokens: [SyntaxToken],
+        in source: String
+    ) -> [CachedToken] {
+        var result: [CachedToken] = []
+        result.reserveCapacity(tokens.count)
+        var cursor = source.startIndex
+        var cursorOffset = 0
+
+        for token in tokens {
+            let lowerOffset = cursorOffset
+                + source.distance(from: cursor, to: token.range.lowerBound)
+            let upperOffset = lowerOffset
+                + source.distance(from: token.range.lowerBound, to: token.range.upperBound)
+            result.append(CachedToken(
+                content: token.content,
+                tokenType: token.tokenType,
+                lowerOffset: lowerOffset,
+                upperOffset: upperOffset
+            ))
+            cursor = token.range.upperBound
+            cursorOffset = upperOffset
+        }
+
+        return result
+    }
+
+    private static func materialize(
+        _ cachedTokens: [CachedToken],
+        in source: String
+    ) -> [SyntaxToken]? {
+        var result: [SyntaxToken] = []
+        result.reserveCapacity(cachedTokens.count)
+        var cursor = source.startIndex
+        var cursorOffset = 0
+
+        for token in cachedTokens {
+            guard
+                token.lowerOffset >= cursorOffset,
+                token.upperOffset >= token.lowerOffset,
+                let lowerBound = source.index(
+                    cursor,
+                    offsetBy: token.lowerOffset - cursorOffset,
+                    limitedBy: source.endIndex
+                ),
+                let upperBound = source.index(
+                    lowerBound,
+                    offsetBy: token.upperOffset - token.lowerOffset,
+                    limitedBy: source.endIndex
+                )
+            else {
+                return nil
+            }
+
+            result.append(SyntaxToken(
+                content: token.content,
+                tokenType: token.tokenType,
+                range: lowerBound..<upperBound
+            ))
+            cursor = upperBound
+            cursorOffset = token.upperOffset
+        }
+
+        return result
     }
 }

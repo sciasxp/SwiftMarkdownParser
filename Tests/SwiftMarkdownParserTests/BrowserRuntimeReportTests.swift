@@ -6,22 +6,65 @@ import Testing
 struct BrowserRuntimeReportTests {
     @Test("Accepts a ready report")
     func ready() throws {
-        let report = try BrowserRuntimeReport(messageBody: ["status": "ready"])
-        #expect(report == .ready)
+        let report = try BrowserRuntimeReport(messageBody: [
+            "version": 1,
+            "status": "ready",
+            "requiredFeatures": ["mermaid", "katex"],
+            "failedFeatures": [],
+        ])
+        #expect(report == .ready(requiredFeatures: [.mermaid, .katex]))
     }
 
-    @Test("Preserves an external runtime failure")
+    @Test("Preserves structured runtime failure context")
     func failure() throws {
         let report = try BrowserRuntimeReport(
-            messageBody: ["status": "failed", "detail": "KaTeX runtime unavailable"]
+            messageBody: [
+                "version": 1,
+                "status": "failed",
+                "requiredFeatures": ["katex"],
+                "failedFeatures": ["katex"],
+                "detail": "KaTeX runtime unavailable",
+            ]
         )
-        #expect(report == .failed("KaTeX runtime unavailable"))
+        #expect(
+            report == .failed(
+                requiredFeatures: [.katex],
+                failedFeatures: [.katex],
+                detail: "KaTeX runtime unavailable"
+            )
+        )
     }
 
-    @Test("Rejects malformed reports")
+    @Test("Accepts legacy unversioned reports internally")
+    func legacy() throws {
+        let ready = try BrowserRuntimeReport(messageBody: ["status": "ready"])
+        let failed = try BrowserRuntimeReport(messageBody: ["status": "failed", "detail": "Unavailable"])
+
+        #expect(ready == .ready(requiredFeatures: []))
+        #expect(
+            failed == .failed(
+                requiredFeatures: [],
+                failedFeatures: [],
+                detail: "Unavailable"
+            )
+        )
+    }
+
+    @Test("Rejects incompatible or malformed versioned reports")
     func malformed() {
-        #expect(throws: BrowserRuntimeError.self) {
-            try BrowserRuntimeReport(messageBody: ["unexpected": true])
+        let messages: [[String: Any]] = [
+            ["version": 2, "status": "ready", "requiredFeatures": [], "failedFeatures": []],
+            ["version": 1, "status": "ready", "requiredFeatures": ["unknown"], "failedFeatures": []],
+            ["version": 1, "status": "ready", "requiredFeatures": ["mermaid"], "failedFeatures": ["mermaid"]],
+            ["version": 1, "status": "failed", "requiredFeatures": [], "failedFeatures": ["mermaid"]],
+            ["version": 1, "status": "ready", "requiredFeatures": ["mermaid", "mermaid"], "failedFeatures": []],
+            ["unexpected": true],
+        ]
+
+        for message in messages {
+            #expect(throws: BrowserRuntimeError.self) {
+                try BrowserRuntimeReport(messageBody: message)
+            }
         }
     }
 }

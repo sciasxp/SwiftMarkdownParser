@@ -38,7 +38,7 @@ struct BrowserDocumentAssembler: Sendable {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>\(title)</title>
-            \(Self.markdownCSS())
+            \(options.includeDefaultStyles ? Self.markdownCSS() : "")
             \(assets.head)
         </head>
         <body>

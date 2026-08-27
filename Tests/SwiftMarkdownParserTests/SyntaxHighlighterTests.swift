@@ -97,20 +97,42 @@ struct SyntaxHighlighterTests {
         #expect(invocationCount == 1)
     }
 
+    @Test("Rebinds separated cached tokens across Unicode source gaps")
+    func cacheHitRebindsSeparatedUnicodeTokens() async throws {
+        let counter = InvocationCounter()
+        let highlighter = SyntaxHighlighter(
+            engines: [FixtureSyntaxEngine(outcome: .separatedTokens, counter: counter)],
+            cacheCapacity: 2
+        )
+        let firstSource = "let 🐼 = café + 1"
+        let secondSource = String(decoding: Array(firstSource.utf8), as: UTF8.self)
+
+        _ = await highlighter.highlight(firstSource, language: "fixture")
+        let tokens = try #require(await highlighter.highlight(secondSource, language: "fixture"))
+        let invocationCount = await counter.value
+
+        #expect(tokens.map(\.content) == ["let", "café", "1"])
+        #expect(tokens.allSatisfy { String(secondSource[$0.range]) == $0.content })
+        #expect(invocationCount == 1)
+    }
+
     @Test("Evicts the least recently used entry at capacity")
     func cacheEvictsLeastRecentlyUsedEntry() async {
         let counter = InvocationCounter()
         let highlighter = SyntaxHighlighter(
             engines: [FixtureSyntaxEngine(counter: counter)],
-            cacheCapacity: 1
+            cacheCapacity: 2
         )
 
         _ = await highlighter.highlight("first", language: "fixture")
         _ = await highlighter.highlight("second", language: "fixture")
         _ = await highlighter.highlight("first", language: "fixture")
+        _ = await highlighter.highlight("third", language: "fixture")
+        _ = await highlighter.highlight("first", language: "fixture")
+        _ = await highlighter.highlight("second", language: "fixture")
         let invocationCount = await counter.value
 
-        #expect(invocationCount == 3)
+        #expect(invocationCount == 4)
     }
 }
 
@@ -127,6 +149,7 @@ private struct FixtureSyntaxEngine: SyntaxHighlightingEngine {
         case highlighted
         case failure
         case overlappingTokens
+        case separatedTokens
     }
 
     let outcome: Outcome
@@ -164,6 +187,12 @@ private struct FixtureSyntaxEngine: SyntaxHighlightingEngine {
                 range: code.startIndex..<code.endIndex
             )
             return [token, token]
+        case .separatedTokens:
+            return ["let", "café", "1"].compactMap { content in
+                code.range(of: content).map { range in
+                    SyntaxToken(content: content, tokenType: .keyword, range: range)
+                }
+            }
         }
     }
 }

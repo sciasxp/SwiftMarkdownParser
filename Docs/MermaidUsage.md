@@ -97,9 +97,15 @@ struct ContentView: View {
 ```swift
 // Custom Mermaid themes and settings
 let config = MermaidConfiguration(
+    theme: .base,
     assetSource: .bundled,
-    theme: .dark,
-    securityLevel: .strict
+    securityLevel: .strict,
+    themeVariables: .init(
+        primaryColor: "#243447",
+        primaryTextColor: "#f4f7fb",
+        lineColor: "#78a9ff",
+        darkMode: true
+    )
 )
 
 let document = try parser.parse(markdown)
@@ -111,3 +117,11 @@ let html = try await HTMLRenderer(options: options).renderFragment(document)
 `.custom(scriptURL:)`. Bundled mode inlines the pinned Mermaid runtime and
 works without network access. Diagram source is HTML-escaped before entering
 the DOM; Mermaid receives the original text through the `<pre>` element.
+`ThemeVariables` is encoded by the browser assembler and never emits caller
+values as executable JavaScript.
+
+Complete documents include Mermaid in the versioned browser-runtime report's
+`requiredFeatures`. If its asset or initialization fails, `failedFeatures`
+contains `mermaid`; mixed failures name every identified failed feature. The
+report describes runtime state only. Host applications remain responsible for
+whether that state completes, falls back, or rejects an artifact.

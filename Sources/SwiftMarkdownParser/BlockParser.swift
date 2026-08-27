@@ -34,43 +34,18 @@ final class BlockParser {
     func parseDocument() throws -> AST.DocumentNode {
         var children: [ASTNode] = []
 
-        // Protection mechanisms
-        var consecutiveNilBlocks = 0
-        let maxConsecutiveNilBlocks = 50 // Prevent infinite loops from nil blocks
-
-        var lastTokenPosition = -1
-        var stuckPositionCount = 0
-        let maxStuckPositions = 10 // Prevent infinite loops from position not advancing
-
         while !tokenStream.isAtEnd {
-            // Position-based protection (detect if parser is stuck)
-            let currentPosition = tokenStream.currentPosition
-            if currentPosition == lastTokenPosition {
-                stuckPositionCount += 1
-                if stuckPositionCount >= maxStuckPositions {
-                    throw MarkdownParsingError.internalInvariant(
-                        message: "Block parser made no progress at token \(currentPosition).",
-                        location: tokenStream.current.location
-                    )
-                }
-            } else {
-                stuckPositionCount = 0
-                lastTokenPosition = currentPosition
-            }
+            let startingPosition = tokenStream.currentPosition
 
             if let block = try parseBlock() {
                 children.append(block)
-                consecutiveNilBlocks = 0 // Reset counter when we get a valid block
-            } else {
-                consecutiveNilBlocks += 1
+            }
 
-                // Consecutive nil blocks protection
-                if consecutiveNilBlocks >= maxConsecutiveNilBlocks {
-                    throw MarkdownParsingError.internalInvariant(
-                        message: "Block parser produced too many empty results.",
-                        location: tokenStream.current.location
-                    )
-                }
+            guard tokenStream.currentPosition > startingPosition || tokenStream.isAtEnd else {
+                throw MarkdownParsingError.internalInvariant(
+                    message: "Block parser made no progress at token \(startingPosition).",
+                    location: tokenStream.current.location
+                )
             }
         }
 
@@ -814,5 +789,4 @@ final class BlockParser {
         return try parseBlock()
     }
 }
-
 

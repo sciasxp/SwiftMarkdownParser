@@ -91,6 +91,26 @@ import Testing
         #expect(plainText(in: paragraph) == "[inside]")
     }
 
+    @Test("Resolves large consecutive reference-definition sections")
+    func manyConsecutiveReferenceDefinitions() throws {
+        let referenceCount = 500
+        let usages = (0..<referenceCount)
+            .map { "[Document \($0)][reference-\($0)]" }
+            .joined(separator: "\n\n")
+        let definitions = (0..<referenceCount)
+            .map { "[reference-\($0)]: https://example.com/documents/\($0) \"Document \($0)\"" }
+            .joined(separator: "\n")
+        let markdown = usages + "\n\n" + definitions
+
+        let document = try SwiftMarkdownParser().parse(markdown)
+        let links = document.depthFirst().compactMap { $0.node as? AST.LinkNode }
+
+        #expect(links.count == referenceCount)
+        #expect(links.first?.url == "https://example.com/documents/0")
+        #expect(links.last?.url == "https://example.com/documents/499")
+        assertValidRanges(in: document, sourceLength: markdown.count)
+    }
+
     @Test func incompleteInlineSyntaxRemainsLiteralText() throws {
         let markdown = "Prefix **unclosed and [broken](destination"
         let document = try SwiftMarkdownParser().parse(markdown)

@@ -10,6 +10,59 @@ import Foundation
 /// Configuration for Mermaid diagram rendering
 public struct MermaidConfiguration: Sendable {
 
+    /// Data-only Mermaid theme variables used with the base theme.
+    public struct ThemeVariables: Sendable, Equatable {
+        public let primaryColor: String?
+        public let primaryTextColor: String?
+        public let primaryBorderColor: String?
+        public let lineColor: String?
+        public let sectionBackgroundColor: String?
+        public let alternateSectionBackgroundColor: String?
+        public let gridColor: String?
+        public let secondaryColor: String?
+        public let tertiaryColor: String?
+        public let background: String?
+        public let mainBackground: String?
+        public let secondaryBackground: String?
+        public let secondaryTextColor: String?
+        public let tertiaryTextColor: String?
+        public let darkMode: Bool?
+
+        public init(
+            primaryColor: String? = nil,
+            primaryTextColor: String? = nil,
+            primaryBorderColor: String? = nil,
+            lineColor: String? = nil,
+            sectionBackgroundColor: String? = nil,
+            alternateSectionBackgroundColor: String? = nil,
+            gridColor: String? = nil,
+            secondaryColor: String? = nil,
+            tertiaryColor: String? = nil,
+            background: String? = nil,
+            mainBackground: String? = nil,
+            secondaryBackground: String? = nil,
+            secondaryTextColor: String? = nil,
+            tertiaryTextColor: String? = nil,
+            darkMode: Bool? = nil
+        ) {
+            self.primaryColor = primaryColor
+            self.primaryTextColor = primaryTextColor
+            self.primaryBorderColor = primaryBorderColor
+            self.lineColor = lineColor
+            self.sectionBackgroundColor = sectionBackgroundColor
+            self.alternateSectionBackgroundColor = alternateSectionBackgroundColor
+            self.gridColor = gridColor
+            self.secondaryColor = secondaryColor
+            self.tertiaryColor = tertiaryColor
+            self.background = background
+            self.mainBackground = mainBackground
+            self.secondaryBackground = secondaryBackground
+            self.secondaryTextColor = secondaryTextColor
+            self.tertiaryTextColor = tertiaryTextColor
+            self.darkMode = darkMode
+        }
+    }
+
     /// Mermaid theme options
     public enum Theme: String, Sendable, CaseIterable {
         case `default` = "default"
@@ -75,6 +128,9 @@ public struct MermaidConfiguration: Sendable {
 
     /// Custom CSS to inject for diagrams
     public let customCSS: String?
+
+    /// Theme variables encoded by the browser assembler as inert configuration data.
+    public let themeVariables: ThemeVariables?
 
     /// Flowchart-specific configuration
     public let flowchart: FlowchartConfig
@@ -177,6 +233,7 @@ public struct MermaidConfiguration: Sendable {
         displayErrors: Bool = false,
         logLevel: Int = 5,
         customCSS: String? = nil,
+        themeVariables: ThemeVariables? = nil,
         flowchart: FlowchartConfig = .default,
         sequence: SequenceConfig = .default
     ) {
@@ -193,10 +250,34 @@ public struct MermaidConfiguration: Sendable {
         self.displayErrors = displayErrors
         self.logLevel = logLevel
         self.customCSS = customCSS
+        self.themeVariables = themeVariables
         self.flowchart = flowchart
         self.sequence = sequence
     }
 
+}
+
+extension MermaidConfiguration.ThemeVariables {
+    var browserConfiguration: [String: Any] {
+        let values: [String: Any?] = [
+            "primaryColor": primaryColor,
+            "primaryTextColor": primaryTextColor,
+            "primaryBorderColor": primaryBorderColor,
+            "lineColor": lineColor,
+            "sectionBkgColor": sectionBackgroundColor,
+            "altSectionBkgColor": alternateSectionBackgroundColor,
+            "gridColor": gridColor,
+            "secondaryColor": secondaryColor,
+            "tertiaryColor": tertiaryColor,
+            "background": background,
+            "mainBkg": mainBackground,
+            "secondBkg": secondaryBackground,
+            "secondaryTextColor": secondaryTextColor,
+            "tertiaryTextColor": tertiaryTextColor,
+            "darkMode": darkMode
+        ]
+        return values.compactMapValues { $0 }
+    }
 }
 
 // MARK: - Flowchart Configuration

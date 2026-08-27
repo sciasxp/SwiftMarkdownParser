@@ -100,8 +100,7 @@ enum TokenType: String, CaseIterable, Sendable, Equatable {
 
 /// Lexical analyzer for markdown text
 final class MarkdownTokenizer {
-    
-    private let input: String
+
     private let characters: [Character]
     private let baseOffset: Int
     private let budget: ParsingBudget
@@ -124,7 +123,6 @@ final class MarkdownTokenizer {
         startingAt location: SourceLocation = SourceLocation(line: 1, column: 1, offset: 0),
         budget: ParsingBudget
     ) {
-        self.input = input
         self.characters = Array(input)
         self.baseOffset = location.offset
         self.budget = budget

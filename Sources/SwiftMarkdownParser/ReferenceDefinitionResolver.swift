@@ -6,9 +6,10 @@ struct ReferenceDefinitionResolution {
 }
 
 enum ReferenceDefinitionResolver {
-    static func resolve(in source: String) -> ReferenceDefinitionResolution {
+    static func resolve(in source: String, sourceLength: Int) -> ReferenceDefinitionResolution {
         var references: [String: LinkReference] = [:]
         var output = ""
+        var isRewritingSource = false
         var line = 1
         var offset = 0
         var openFence: Fence?
@@ -27,9 +28,13 @@ enum ReferenceDefinitionResolver {
                 } else {
                     openFence = fence
                 }
-                output += rawLine
+                if isRewritingSource {
+                    output.append(contentsOf: rawLine)
+                }
             } else if openFence != nil {
-                output += rawLine
+                if isRewritingSource {
+                    output.append(contentsOf: rawLine)
+                }
             } else if let definition = parseDefinition(rawLine) {
                 let normalizedLabel = normalizeLabel(definition.label)
                 if references[normalizedLabel] == nil {
@@ -39,23 +44,33 @@ enum ReferenceDefinitionResolver {
                         sourceLocation: location.extending(over: rawLine)
                     )
                 }
-                output += String(rawLine.map { character in
-                    character == "\t" ? "\t" : " "
-                })
+                if !isRewritingSource {
+                    output.reserveCapacity(sourceLength)
+                    let prefixEnd = source.index(source.startIndex, offsetBy: offset)
+                    output.append(contentsOf: source[..<prefixEnd])
+                    isRewritingSource = true
+                }
+                for character in rawLine {
+                    output.append(character == "\t" ? "\t" : " ")
+                }
             } else {
-                output += rawLine
+                if isRewritingSource {
+                    output.append(contentsOf: rawLine)
+                }
             }
 
             offset += rawLine.count
-            if offset < source.count {
-                output += "\n"
+            if offset < sourceLength {
+                if isRewritingSource {
+                    output.append("\n")
+                }
                 offset += 1
                 line += 1
             }
         }
 
         return ReferenceDefinitionResolution(
-            sourceForParsing: output,
+            sourceForParsing: isRewritingSource ? output : source,
             references: references
         )
     }

@@ -49,6 +49,7 @@ scripts or styles itself.
 let options = HTMLRenderOptions(
     baseURL: URL(string: "https://example.com/docs/"),
     sanitizeHTML: true,
+    includeDefaultStyles: false,
     styleConfiguration: HTMLStyleConfiguration(
         cssClasses: [
             .heading: "custom-heading",
@@ -67,6 +68,23 @@ let options = HTMLRenderOptions(
 
 let html = try await HTMLRenderer(options: options).renderFragment(document)
 ```
+
+Set `includeDefaultStyles` to `false` when a host presentation supplies the
+complete visual stylesheet. The renderer still owns document composition,
+feature assets, and browser readiness.
+
+The complete document publishes one versioned runtime observation after
+initialization. Version 1 contains `status`, the sorted `requiredFeatures`, the
+sorted `failedFeatures`, and optional diagnostic `detail`. It is dispatched as
+the `swift-markdown-runtime` DOM event and, when present, posted to WebKit's
+`markdownRuntime` message handler. The report deliberately has no host attempt
+identity or artifact policy.
+
+`failedFeatures` identifies the requirements that could not initialize. A host
+can therefore distinguish an exclusive Mermaid failure from a mixed runtime
+failure without inferring capability from DOM selectors. Consumers should
+reject unknown numbered versions; package-owned legacy WebView decoding alone
+continues to accept the former unversioned status/detail payload.
 
 Mermaid themes are selected through `MermaidConfiguration.Theme`: `.default`,
 `.dark`, `.forest`, `.neutral`, and `.base`. Use
@@ -97,7 +115,9 @@ MarkdownWebView(
 Parsing stays outside the view, so callers can parse once and reuse the same
 document for HTML, native SwiftUI, traversal, rewriting, and export.
 `onRender` succeeds only after every required browser runtime reports ready;
-navigation or subresource failures are returned through the same callback.
+navigation or subresource failures are returned through the same callback. The
+structured report remains an internal assembly/WebKit seam, so this public
+callback is source-compatible.
 
 See [Architecture](Architecture.md) for the complete module map and the
 decisions behind output-specific renderers and browser enrichment.

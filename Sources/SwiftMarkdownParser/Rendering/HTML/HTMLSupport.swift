@@ -11,6 +11,9 @@ public struct HTMLRenderOptions: Sendable {
     /// Whether to sanitize HTML output for security
     public let sanitizeHTML: Bool
 
+    /// Whether complete documents include the package's default visual CSS.
+    public let includeDefaultStyles: Bool
+
     /// Custom CSS classes or styling information
     public let styleConfiguration: HTMLStyleConfiguration
 
@@ -23,12 +26,14 @@ public struct HTMLRenderOptions: Sendable {
     public init(
         baseURL: URL? = nil,
         sanitizeHTML: Bool = true,
+        includeDefaultStyles: Bool = true,
         styleConfiguration: HTMLStyleConfiguration = .default,
         mermaidConfiguration: MermaidConfiguration = .default,
         katexConfiguration: KaTeXConfiguration = .default
     ) {
         self.baseURL = baseURL
         self.sanitizeHTML = sanitizeHTML
+        self.includeDefaultStyles = includeDefaultStyles
         self.styleConfiguration = styleConfiguration
         self.mermaidConfiguration = mermaidConfiguration
         self.katexConfiguration = katexConfiguration
