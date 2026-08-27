@@ -4,16 +4,16 @@ import SwiftUI
 @available(iOS 17.0, macOS 14.0, *)
 @MainActor
 struct NativeAdaptivePresentation {
-    private let style: SwiftUIStyleConfiguration
+    private let style: NativePresentationStyle
     private let semantics: NativePresentationSemantics
     private let materializer: NativeViewMaterializer
 
     init(
-        options: SwiftUIRenderOptions,
+        style: NativePresentationStyle,
         semantics: NativePresentationSemantics,
         materializer: NativeViewMaterializer
     ) {
-        self.style = options.styleConfiguration
+        self.style = style
         self.semantics = semantics
         self.materializer = materializer
     }
@@ -22,41 +22,41 @@ struct NativeAdaptivePresentation {
     func present(_ block: Block) -> NativeMaterializedView {
         switch block {
         case let .document(children):
-            materializer.materialize(NativeAdaptiveDocument(children: children, style: style))
+            materializer.materialize(NativeAdaptiveDocument(children: children, style: style.document))
         case let .content(children):
             materializer.materialize(NativeAdaptiveContentGroup(
                 children: children,
-                spacing: style.listItemContentSpacing
+                spacing: style.list.contentSpacing
             ))
         case let .blockQuote(children):
-            materializer.materialize(NativeAdaptiveBlockQuote(children: children, style: style))
+            materializer.materialize(NativeAdaptiveBlockQuote(children: children, style: style.quote))
         case let .list(items):
-            materializer.materialize(NativeAdaptiveList(items: items, style: style))
+            materializer.materialize(NativeAdaptiveList(items: items, style: style.list))
         case let .footnote(identifier, children):
             materializer.materialize(NativeAdaptiveFootnote(
                 identifier: identifier,
                 children: children,
-                style: style,
+                style: style.list,
                 semantics: semantics
             ))
         case let .task(isChecked, content):
             materializer.materialize(NativeAdaptiveTask(
                 isChecked: isChecked,
                 content: content,
-                style: style,
+                style: style.task,
                 semantics: semantics
             ))
         case let .table(table):
             materializer.materialize(NativeAdaptiveTable(
                 table: table,
-                style: style,
+                style: style.table,
                 semantics: semantics
             ))
         case let .mermaidFallback(diagramType, source):
             materializer.materialize(NativeAdaptiveMermaidFallback(
                 diagramType: diagramType,
                 source: source,
-                style: style,
+                style: style.codeBlock,
                 semantics: semantics
             ))
         }
@@ -115,10 +115,10 @@ extension NativeAdaptivePresentation {
 @available(iOS 17.0, macOS 14.0, *)
 private struct NativeAdaptiveDocument: View {
     let children: [NativeMaterializedView]
-    let style: SwiftUIStyleConfiguration
+    let style: NativePresentationStyle.Document
 
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: style.documentSpacing) {
+        LazyVStack(alignment: .leading, spacing: style.spacing) {
             ForEach(children) { child in
                 child
             }
@@ -148,15 +148,15 @@ private struct NativeAdaptiveBlockQuote: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let children: [NativeMaterializedView]
-    let style: SwiftUIStyleConfiguration
+    let style: NativePresentationStyle.Quote
 
     var body: some View {
         HStack(alignment: .top, spacing: horizontalSpacing) {
             Rectangle()
-                .fill(style.blockQuoteBorderColor)
-                .frame(width: style.blockQuoteBorderWidth)
+                .fill(style.borderColor)
+                .frame(width: style.borderWidth)
 
-            VStack(alignment: .leading, spacing: style.blockQuoteContentSpacing) {
+            VStack(alignment: .leading, spacing: style.contentSpacing) {
                 ForEach(children) { child in
                     child
                 }
@@ -164,20 +164,20 @@ private struct NativeAdaptiveBlockQuote: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.leading, horizontalPadding)
-        .padding(.vertical, style.blockQuoteVerticalPadding)
-        .background(style.blockQuoteBackgroundColor)
+        .padding(.vertical, style.verticalPadding)
+        .background(style.backgroundColor)
         .compositingGroup()
-        .clipShape(.rect(cornerRadius: style.blockQuoteCornerRadius))
+        .clipShape(.rect(cornerRadius: style.cornerRadius))
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isStaticText)
     }
 
     private var horizontalSpacing: CGFloat {
-        dynamicTypeSize.isAccessibilitySize ? style.blockQuoteSpacing * 0.5 : style.blockQuoteSpacing
+        style.horizontalSpacing(accessibilitySize: dynamicTypeSize.isAccessibilitySize)
     }
 
     private var horizontalPadding: CGFloat {
-        dynamicTypeSize.isAccessibilitySize ? style.blockQuotePadding * 0.5 : style.blockQuotePadding
+        style.padding(accessibilitySize: dynamicTypeSize.isAccessibilitySize)
     }
 }
 
@@ -186,13 +186,13 @@ private struct NativeAdaptiveList: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let items: [NativeAdaptivePresentation.ListItem]
-    let style: SwiftUIStyleConfiguration
+    let style: NativePresentationStyle.List
 
     var body: some View {
-        VStack(alignment: .leading, spacing: style.listItemSpacing) {
+        VStack(alignment: .leading, spacing: style.itemSpacing) {
             ForEach(items) { item in
                 if let marker = item.marker {
-                    NativeAdaptiveLabelContent(role: .listMarker, style: style) {
+                    NativeAdaptiveLabelContent(metrics: style.markerMetrics) {
                         markerView(marker)
                     } content: {
                         item.content.frame(maxWidth: .infinity, alignment: .leading)
@@ -213,18 +213,18 @@ private struct NativeAdaptiveList: View {
             switch marker {
             case .bullet:
                 Text(verbatim: "•")
-                    .frame(width: style.listMarkerWidth, alignment: .center)
+                    .frame(width: style.markerWidth, alignment: .center)
             case let .ordered(value):
                 Text(value)
-                    .frame(minWidth: style.listMarkerWidth, alignment: .trailing)
+                    .frame(minWidth: style.markerWidth, alignment: .trailing)
             }
         }
-        .font(style.bodyFont)
-        .foregroundStyle(style.listMarkerColor)
+        .font(style.font)
+        .foregroundStyle(style.markerColor)
     }
 
     private var listIndentation: CGFloat {
-        dynamicTypeSize.isAccessibilitySize ? style.listIndentation * 0.5 : style.listIndentation
+        style.indentation(accessibilitySize: dynamicTypeSize.isAccessibilitySize)
     }
 }
 
@@ -232,13 +232,13 @@ private struct NativeAdaptiveList: View {
 private struct NativeAdaptiveFootnote: View {
     let identifier: String
     let children: [NativeMaterializedView]
-    let style: SwiftUIStyleConfiguration
+    let style: NativePresentationStyle.List
     let semantics: NativePresentationSemantics
 
     init(
         identifier: String,
         children: [NativeMaterializedView],
-        style: SwiftUIStyleConfiguration,
+        style: NativePresentationStyle.List,
         semantics: NativePresentationSemantics
     ) {
         self.identifier = identifier
@@ -248,13 +248,13 @@ private struct NativeAdaptiveFootnote: View {
     }
 
     var body: some View {
-        NativeAdaptiveLabelContent(role: .footnoteIdentifier, style: style) {
+        NativeAdaptiveLabelContent(metrics: style.footnoteMetrics) {
             Text(verbatim: "[\(identifier)]")
-                .font(style.bodyFont)
+                .font(style.font)
                 .foregroundStyle(style.textColor.opacity(0.65))
                 .accessibilityHidden(true)
         } content: {
-            VStack(alignment: .leading, spacing: style.listItemContentSpacing) {
+            VStack(alignment: .leading, spacing: style.contentSpacing) {
                 ForEach(children) { child in
                     child
                 }
@@ -270,27 +270,27 @@ private struct NativeAdaptiveFootnote: View {
 private struct NativeAdaptiveTask: View {
     let isChecked: Bool
     let content: NativeInlineContent
-    let style: SwiftUIStyleConfiguration
+    let style: NativePresentationStyle.Task
     let semantics: NativePresentationSemantics
 
     var body: some View {
-        NativeAdaptiveLabelContent(role: .taskStatus, style: style) {
+        NativeAdaptiveLabelContent(metrics: style.statusMetrics) {
             Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isChecked ? style.taskListCheckedColor : style.taskListUncheckedColor)
-                .font(style.taskListCheckboxFont.weight(isChecked ? .bold : .regular))
+                .foregroundStyle(isChecked ? style.checkedColor : style.uncheckedColor)
+                .font(style.checkboxFont.weight(isChecked ? .bold : .regular))
                 .accessibilityHidden(true)
         } content: {
             content
-                .font(style.bodyFont)
+                .font(style.font)
                 .foregroundStyle(style.textColor)
                 .opacity(isChecked ? 0.7 : 1.0)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, style.taskListContentSpacing * 0.5)
+        .padding(.vertical, style.contentSpacing * 0.5)
         .background(
             isChecked
-                ? RoundedRectangle(cornerRadius: style.codeCornerRadius)
-                    .fill(style.taskListCheckedColor.opacity(0.08))
+                ? RoundedRectangle(cornerRadius: style.backgroundCornerRadius)
+                    .fill(style.checkedColor.opacity(0.08))
                 : nil
         )
         .accessibilityElement(children: .combine)
@@ -306,7 +306,7 @@ private struct NativeAdaptiveTable: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let table: NativeAdaptivePresentation.Table
-    let style: SwiftUIStyleConfiguration
+    let style: NativePresentationStyle.Table
     let semantics: NativePresentationSemantics
 
     var body: some View {
@@ -353,19 +353,19 @@ private struct NativeAdaptiveTable: View {
                 }
             }
         }
-        .background(style.tableBackgroundColor)
+        .background(style.backgroundColor)
         .overlay(
-            RoundedRectangle(cornerRadius: style.tableCornerRadius)
-                .stroke(style.tableBorderColor, lineWidth: style.tableBorderWidth)
+            RoundedRectangle(cornerRadius: style.cornerRadius)
+                .stroke(style.borderColor, lineWidth: style.borderWidth)
         )
         .compositingGroup()
-        .clipShape(.rect(cornerRadius: style.tableCornerRadius))
+        .clipShape(.rect(cornerRadius: style.cornerRadius))
     }
 
     private var stackedRows: some View {
-        VStack(alignment: .leading, spacing: style.listItemSpacing) {
+        VStack(alignment: .leading, spacing: style.rowSpacing) {
             ForEach(table.rows) { row in
-                VStack(alignment: .leading, spacing: style.tableCellPadding) {
+                VStack(alignment: .leading, spacing: style.cellPadding) {
                     ForEach(row.cells) { cell in
                         NativeAdaptiveTableField(
                             cell: cell,
@@ -375,11 +375,11 @@ private struct NativeAdaptiveTable: View {
                         )
                     }
                 }
-                .padding(style.tableCellPadding)
-                .background(style.tableCellBackgroundColor)
+                .padding(style.cellPadding)
+                .background(style.cellBackgroundColor)
                 .overlay(
-                    RoundedRectangle(cornerRadius: style.tableCornerRadius)
-                        .stroke(style.tableBorderColor, lineWidth: style.tableBorderWidth)
+                    RoundedRectangle(cornerRadius: style.cornerRadius)
+                        .stroke(style.borderColor, lineWidth: style.borderWidth)
                 )
             }
         }
@@ -400,7 +400,7 @@ private struct NativeAdaptiveTable: View {
 @available(iOS 17.0, macOS 14.0, *)
 private struct NativeAdaptiveTableHeaderCell: View {
     let column: NativeAdaptivePresentation.Table.Column
-    let style: SwiftUIStyleConfiguration
+    let style: NativePresentationStyle.Table
     let semantics: NativePresentationSemantics
 
     var body: some View {
@@ -415,15 +415,15 @@ private struct NativeAdaptiveTableHeaderCell: View {
                 Color.clear.accessibilityHidden(true)
             }
         }
-        .font(style.tableHeaderFont)
-        .foregroundStyle(style.tableHeaderTextColor)
+        .font(style.headerFont)
+        .foregroundStyle(style.headerTextColor)
         .fontWeight(.bold)
         .frame(maxWidth: .infinity, alignment: nativeTableAlignment(column.alignment))
-        .padding(style.tableCellPadding)
-        .background(style.tableHeaderBackgroundColor)
+        .padding(style.cellPadding)
+        .background(style.headerBackgroundColor)
         .overlay(
             Rectangle()
-                .stroke(style.tableBorderColor, lineWidth: style.tableBorderWidth)
+                .stroke(style.borderColor, lineWidth: style.borderWidth)
         )
     }
 }
@@ -432,18 +432,18 @@ private struct NativeAdaptiveTableHeaderCell: View {
 private struct NativeAdaptiveTableValueCell: View {
     let cell: NativeAdaptivePresentation.Table.Cell
     let column: NativeAdaptivePresentation.Table.Column
-    let style: SwiftUIStyleConfiguration
+    let style: NativePresentationStyle.Table
 
     var body: some View {
         cell.content
-            .font(style.tableBodyFont)
-            .foregroundStyle(style.tableBodyTextColor)
+            .font(style.bodyFont)
+            .foregroundStyle(style.bodyTextColor)
             .frame(maxWidth: .infinity, alignment: nativeTableAlignment(column.alignment))
-            .padding(style.tableCellPadding)
-            .background(style.tableCellBackgroundColor)
+            .padding(style.cellPadding)
+            .background(style.cellBackgroundColor)
             .overlay(
                 Rectangle()
-                    .stroke(style.tableBorderColor, lineWidth: style.tableBorderWidth)
+                    .stroke(style.borderColor, lineWidth: style.borderWidth)
             )
             .accessibilityLabel(cell.content.accessibilityText)
             .accessibilityAddTraits(.isStaticText)
@@ -454,16 +454,16 @@ private struct NativeAdaptiveTableValueCell: View {
 private struct NativeAdaptiveTableField: View {
     let cell: NativeAdaptivePresentation.Table.Cell
     let column: NativeAdaptivePresentation.Table.Column
-    let style: SwiftUIStyleConfiguration
+    let style: NativePresentationStyle.Table
     let semantics: NativePresentationSemantics
 
     var body: some View {
         Group {
             if let header = column.header {
-                NativeAdaptiveLabelContent(role: .tableField, style: style) {
+                NativeAdaptiveLabelContent(metrics: style.fieldMetrics) {
                     header
-                        .font(style.tableHeaderFont)
-                        .foregroundStyle(style.tableHeaderTextColor)
+                        .font(style.headerFont)
+                        .foregroundStyle(style.headerTextColor)
                         .fontWeight(.semibold)
                         .accessibilityLabel(Text(semantics.localized(.tableHeader(
                             content: header.accessibilityText
@@ -480,8 +480,8 @@ private struct NativeAdaptiveTableField: View {
 
     private var value: some View {
         cell.content
-            .font(style.tableBodyFont)
-            .foregroundStyle(style.tableBodyTextColor)
+            .font(style.bodyFont)
+            .foregroundStyle(style.bodyTextColor)
             .frame(maxWidth: .infinity, alignment: nativeTableAlignment(column.alignment))
             .accessibilityLabel(cell.content.accessibilityText)
     }
@@ -502,46 +502,46 @@ private func nativeTableAlignment(_ alignment: GFMTableAlignment) -> Alignment {
 private struct NativeAdaptiveMermaidFallback: View {
     let diagramType: String?
     let source: String
-    let style: SwiftUIStyleConfiguration
+    let style: NativePresentationStyle.CodeBlock
     let semantics: NativePresentationSemantics
 
     var body: some View {
-        VStack(alignment: .leading, spacing: style.listItemSpacing) {
-            NativeAdaptiveLabelContent(role: .mermaidTitle, style: style) {
+        VStack(alignment: .leading, spacing: style.verticalSpacing) {
+            NativeAdaptiveLabelContent(metrics: style.titleMetrics) {
                 Image(systemName: "chart.bar.fill")
                     .foregroundStyle(.blue)
                     .accessibilityHidden(true)
             } content: {
-                VStack(alignment: .leading, spacing: style.listItemContentSpacing) {
+                VStack(alignment: .leading, spacing: style.contentSpacing) {
                     Text(semantics.localized(.mermaidTitle))
-                        .font(style.codeFont.bold())
-                        .foregroundStyle(style.textColor)
+                        .font(style.font.bold())
+                        .foregroundStyle(style.titleTextColor)
 
                     if let diagramType {
                         Text(verbatim: "(\(diagramType))")
-                            .font(style.codeFont)
+                            .font(style.font)
                             .foregroundStyle(.secondary)
                     }
                 }
             }
-            .padding(.horizontal, style.codeBlockPadding)
-            .padding(.top, style.codeBlockPadding)
+            .padding(.horizontal, style.blockPadding)
+            .padding(.top, style.blockPadding)
 
             Text(source)
-                .font(style.codeFont)
-                .foregroundStyle(style.codeTextColor)
+                .font(style.font)
+                .foregroundStyle(style.textColor)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, style.codeBlockPadding)
-                .padding(.bottom, style.codeBlockPadding)
+                .padding(.horizontal, style.blockPadding)
+                .padding(.bottom, style.blockPadding)
         }
-        .background(style.codeBackgroundColor)
+        .background(style.backgroundColor)
         .overlay(
-            RoundedRectangle(cornerRadius: style.codeCornerRadius)
+            RoundedRectangle(cornerRadius: style.cornerRadius)
                 .stroke(Color.blue.opacity(0.3), lineWidth: 2)
         )
         .compositingGroup()
-        .clipShape(.rect(cornerRadius: style.codeCornerRadius))
+        .clipShape(.rect(cornerRadius: style.cornerRadius))
         .accessibilityLabel(Text(semantics.localized(.mermaidDiagram(type: diagramType))))
         .accessibilityValue(source)
         .accessibilityAddTraits(.isStaticText)

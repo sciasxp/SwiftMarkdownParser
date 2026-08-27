@@ -282,30 +282,169 @@ struct SwiftUIRendererTests {
         #expect(headerOnly.rows.isEmpty)
     }
 
-    @Test("Owns Dynamic Type policy for every adaptive label/content role")
+    @Test("Native style owns Dynamic Type policy for every adaptive label/content role")
     func adaptiveLabelContentRolePolicy() {
-        let style = SwiftUIStyleConfiguration.github
+        let style = NativePresentationStyle(.github)
 
-        #expect(!NativeAdaptiveLabelContentRole.listMarker.metrics(
-            style: style,
-            accessibilitySize: true
-        ).prefersVertical)
-        #expect(!NativeAdaptiveLabelContentRole.taskStatus.metrics(
-            style: style,
-            accessibilitySize: true
-        ).prefersVertical)
-        #expect(NativeAdaptiveLabelContentRole.footnoteIdentifier.metrics(
-            style: style,
-            accessibilitySize: true
-        ).prefersVertical)
-        #expect(NativeAdaptiveLabelContentRole.mermaidTitle.metrics(
-            style: style,
-            accessibilitySize: true
-        ).prefersVertical)
-        #expect(NativeAdaptiveLabelContentRole.tableField.metrics(
-            style: style,
-            accessibilitySize: false
-        ).prefersVertical)
+        #expect(!style.list.markerMetrics.accessibility.prefersVertical)
+        #expect(!style.task.statusMetrics.accessibility.prefersVertical)
+        #expect(style.list.footnoteMetrics.accessibility.prefersVertical)
+        #expect(style.codeBlock.titleMetrics.accessibility.prefersVertical)
+        #expect(style.table.fieldMetrics.standard.prefersVertical)
+    }
+
+    @Test("Dark mode preserves every customization outside its deliberate palette")
+    func darkModePreservesCustomStyle() {
+        let source = distinctiveStyle()
+        let dark = source.darkMode()
+        let expectedPalette = SwiftUIStyleConfiguration().darkMode()
+        let paletteFields: Set<String> = [
+            "codeBackgroundColor",
+            "blockQuoteBorderColor",
+            "blockQuoteBackgroundColor",
+            "thematicBreakColor",
+            "strikethroughColor",
+            "taskListUncheckedColor",
+            "tableBorderColor",
+            "tableHeaderBackgroundColor",
+        ]
+
+        #expect(
+            styleFingerprint(source, excluding: paletteFields)
+                == styleFingerprint(dark, excluding: paletteFields)
+        )
+
+        let darkFingerprint = styleFingerprint(dark)
+        let expectedFingerprint = styleFingerprint(expectedPalette)
+        for field in paletteFields {
+            #expect(darkFingerprint[field] == expectedFingerprint[field])
+        }
+    }
+
+    @Test("Compact mode scales only documented spatial metrics")
+    func compactScalesOnlySpatialMetrics() {
+        let source = distinctiveStyle()
+        let compact = source.compact()
+        let scaledFields: Set<String> = [
+            "documentSpacing",
+            "paragraphSpacing",
+            "lineBreakSpacing",
+            "blockQuoteSpacing",
+            "blockQuoteContentSpacing",
+            "blockQuotePadding",
+            "blockQuoteVerticalPadding",
+            "thematicBreakSpacing",
+            "listItemSpacing",
+            "listItemContentSpacing",
+            "listMarkerSpacing",
+            "listIndentation",
+            "codeSpanPadding",
+            "codeBlockPadding",
+            "taskListSpacing",
+            "taskListContentSpacing",
+            "tableCellPadding",
+        ]
+        let spatialMetrics: [KeyPath<SwiftUIStyleConfiguration, CGFloat>] = [
+            \.documentSpacing,
+            \.paragraphSpacing,
+            \.lineBreakSpacing,
+            \.blockQuoteSpacing,
+            \.blockQuoteContentSpacing,
+            \.blockQuotePadding,
+            \.blockQuoteVerticalPadding,
+            \.thematicBreakSpacing,
+            \.listItemSpacing,
+            \.listItemContentSpacing,
+            \.listMarkerSpacing,
+            \.listIndentation,
+            \.codeSpanPadding,
+            \.codeBlockPadding,
+            \.taskListSpacing,
+            \.taskListContentSpacing,
+            \.tableCellPadding,
+        ]
+
+        #expect(
+            styleFingerprint(source, excluding: scaledFields)
+                == styleFingerprint(compact, excluding: scaledFields)
+        )
+        for keyPath in spatialMetrics {
+            #expect(compact[keyPath: keyPath] == source[keyPath: keyPath] * 0.75)
+        }
+    }
+
+    @Test("Native presentation style normalizes metrics without mutating host input")
+    func nativePresentationStyleNormalizesMetrics() {
+        let source = SwiftUIStyleConfiguration(
+            documentSpacing: -1,
+            paragraphSpacing: -.infinity,
+            lineBreakSpacing: .nan,
+            blockQuoteSpacing: .infinity,
+            blockQuoteContentSpacing: -2,
+            blockQuotePadding: -3,
+            blockQuoteVerticalPadding: -4,
+            thematicBreakSpacing: -5,
+            listItemSpacing: -6,
+            listItemContentSpacing: -7,
+            listMarkerSpacing: -8,
+            listIndentation: -9,
+            listMarkerWidth: -10,
+            codeSpanPadding: -11,
+            codeBlockPadding: -12,
+            taskListSpacing: -13,
+            taskListContentSpacing: -14,
+            tableCellPadding: -15,
+            blockQuoteBorderWidth: -16,
+            blockQuoteCornerRadius: -17,
+            codeCornerRadius: -18,
+            imageMaxWidth: .nan,
+            imageCornerRadius: -19,
+            imagePlaceholderHeight: -20,
+            tableBorderWidth: -21,
+            tableCornerRadius: -22
+        )
+        let style = NativePresentationStyle(source)
+        let normalizedMetrics = [
+            style.document.spacing,
+            style.paragraph.bottomSpacing,
+            style.inline.lineSpacing,
+            style.quote.spacing,
+            style.quote.contentSpacing,
+            style.quote.horizontalPadding,
+            style.quote.verticalPadding,
+            style.quote.borderWidth,
+            style.quote.cornerRadius,
+            style.list.itemSpacing,
+            style.list.contentSpacing,
+            style.list.indentation,
+            style.list.markerWidth,
+            style.task.contentSpacing,
+            style.task.backgroundCornerRadius,
+            style.table.rowSpacing,
+            style.table.cellPadding,
+            style.table.borderWidth,
+            style.table.cornerRadius,
+            style.codeBlock.blockPadding,
+            style.codeBlock.spanPadding,
+            style.codeBlock.cornerRadius,
+            style.image.cornerRadius,
+            style.image.placeholderHeight,
+            style.thematicBreak.verticalSpacing,
+        ]
+
+        #expect(normalizedMetrics.allSatisfy { $0 == 0 })
+        #expect(style.image.maximumWidth == .infinity)
+        #expect(source.documentSpacing == -1)
+        #expect(source.paragraphSpacing == -.infinity)
+        #expect(source.lineBreakSpacing.isNaN)
+        #expect(NativePresentationStyle(
+            SwiftUIStyleConfiguration(imageMaxWidth: -1)
+        ).image.maximumWidth == 0)
+        #expect(NativePresentationStyle(
+            SwiftUIStyleConfiguration(imageMaxWidth: .infinity)
+        ).image.maximumWidth == .infinity)
+        #expect(style.heading(level: 0).bottomSpacing == 12)
+        #expect(style.heading(level: 1).bottomSpacing == 24)
     }
 
     @Test("Chooses the label/content axis at a finite deterministic threshold")
@@ -731,6 +870,60 @@ struct SwiftUIRendererTests {
         }
     }
 
+    @Test("Materializes standard, compact, and dark presentation styles")
+    func materializesPresentationStyleVariants() async throws {
+        let document = try SwiftMarkdownParser().parse("""
+        # Presentation
+
+        > A quote with enough content to expose spacing and palette changes.
+
+        - [x] Native style
+
+        ```swift
+        let answer = 42
+        ```
+        """)
+        let standardContent = try await SwiftUIRenderer().render(document)
+        let compactContent = try await SwiftUIRenderer(options: .init(
+            styleConfiguration: SwiftUIStyleConfiguration().compact()
+        )).render(document)
+        let darkContent = try await SwiftUIRenderer(options: .init(
+            styleConfiguration: SwiftUIStyleConfiguration().darkMode()
+        )).render(document)
+
+        let standard = try #require(ImageRenderer(content:
+            standardContent
+                .frame(width: 360, alignment: .leading)
+                .padding(12)
+                .background(.white)
+        ).cgImage)
+        let compact = try #require(ImageRenderer(content:
+            compactContent
+                .frame(width: 360, alignment: .leading)
+                .padding(12)
+                .background(.white)
+        ).cgImage)
+        let dark = try #require(ImageRenderer(content:
+            darkContent
+                .frame(width: 360, alignment: .leading)
+                .padding(12)
+                .background(.white)
+        ).cgImage)
+        let standardData = try #require(NSBitmapImageRep(cgImage: standard).representation(
+            using: .png,
+            properties: [:]
+        ))
+        let darkData = try #require(NSBitmapImageRep(cgImage: dark).representation(
+            using: .png,
+            properties: [:]
+        ))
+
+        #expect(compact.height < standard.height)
+        #expect(dark.width == standard.width)
+        #expect(dark.height == standard.height)
+        #expect(darkData != standardData)
+    }
+
     @Test("Does not reinvoke rich adapters across adaptive recomposition")
     func adaptiveRecompositionPreservesRichAdapterEffects() async throws {
         let recorder = RichContentRecorder()
@@ -996,6 +1189,71 @@ struct SwiftUIRendererTests {
 
         let document = try SwiftMarkdownParser().parse(markdown)
         _ = try await SwiftUIRenderer().render(document)
+    }
+
+    private func distinctiveStyle() -> SwiftUIStyleConfiguration {
+        SwiftUIStyleConfiguration(
+            bodyFont: .custom("NativeBody", size: 11),
+            codeFont: .custom("NativeCode", size: 12),
+            headingFonts: [1: .custom("NativeHeading", size: 21)],
+            tableHeaderFont: .custom("NativeTableHeader", size: 13),
+            tableBodyFont: .custom("NativeTableBody", size: 14),
+            taskListCheckboxFont: .custom("NativeTask", size: 15),
+            textColor: Color(red: 0.01, green: 0.02, blue: 0.03),
+            headingColor: Color(red: 0.04, green: 0.05, blue: 0.06),
+            linkColor: Color(red: 0.07, green: 0.08, blue: 0.09),
+            codeTextColor: Color(red: 0.10, green: 0.11, blue: 0.12),
+            codeBackgroundColor: Color(red: 0.13, green: 0.14, blue: 0.15),
+            blockQuoteBorderColor: Color(red: 0.16, green: 0.17, blue: 0.18),
+            blockQuoteBackgroundColor: Color(red: 0.19, green: 0.20, blue: 0.21),
+            thematicBreakColor: Color(red: 0.22, green: 0.23, blue: 0.24),
+            listMarkerColor: Color(red: 0.25, green: 0.26, blue: 0.27),
+            strikethroughColor: Color(red: 0.28, green: 0.29, blue: 0.30),
+            taskListCheckedColor: Color(red: 0.31, green: 0.32, blue: 0.33),
+            taskListUncheckedColor: Color(red: 0.34, green: 0.35, blue: 0.36),
+            tableBorderColor: Color(red: 0.37, green: 0.38, blue: 0.39),
+            tableBackgroundColor: Color(red: 0.40, green: 0.41, blue: 0.42),
+            tableHeaderBackgroundColor: Color(red: 0.43, green: 0.44, blue: 0.45),
+            tableCellBackgroundColor: Color(red: 0.46, green: 0.47, blue: 0.48),
+            tableHeaderTextColor: Color(red: 0.49, green: 0.50, blue: 0.51),
+            tableBodyTextColor: Color(red: 0.52, green: 0.53, blue: 0.54),
+            documentSpacing: 1,
+            paragraphSpacing: 2,
+            lineBreakSpacing: 3,
+            blockQuoteSpacing: 4,
+            blockQuoteContentSpacing: 5,
+            blockQuotePadding: 6,
+            blockQuoteVerticalPadding: 7,
+            thematicBreakSpacing: 8,
+            listItemSpacing: 9,
+            listItemContentSpacing: 10,
+            listMarkerSpacing: 11,
+            listIndentation: 12,
+            listMarkerWidth: 13,
+            codeSpanPadding: 14,
+            codeBlockPadding: 15,
+            taskListSpacing: 16,
+            taskListContentSpacing: 17,
+            tableCellPadding: 18,
+            blockQuoteBorderWidth: 19,
+            blockQuoteCornerRadius: 20,
+            codeCornerRadius: 21,
+            imageMaxWidth: 22,
+            imageCornerRadius: 23,
+            imagePlaceholderHeight: 24,
+            tableBorderWidth: 25,
+            tableCornerRadius: 26
+        )
+    }
+
+    private func styleFingerprint(
+        _ style: SwiftUIStyleConfiguration,
+        excluding excludedFields: Set<String> = []
+    ) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: Mirror(reflecting: style).children.compactMap { child in
+            guard let label = child.label, !excludedFields.contains(label) else { return nil }
+            return (label, String(reflecting: child.value))
+        })
     }
 
     private func projectedTable(

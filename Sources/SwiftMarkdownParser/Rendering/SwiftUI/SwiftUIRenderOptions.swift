@@ -400,74 +400,106 @@ public struct SwiftUIStyleConfiguration: Sendable {
 
     /// Create a dark mode variant
     public func darkMode() -> SwiftUIStyleConfiguration {
-        return SwiftUIStyleConfiguration(
-            codeBackgroundColor: Color.gray.opacity(0.2),
-            blockQuoteBorderColor: Color.gray.opacity(0.4),
-            blockQuoteBackgroundColor: Color.gray.opacity(0.1),
-            thematicBreakColor: Color.gray.opacity(0.4),
-            strikethroughColor: Color.gray.opacity(0.7),
-            taskListUncheckedColor: Color.gray.opacity(0.4),
-            tableBorderColor: Color.gray.opacity(0.4),
-            tableHeaderBackgroundColor: Color.gray.opacity(0.2)
-        )
+        SwiftUIStyleConfiguration(copying: self, palette: .dark)
     }
 
     /// Create a compact variant with reduced spacing
     public func compact() -> SwiftUIStyleConfiguration {
-        SwiftUIStyleConfiguration(
-            bodyFont: bodyFont,
-            codeFont: codeFont,
-            headingFonts: headingFonts,
-            tableHeaderFont: tableHeaderFont,
-            tableBodyFont: tableBodyFont,
-            taskListCheckboxFont: taskListCheckboxFont,
+        SwiftUIStyleConfiguration(copying: self, spatialScale: 0.75)
+    }
 
-            textColor: textColor,
-            headingColor: headingColor,
-            linkColor: linkColor,
-            codeTextColor: codeTextColor,
-            codeBackgroundColor: codeBackgroundColor,
-            blockQuoteBorderColor: blockQuoteBorderColor,
-            blockQuoteBackgroundColor: blockQuoteBackgroundColor,
-            thematicBreakColor: thematicBreakColor,
-            listMarkerColor: listMarkerColor,
-            strikethroughColor: strikethroughColor,
-            taskListCheckedColor: taskListCheckedColor,
-            taskListUncheckedColor: taskListUncheckedColor,
-            tableBorderColor: tableBorderColor,
-            tableBackgroundColor: tableBackgroundColor,
-            tableHeaderBackgroundColor: tableHeaderBackgroundColor,
-            tableCellBackgroundColor: tableCellBackgroundColor,
-            tableHeaderTextColor: tableHeaderTextColor,
-            tableBodyTextColor: tableBodyTextColor,
+    private enum Palette {
+        case preserving
+        case dark
 
-            documentSpacing: documentSpacing * 0.75,
-            paragraphSpacing: paragraphSpacing * 0.75,
-            lineBreakSpacing: lineBreakSpacing * 0.75,
-            blockQuoteSpacing: blockQuoteSpacing * 0.75,
-            blockQuoteContentSpacing: blockQuoteContentSpacing * 0.75,
-            blockQuotePadding: blockQuotePadding * 0.75,
-            blockQuoteVerticalPadding: blockQuoteVerticalPadding * 0.75,
-            thematicBreakSpacing: thematicBreakSpacing * 0.75,
-            listItemSpacing: listItemSpacing * 0.75,
-            listItemContentSpacing: listItemContentSpacing * 0.75,
-            listMarkerSpacing: listMarkerSpacing * 0.75,
-            listIndentation: listIndentation * 0.75,
-            listMarkerWidth: listMarkerWidth,
-            codeSpanPadding: codeSpanPadding * 0.75,
-            codeBlockPadding: codeBlockPadding * 0.75,
-            taskListSpacing: taskListSpacing * 0.75,
-            taskListContentSpacing: taskListContentSpacing * 0.75,
-            tableCellPadding: tableCellPadding * 0.75,
+        func color(_ original: Color, dark: Color) -> Color {
+            self == .dark ? dark : original
+        }
+    }
 
-            blockQuoteBorderWidth: blockQuoteBorderWidth,
-            blockQuoteCornerRadius: blockQuoteCornerRadius,
-            codeCornerRadius: codeCornerRadius,
-            imageMaxWidth: imageMaxWidth,
-            imageCornerRadius: imageCornerRadius,
-            imagePlaceholderHeight: imagePlaceholderHeight,
-            tableBorderWidth: tableBorderWidth,
-            tableCornerRadius: tableCornerRadius
+    private init(
+        copying source: SwiftUIStyleConfiguration,
+        palette: Palette = .preserving,
+        spatialScale: CGFloat = 1
+    ) {
+        self.init(
+            bodyFont: source.bodyFont,
+            codeFont: source.codeFont,
+            headingFonts: source.headingFonts,
+            tableHeaderFont: source.tableHeaderFont,
+            tableBodyFont: source.tableBodyFont,
+            taskListCheckboxFont: source.taskListCheckboxFont,
+
+            textColor: source.textColor,
+            headingColor: source.headingColor,
+            linkColor: source.linkColor,
+            codeTextColor: source.codeTextColor,
+            codeBackgroundColor: palette.color(
+                source.codeBackgroundColor,
+                dark: Color.gray.opacity(0.2)
+            ),
+            blockQuoteBorderColor: palette.color(
+                source.blockQuoteBorderColor,
+                dark: Color.gray.opacity(0.4)
+            ),
+            blockQuoteBackgroundColor: palette.color(
+                source.blockQuoteBackgroundColor,
+                dark: Color.gray.opacity(0.1)
+            ),
+            thematicBreakColor: palette.color(
+                source.thematicBreakColor,
+                dark: Color.gray.opacity(0.4)
+            ),
+            listMarkerColor: source.listMarkerColor,
+            strikethroughColor: palette.color(
+                source.strikethroughColor,
+                dark: Color.gray.opacity(0.7)
+            ),
+            taskListCheckedColor: source.taskListCheckedColor,
+            taskListUncheckedColor: palette.color(
+                source.taskListUncheckedColor,
+                dark: Color.gray.opacity(0.4)
+            ),
+            tableBorderColor: palette.color(
+                source.tableBorderColor,
+                dark: Color.gray.opacity(0.4)
+            ),
+            tableBackgroundColor: source.tableBackgroundColor,
+            tableHeaderBackgroundColor: palette.color(
+                source.tableHeaderBackgroundColor,
+                dark: Color.gray.opacity(0.2)
+            ),
+            tableCellBackgroundColor: source.tableCellBackgroundColor,
+            tableHeaderTextColor: source.tableHeaderTextColor,
+            tableBodyTextColor: source.tableBodyTextColor,
+
+            documentSpacing: source.documentSpacing * spatialScale,
+            paragraphSpacing: source.paragraphSpacing * spatialScale,
+            lineBreakSpacing: source.lineBreakSpacing * spatialScale,
+            blockQuoteSpacing: source.blockQuoteSpacing * spatialScale,
+            blockQuoteContentSpacing: source.blockQuoteContentSpacing * spatialScale,
+            blockQuotePadding: source.blockQuotePadding * spatialScale,
+            blockQuoteVerticalPadding: source.blockQuoteVerticalPadding * spatialScale,
+            thematicBreakSpacing: source.thematicBreakSpacing * spatialScale,
+            listItemSpacing: source.listItemSpacing * spatialScale,
+            listItemContentSpacing: source.listItemContentSpacing * spatialScale,
+            listMarkerSpacing: source.listMarkerSpacing * spatialScale,
+            listIndentation: source.listIndentation * spatialScale,
+            listMarkerWidth: source.listMarkerWidth,
+            codeSpanPadding: source.codeSpanPadding * spatialScale,
+            codeBlockPadding: source.codeBlockPadding * spatialScale,
+            taskListSpacing: source.taskListSpacing * spatialScale,
+            taskListContentSpacing: source.taskListContentSpacing * spatialScale,
+            tableCellPadding: source.tableCellPadding * spatialScale,
+
+            blockQuoteBorderWidth: source.blockQuoteBorderWidth,
+            blockQuoteCornerRadius: source.blockQuoteCornerRadius,
+            codeCornerRadius: source.codeCornerRadius,
+            imageMaxWidth: source.imageMaxWidth,
+            imageCornerRadius: source.imageCornerRadius,
+            imagePlaceholderHeight: source.imagePlaceholderHeight,
+            tableBorderWidth: source.tableBorderWidth,
+            tableCornerRadius: source.tableCornerRadius
         )
     }
 }

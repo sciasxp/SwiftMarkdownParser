@@ -1,106 +1,299 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Failed to render diagram" : {
+
+    },
+    "Failed to render markdown" : {
+
+    },
     "native.accessibility.code_block" : {
+      "comment" : "VoiceOver label for a code block without a language.",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Code block" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Bloco de código" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code block"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bloco de código"
+          }
+        }
       }
     },
     "native.accessibility.code_block.language" : {
+      "comment" : "VoiceOver label for a code block. The value is its programming language.",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Code block in %@" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Bloco de código em %@" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code block in %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bloco de código em %@"
+          }
+        }
       }
     },
     "native.accessibility.footnote" : {
+      "comment" : "VoiceOver label for a footnote. The value is its Markdown identifier.",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Footnote %@" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Nota de rodapé %@" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Footnote %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nota de rodapé %@"
+          }
+        }
       }
     },
     "native.accessibility.html.block" : {
+      "comment" : "VoiceOver label for a block of raw HTML source.",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "HTML content" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Conteúdo HTML" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTML content"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conteúdo HTML"
+          }
+        }
       }
     },
     "native.accessibility.html.inline" : {
+      "comment" : "VoiceOver label for inline raw HTML. The value is the HTML source.",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "HTML: %@" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "HTML: %@" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTML: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTML: %@"
+          }
+        }
       }
     },
     "native.accessibility.image.loading" : {
+      "comment" : "VoiceOver loading state for an image. The value is its alternative text.",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading image: %@" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Carregando imagem: %@" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading image: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carregando imagem: %@"
+          }
+        }
       }
     },
     "native.accessibility.math.expression" : {
+      "comment" : "VoiceOver label for a displayed math expression.",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Math expression" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Expressão matemática" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Math expression"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expressão matemática"
+          }
+        }
       }
     },
     "native.accessibility.math.inline" : {
+      "comment" : "VoiceOver label for inline math. The value is the source expression.",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Math: %@" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Matemática: %@" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Math: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Matemática: %@"
+          }
+        }
       }
     },
     "native.accessibility.mermaid_diagram.type" : {
+      "comment" : "VoiceOver label for a Mermaid diagram. The value is its diagram type.",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Mermaid diagram: %@" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Diagrama Mermaid: %@" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mermaid diagram: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diagrama Mermaid: %@"
+          }
+        }
       }
     },
     "native.accessibility.mermaid_diagram.unknown" : {
+      "comment" : "VoiceOver label for a Mermaid diagram whose type is unknown.",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Mermaid diagram: unknown type" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Diagrama Mermaid: tipo desconhecido" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mermaid diagram: unknown type"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diagrama Mermaid: tipo desconhecido"
+          }
+        }
       }
     },
     "native.accessibility.section_divider" : {
+      "comment" : "VoiceOver label for the divider between Markdown sections.",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Section divider" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Divisor de seção" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Section divider"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Divisor de seção"
+          }
+        }
       }
     },
     "native.accessibility.table" : {
+      "comment" : "VoiceOver label for a Markdown table.",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Table" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Tabela" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Table"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabela"
+          }
+        }
       }
     },
     "native.accessibility.table_header" : {
+      "comment" : "VoiceOver label for a table header. The value is the header text.",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Header: %@" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Cabeçalho: %@" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Header: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cabeçalho: %@"
+          }
+        }
       }
     },
     "native.accessibility.task.completed" : {
+      "comment" : "VoiceOver label for a completed task. The value is the task text.",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Completed task: %@" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Tarefa concluída: %@" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completed task: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tarefa concluída: %@"
+          }
+        }
       }
     },
     "native.accessibility.task.incomplete" : {
+      "comment" : "VoiceOver label for an incomplete task. The value is the task text.",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Incomplete task: %@" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Tarefa incompleta: %@" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incomplete task: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tarefa incompleta: %@"
+          }
+        }
       }
     },
     "native.error.unsupported_node_type" : {
+      "comment" : "Renderer error. The value is the unsupported AST node type.",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unsupported AST node type: %@" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Tipo de nó da AST não compatível: %@" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unsupported AST node type: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tipo de nó da AST não compatível: %@"
+          }
+        }
       }
     },
     "native.title.mermaid_diagram" : {
+      "comment" : "Visible title for a Mermaid source fallback.",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Mermaid Diagram" } },
-        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Diagrama Mermaid" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mermaid Diagram"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diagrama Mermaid"
+          }
+        }
       }
     }
   },

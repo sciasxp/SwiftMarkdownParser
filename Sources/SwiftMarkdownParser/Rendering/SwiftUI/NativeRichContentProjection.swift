@@ -15,20 +15,23 @@ struct NativeRichContentProjection {
 
     private let adapter: SwiftUIRichContentAdapter?
     private let baseURL: URL?
-    private let style: SwiftUIStyleConfiguration
+    private let codeStyle: NativePresentationStyle.CodeBlock
+    private let imageStyle: NativePresentationStyle.Image
     private let adaptivePresentation: NativeAdaptivePresentation
     private let semantics: NativePresentationSemantics
     private let materializer: NativeViewMaterializer
 
     init(
         options: SwiftUIRenderOptions,
+        style: NativePresentationStyle,
         adaptivePresentation: NativeAdaptivePresentation,
         semantics: NativePresentationSemantics,
         materializer: NativeViewMaterializer
     ) {
         self.adapter = options.richContentAdapter
         self.baseURL = options.baseURL
-        self.style = options.styleConfiguration
+        self.codeStyle = style.codeBlock
+        self.imageStyle = style.image
         self.adaptivePresentation = adaptivePresentation
         self.semantics = semantics
         self.materializer = materializer
@@ -122,7 +125,7 @@ struct NativeRichContentProjection {
                 switch phase {
                 case .empty:
                     ProgressView()
-                        .frame(height: style.imagePlaceholderHeight)
+                        .frame(height: imageStyle.placeholderHeight)
                         .accessibilityLabel(Text(semantics.localized(
                             .loadingImage(alternativeText: node.altText)
                         )))
@@ -130,8 +133,8 @@ struct NativeRichContentProjection {
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: style.imageMaxWidth)
-                        .clipShape(.rect(cornerRadius: style.imageCornerRadius))
+                        .frame(maxWidth: imageStyle.maximumWidth)
+                        .clipShape(.rect(cornerRadius: imageStyle.cornerRadius))
                 case .failure:
                     VStack(spacing: 8) {
                         Image(systemName: "photo")
@@ -139,8 +142,8 @@ struct NativeRichContentProjection {
                             .accessibilityHidden(true)
                         Text(node.altText)
                     }
-                    .frame(maxWidth: style.imageMaxWidth)
-                    .frame(minHeight: style.imagePlaceholderHeight)
+                    .frame(maxWidth: imageStyle.maximumWidth)
+                    .frame(minHeight: imageStyle.placeholderHeight)
                 @unknown default:
                     Text(node.altText)
                 }
@@ -154,13 +157,13 @@ struct NativeRichContentProjection {
         materializer.materialize(
             ScrollView(.horizontal, showsIndicators: true) {
                 Text(node.content)
-                    .font(style.codeFont)
-                    .foregroundStyle(style.codeTextColor)
+                    .font(codeStyle.font)
+                    .foregroundStyle(codeStyle.textColor)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(style.codeBlockPadding)
+                    .padding(codeStyle.blockPadding)
             }
-            .background(style.codeBackgroundColor)
-            .clipShape(.rect(cornerRadius: style.codeCornerRadius))
+            .background(codeStyle.backgroundColor)
+            .clipShape(.rect(cornerRadius: codeStyle.cornerRadius))
             .accessibilityLabel(Text(semantics.localized(.mathExpression)))
             .accessibilityValue(node.content)
             .accessibilityAddTraits(.isStaticText)
@@ -173,12 +176,12 @@ struct NativeRichContentProjection {
     ) -> NativeMaterializedView {
         materializer.materialize(
             Text(source)
-                .font(style.codeFont)
-                .foregroundStyle(style.codeTextColor)
-                .padding(.horizontal, style.codeSpanPadding)
-                .background(style.codeBackgroundColor)
+                .font(codeStyle.font)
+                .foregroundStyle(codeStyle.textColor)
+                .padding(.horizontal, codeStyle.spanPadding)
+                .background(codeStyle.backgroundColor)
                 .compositingGroup()
-                .clipShape(.rect(cornerRadius: style.codeCornerRadius))
+                .clipShape(.rect(cornerRadius: codeStyle.cornerRadius))
                 .accessibilityLabel(Text(accessibilityLabel))
                 .accessibilityAddTraits(.isStaticText)
         )
@@ -190,12 +193,12 @@ struct NativeRichContentProjection {
     ) -> NativeMaterializedView {
         materializer.materialize(
             Text(source)
-                .font(style.codeFont)
-                .foregroundStyle(style.codeTextColor)
-                .padding(style.codeBlockPadding)
-                .background(style.codeBackgroundColor)
+                .font(codeStyle.font)
+                .foregroundStyle(codeStyle.textColor)
+                .padding(codeStyle.blockPadding)
+                .background(codeStyle.backgroundColor)
                 .compositingGroup()
-                .clipShape(.rect(cornerRadius: style.codeCornerRadius))
+                .clipShape(.rect(cornerRadius: codeStyle.cornerRadius))
                 .accessibilityLabel(Text(accessibilityLabel))
                 .accessibilityValue(source)
                 .accessibilityAddTraits(.isStaticText)

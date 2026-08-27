@@ -5,16 +5,16 @@ import SwiftUI
 @available(iOS 17.0, macOS 14.0, *)
 @MainActor
 struct NativeInlineProjection {
-    private let style: SwiftUIStyleConfiguration
+    private let style: NativePresentationStyle.Inline
     private let richContentProjection: NativeRichContentProjection
     private let materializer: NativeViewMaterializer
 
     init(
-        options: SwiftUIRenderOptions,
+        style: NativePresentationStyle.Inline,
         richContentProjection: NativeRichContentProjection,
         materializer: NativeViewMaterializer
     ) {
-        self.style = options.styleConfiguration
+        self.style = style
         self.richContentProjection = richContentProjection
         self.materializer = materializer
     }
@@ -26,7 +26,7 @@ struct NativeInlineProjection {
             id: materializer.identity(),
             storage: storage,
             accessibilityText: plan.accessibilityText,
-            lineSpacing: max(0, style.lineBreakSpacing)
+            lineSpacing: style.lineSpacing
         )
     }
 

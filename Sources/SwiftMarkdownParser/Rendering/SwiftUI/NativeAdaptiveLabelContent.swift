@@ -1,59 +1,31 @@
 import SwiftUI
 
-@available(iOS 17.0, macOS 14.0, *)
-enum NativeAdaptiveLabelContentRole {
-    case listMarker
-    case taskStatus
-    case footnoteIdentifier
-    case mermaidTitle
-    case tableField
+struct NativeAdaptiveLabelContentMetrics {
+    let standard: NativeAdaptiveLabelContentGeometry.Metrics
+    let accessibility: NativeAdaptiveLabelContentGeometry.Metrics
 
-    func metrics(
-        style: SwiftUIStyleConfiguration,
-        accessibilitySize: Bool
-    ) -> NativeAdaptiveLabelContentGeometry.Metrics {
-        switch self {
-        case .listMarker:
-            return .init(
-                horizontalSpacing: style.listMarkerSpacing,
-                verticalSpacing: style.listItemContentSpacing,
-                minimumContentWidth: max(style.listMarkerWidth * 4, style.listMarkerSpacing * 8),
-                prefersVertical: false,
-                alignment: .firstBaseline
-            )
-        case .taskStatus:
-            return .init(
-                horizontalSpacing: style.taskListSpacing,
-                verticalSpacing: style.taskListContentSpacing,
-                minimumContentWidth: max(style.listMarkerWidth * 4, style.taskListSpacing * 8),
-                prefersVertical: false,
-                alignment: .firstBaseline
-            )
-        case .footnoteIdentifier:
-            return .init(
-                horizontalSpacing: style.listMarkerSpacing,
-                verticalSpacing: style.listItemContentSpacing,
-                minimumContentWidth: max(style.listMarkerWidth * 4, style.listMarkerSpacing * 8),
-                prefersVertical: accessibilitySize,
-                alignment: .firstBaseline
-            )
-        case .mermaidTitle:
-            return .init(
-                horizontalSpacing: style.listMarkerSpacing,
-                verticalSpacing: style.listItemContentSpacing,
-                minimumContentWidth: max(style.listMarkerWidth * 4, style.listMarkerSpacing * 8),
-                prefersVertical: accessibilitySize,
-                alignment: .top
-            )
-        case .tableField:
-            return .init(
-                horizontalSpacing: style.tableCellPadding,
-                verticalSpacing: style.tableCellPadding * 0.5,
-                minimumContentWidth: 0,
-                prefersVertical: true,
-                alignment: .top
-            )
-        }
+    init(
+        horizontalSpacing: CGFloat,
+        verticalSpacing: CGFloat,
+        minimumContentWidth: CGFloat,
+        standardPrefersVertical: Bool,
+        accessibilityPrefersVertical: Bool,
+        alignment: NativeAdaptiveLabelContentGeometry.Alignment
+    ) {
+        standard = .init(
+            horizontalSpacing: horizontalSpacing,
+            verticalSpacing: verticalSpacing,
+            minimumContentWidth: minimumContentWidth,
+            prefersVertical: standardPrefersVertical,
+            alignment: alignment
+        )
+        accessibility = .init(
+            horizontalSpacing: horizontalSpacing,
+            verticalSpacing: verticalSpacing,
+            minimumContentWidth: minimumContentWidth,
+            prefersVertical: accessibilityPrefersVertical,
+            alignment: alignment
+        )
     }
 }
 
@@ -69,13 +41,12 @@ struct NativeAdaptiveLabelContent<Label: View, Content: View>: View {
     private let content: Content
 
     init(
-        role: NativeAdaptiveLabelContentRole,
-        style: SwiftUIStyleConfiguration,
+        metrics: NativeAdaptiveLabelContentMetrics,
         @ViewBuilder label: () -> Label,
         @ViewBuilder content: () -> Content
     ) {
-        self.standardMetrics = role.metrics(style: style, accessibilitySize: false)
-        self.accessibilityMetrics = role.metrics(style: style, accessibilitySize: true)
+        self.standardMetrics = metrics.standard
+        self.accessibilityMetrics = metrics.accessibility
         self.label = label()
         self.content = content()
     }

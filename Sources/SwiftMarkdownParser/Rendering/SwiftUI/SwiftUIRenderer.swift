@@ -14,6 +14,7 @@ public struct SwiftUIRenderer {
     /// Rendering options for configuration and styling
     public let options: SwiftUIRenderOptions
 
+    private let style: NativePresentationStyle
     private let syntaxHighlighter: SyntaxHighlighter
     private let nativeDocumentProjection: NativeDocumentProjection
     private let nativeInlineProjection: NativeInlineProjection
@@ -24,25 +25,28 @@ public struct SwiftUIRenderer {
 
     /// Initialize with rendering options
     public init(options: SwiftUIRenderOptions = .init()) {
+        let style = NativePresentationStyle(options.styleConfiguration)
         let semantics = NativePresentationSemantics()
         let materializer = NativeViewMaterializer()
         let adaptivePresentation = NativeAdaptivePresentation(
-            options: options,
+            style: style,
             semantics: semantics,
             materializer: materializer
         )
         let richContentProjection = NativeRichContentProjection(
             options: options,
+            style: style,
             adaptivePresentation: adaptivePresentation,
             semantics: semantics,
             materializer: materializer
         )
 
         self.options = options
+        self.style = style
         self.syntaxHighlighter = SyntaxHighlighter()
         self.nativeDocumentProjection = NativeDocumentProjection(options: options)
         self.nativeInlineProjection = NativeInlineProjection(
-            options: options,
+            style: style.inline,
             richContentProjection: richContentProjection,
             materializer: materializer
         )
@@ -80,8 +84,8 @@ public struct SwiftUIRenderer {
         case let .inline(plan):
             return nativeMaterializer.materialize(
                 nativeInlineProjection.materialize(plan)
-                    .font(options.styleConfiguration.bodyFont)
-                    .foregroundStyle(options.styleConfiguration.textColor)
+                    .font(style.document.font)
+                    .foregroundStyle(style.document.textColor)
             )
         case let .paragraph(content):
             return renderParagraph(content)
@@ -118,10 +122,10 @@ extension SwiftUIRenderer {
         let content = nativeInlineProjection.materialize(plan)
         return nativeMaterializer.materialize(
             content
-                .font(options.styleConfiguration.bodyFont)
-                .foregroundStyle(options.styleConfiguration.textColor)
+                .font(style.paragraph.font)
+                .foregroundStyle(style.paragraph.textColor)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, options.styleConfiguration.paragraphSpacing)
+                .padding(.bottom, style.paragraph.bottomSpacing)
                 .accessibilityElement(children: .combine)
         )
     }
@@ -131,16 +135,15 @@ extension SwiftUIRenderer {
         content plan: NativeInlinePlan
     ) -> NativeMaterializedView {
         let content = nativeInlineProjection.materialize(plan)
-        let font = options.styleConfiguration.headingFont(for: level)
-        let spacing = options.styleConfiguration.headingSpacing(for: level)
+        let heading = style.heading(level: level)
 
         return nativeMaterializer.materialize(
             content
-                .font(font)
+                .font(heading.font)
                 .fontWeight(.bold)
-                .foregroundStyle(options.styleConfiguration.headingColor)
+                .foregroundStyle(heading.textColor)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, spacing)
+                .padding(.bottom, heading.bottomSpacing)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityElement(children: .combine)
         )
@@ -156,8 +159,8 @@ extension SwiftUIRenderer {
     private func renderThematicBreak() -> NativeMaterializedView {
         return nativeMaterializer.materialize(
             Divider()
-                .background(options.styleConfiguration.thematicBreakColor)
-                .padding(.vertical, options.styleConfiguration.thematicBreakSpacing)
+                .background(style.thematicBreak.color)
+                .padding(.vertical, style.thematicBreak.verticalSpacing)
                 .accessibilityLabel(Text(nativeSemantics.localized(.sectionDivider)))
                 .accessibilityAddTraits(.isStaticText)
         )
@@ -176,12 +179,12 @@ extension SwiftUIRenderer {
         return nativeMaterializer.materialize(
             ScrollView(.horizontal, showsIndicators: true) {
                 highlighted.text
-                    .font(options.styleConfiguration.codeFont)
+                    .font(style.codeBlock.font)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(options.styleConfiguration.codeBlockPadding)
+                    .padding(style.codeBlock.blockPadding)
             }
             .background(highlighted.backgroundColor)
-            .clipShape(.rect(cornerRadius: options.styleConfiguration.codeCornerRadius))
+            .clipShape(.rect(cornerRadius: style.codeBlock.cornerRadius))
             .accessibilityLabel(Text(nativeSemantics.localized(.codeBlock(language: node.language))))
             .accessibilityValue(node.content)
             .accessibilityAddTraits(.isStaticText)
@@ -193,8 +196,8 @@ extension SwiftUIRenderer {
               let language = node.language,
               let tokens = await syntaxHighlighter.highlight(node.content, language: language) else {
             return (
-                Text(node.content).foregroundStyle(options.styleConfiguration.codeTextColor),
-                options.styleConfiguration.codeBackgroundColor
+                Text(node.content).foregroundStyle(style.codeBlock.textColor),
+                style.codeBlock.backgroundColor
             )
         }
 
