@@ -1,0 +1,108 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "native.accessibility.code_block" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Code block" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Bloco de código" } }
+      }
+    },
+    "native.accessibility.code_block.language" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Code block in %@" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Bloco de código em %@" } }
+      }
+    },
+    "native.accessibility.footnote" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Footnote %@" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Nota de rodapé %@" } }
+      }
+    },
+    "native.accessibility.html.block" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "HTML content" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Conteúdo HTML" } }
+      }
+    },
+    "native.accessibility.html.inline" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "HTML: %@" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "HTML: %@" } }
+      }
+    },
+    "native.accessibility.image.loading" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading image: %@" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Carregando imagem: %@" } }
+      }
+    },
+    "native.accessibility.math.expression" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Math expression" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Expressão matemática" } }
+      }
+    },
+    "native.accessibility.math.inline" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Math: %@" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Matemática: %@" } }
+      }
+    },
+    "native.accessibility.mermaid_diagram.type" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Mermaid diagram: %@" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Diagrama Mermaid: %@" } }
+      }
+    },
+    "native.accessibility.mermaid_diagram.unknown" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Mermaid diagram: unknown type" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Diagrama Mermaid: tipo desconhecido" } }
+      }
+    },
+    "native.accessibility.section_divider" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Section divider" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Divisor de seção" } }
+      }
+    },
+    "native.accessibility.table" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Table" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Tabela" } }
+      }
+    },
+    "native.accessibility.table_header" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Header: %@" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Cabeçalho: %@" } }
+      }
+    },
+    "native.accessibility.task.completed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Completed task: %@" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Tarefa concluída: %@" } }
+      }
+    },
+    "native.accessibility.task.incomplete" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Incomplete task: %@" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Tarefa incompleta: %@" } }
+      }
+    },
+    "native.error.unsupported_node_type" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unsupported AST node type: %@" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Tipo de nó da AST não compatível: %@" } }
+      }
+    },
+    "native.title.mermaid_diagram" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Mermaid Diagram" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Diagrama Mermaid" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

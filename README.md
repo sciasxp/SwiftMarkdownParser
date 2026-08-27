@@ -232,6 +232,11 @@ let nativeOptions = SwiftUIRenderOptions(
 let nativeView = try await SwiftUIRenderer(options: nativeOptions).render(document)
 ````
 
+Native SwiftUI fallback titles, errors, and VoiceOver semantics are localized
+from the package bundle in English and Brazilian Portuguese. Markdown source
+and document-provided identifiers remain verbatim values rather than
+localization keys.
+
 ## Architecture
 
 All public work crosses a small set of document-level interfaces:

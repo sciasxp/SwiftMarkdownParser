@@ -81,13 +81,14 @@ adapter registry or cache representation.
 
 ## Native SwiftUI presentation
 
-`SwiftUIRenderer` interprets the complete document and delegates three
-independent forms of output policy. `NativeInlineProjection` validates and
-materializes ordered inline meaning once. `NativeRichContentProjection`
-projects image, Mermaid, math, and HTML requests through one optional host
-adapter and owns their readable native fallbacks. `NativeAdaptivePresentation`
-then presents projected blocks according to the container proposal and Dynamic
-Type category.
+`SwiftUIRenderer` interprets the complete document and delegates four
+independent forms of output policy. `NativePresentationSemantics` maps typed
+roles to deferred package-localized meaning and owns pure ordered-marker and
+code-token continuity decisions. `NativeInlineProjection` validates and
+materializes ordered inline meaning once. `NativeRichContentProjection` projects
+image, Mermaid, math, and HTML requests through one optional host adapter and
+owns their readable native fallbacks. `NativeAdaptivePresentation` then presents
+projected blocks according to the container proposal and Dynamic Type category.
 
 The adaptive module owns document laziness, decoration budgets, marker/content
 layout, accessible footnotes, task rows, Mermaid fallback composition, and the
@@ -97,6 +98,12 @@ and validates image destinations before they cross the host seam, invokes the
 adapter at most once per request, and treats `nil` as a decision to preserve the
 native fallback. Alternative table layouts reuse the already projected content
 instead of reinvoking the adapter.
+
+The semantic module is an in-process dependency shared by the renderer and both
+presentation modules. Its localization resources live in the package bundle,
+use English as the source language, and include Brazilian Portuguese. Markdown
+source, identifiers, programming-language names, and diagram types remain
+verbatim values inside translator-reorderable messages.
 
 ## Extension rules
 
@@ -114,6 +121,9 @@ instead of reinvoking the adapter.
 - Add native rich content by extending `SwiftUIRichContentRequest` and its
   centralized fallback together. Do not add a parallel per-node handler or
   bypass destination validation.
+- Add native user-facing meaning as a typed
+  `NativePresentationSemantics.Message` and translate it in the package string
+  catalog. Do not assemble localized sentences in a view.
 
 ## Source layout
 
@@ -138,3 +148,4 @@ Sources/SwiftMarkdownParser/
 - [ADR 0005: Centralize syntax-highlighting orchestration](adr/0005-centralize-syntax-highlighting-orchestration.md)
 - [ADR 0006: Deepen native adaptive presentation](adr/0006-deepen-native-adaptive-presentation.md)
 - [ADR 0007: Deepen the native rich-content seam](adr/0007-deepen-native-rich-content-seam.md)
+- [ADR 0008: Concentrate native semantics and localization](adr/0008-concentrate-native-semantics-and-localization.md)

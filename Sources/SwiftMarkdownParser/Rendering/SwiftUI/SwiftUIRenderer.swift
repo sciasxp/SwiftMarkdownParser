@@ -18,13 +18,16 @@ public struct SwiftUIRenderer {
     private let nativeInlineProjection: NativeInlineProjection
     private let nativeAdaptivePresentation: NativeAdaptivePresentation
     private let nativeRichContentProjection: NativeRichContentProjection
+    private let nativeSemantics: NativePresentationSemantics
 
     /// Initialize with rendering options
     public init(options: SwiftUIRenderOptions = .init()) {
-        let adaptivePresentation = NativeAdaptivePresentation(options: options)
+        let semantics = NativePresentationSemantics()
+        let adaptivePresentation = NativeAdaptivePresentation(options: options, semantics: semantics)
         let richContentProjection = NativeRichContentProjection(
             options: options,
-            adaptivePresentation: adaptivePresentation
+            adaptivePresentation: adaptivePresentation,
+            semantics: semantics
         )
 
         self.options = options
@@ -35,6 +38,7 @@ public struct SwiftUIRenderer {
         )
         self.nativeAdaptivePresentation = adaptivePresentation
         self.nativeRichContentProjection = richContentProjection
+        self.nativeSemantics = semantics
     }
 
     /// Render a complete document AST to SwiftUI view
@@ -175,7 +179,7 @@ extension SwiftUIRenderer {
             Divider()
                 .background(options.styleConfiguration.thematicBreakColor)
                 .padding(.vertical, options.styleConfiguration.thematicBreakSpacing)
-                .accessibilityLabel("Section divider")
+                .accessibilityLabel(Text(nativeSemantics.localized(.sectionDivider)))
                 .accessibilityAddTraits(.isStaticText)
         )
     }
@@ -199,7 +203,7 @@ extension SwiftUIRenderer {
             }
             .background(highlighted.backgroundColor)
             .clipShape(.rect(cornerRadius: options.styleConfiguration.codeCornerRadius))
-            .accessibilityLabel("Code block" + (node.language.map { " in \($0)" } ?? ""))
+            .accessibilityLabel(Text(nativeSemantics.localized(.codeBlock(language: node.language))))
             .accessibilityValue(node.content)
             .accessibilityAddTraits(.isStaticText)
         )
@@ -215,8 +219,8 @@ extension SwiftUIRenderer {
             )
         }
 
-        let runs = SwiftUIRenderSemantics.codeRuns(source: node.content, tokens: tokens)
-        var text = Text("")
+        let runs = nativeSemantics.codeRuns(source: node.content, tokens: tokens)
+        var text = Text(verbatim: "")
         for run in runs {
             let color = run.tokenType.flatMap { theme.tokenColors[$0] } ?? theme.textColor
             text = text + Text(run.text).foregroundStyle(color)
@@ -240,7 +244,7 @@ extension SwiftUIRenderer {
             if node.items[index] is AST.GFMTaskListItemNode {
                 marker = nil
             } else if node.isOrdered {
-                marker = .ordered(SwiftUIRenderSemantics.orderedListMarker(
+                marker = .ordered(nativeSemantics.orderedListMarker(
                     startNumber: node.startNumber,
                     index: index
                 ))

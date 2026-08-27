@@ -5,9 +5,11 @@ import SwiftUI
 @MainActor
 struct NativeAdaptivePresentation {
     private let style: SwiftUIStyleConfiguration
+    private let semantics: NativePresentationSemantics
 
-    init(options: SwiftUIRenderOptions) {
+    init(options: SwiftUIRenderOptions, semantics: NativePresentationSemantics) {
         self.style = options.styleConfiguration
+        self.semantics = semantics
     }
 
     /// Presents one semantic block while hiding width and Dynamic Type adaptation from callers.
@@ -22,16 +24,27 @@ struct NativeAdaptivePresentation {
         case let .list(items):
             AnyView(NativeAdaptiveList(items: items, style: style))
         case let .footnote(identifier, children):
-            AnyView(NativeAdaptiveFootnote(identifier: identifier, children: children, style: style))
+            AnyView(NativeAdaptiveFootnote(
+                identifier: identifier,
+                children: children,
+                style: style,
+                semantics: semantics
+            ))
         case let .task(isChecked, content):
-            AnyView(NativeAdaptiveTask(isChecked: isChecked, content: content, style: style))
+            AnyView(NativeAdaptiveTask(
+                isChecked: isChecked,
+                content: content,
+                style: style,
+                semantics: semantics
+            ))
         case let .table(table):
-            AnyView(NativeAdaptiveTable(table: table, style: style))
+            AnyView(NativeAdaptiveTable(table: table, style: style, semantics: semantics))
         case let .mermaidFallback(diagramType, source):
             AnyView(NativeAdaptiveMermaidFallback(
                 diagramType: diagramType,
                 source: source,
-                style: style
+                style: style,
+                semantics: semantics
             ))
         }
     }
@@ -197,7 +210,7 @@ private struct NativeAdaptiveList: View {
         Group {
             switch marker {
             case .bullet:
-                Text("•")
+                Text(verbatim: "•")
                     .frame(width: style.listMarkerWidth, alignment: .center)
             case let .ordered(value):
                 Text(value)
@@ -224,11 +237,18 @@ private struct NativeAdaptiveFootnote: View {
     let identifier: String
     private let children: [NativeAdaptiveViewItem]
     let style: SwiftUIStyleConfiguration
+    let semantics: NativePresentationSemantics
 
-    init(identifier: String, children: [AnyView], style: SwiftUIStyleConfiguration) {
+    init(
+        identifier: String,
+        children: [AnyView],
+        style: SwiftUIStyleConfiguration,
+        semantics: NativePresentationSemantics
+    ) {
         self.identifier = identifier
         self.children = children.map(NativeAdaptiveViewItem.init)
         self.style = style
+        self.semantics = semantics
     }
 
     var body: some View {
@@ -238,7 +258,7 @@ private struct NativeAdaptiveFootnote: View {
             minimumContentWidth: max(style.listMarkerWidth * 4, style.listMarkerSpacing * 8),
             prefersVertical: dynamicTypeSize.isAccessibilitySize
         ) {
-            Text("[\(identifier)]")
+            Text(verbatim: "[\(identifier)]")
                 .font(style.bodyFont)
                 .foregroundStyle(style.textColor.opacity(0.65))
                 .accessibilityHidden(true)
@@ -251,7 +271,7 @@ private struct NativeAdaptiveFootnote: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Footnote \(identifier)")
+        .accessibilityLabel(Text(semantics.localized(.footnote(identifier: identifier))))
     }
 }
 
@@ -260,6 +280,7 @@ private struct NativeAdaptiveTask: View {
     let isChecked: Bool
     let content: NativeInlineContent
     let style: SwiftUIStyleConfiguration
+    let semantics: NativePresentationSemantics
 
     var body: some View {
         NativeAdaptiveLabelLayout(
@@ -286,9 +307,10 @@ private struct NativeAdaptiveTask: View {
                 : nil
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "\(isChecked ? "Completed task" : "Incomplete task"): \(content.accessibilityText)"
-        )
+        .accessibilityLabel(Text(semantics.localized(.task(
+            isCompleted: isChecked,
+            content: content.accessibilityText
+        ))))
     }
 }
 
@@ -298,6 +320,7 @@ private struct NativeAdaptiveTable: View {
 
     let table: NativeAdaptivePresentation.Table
     let style: SwiftUIStyleConfiguration
+    let semantics: NativePresentationSemantics
 
     var body: some View {
         Group {
@@ -312,7 +335,7 @@ private struct NativeAdaptiveTable: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Table")
+        .accessibilityLabel(Text(semantics.localized(.table)))
     }
 
     private var grid: some View {
@@ -383,7 +406,9 @@ private struct NativeAdaptiveTable: View {
                     .stroke(style.tableBorderColor, lineWidth: style.tableBorderWidth)
             )
             .accessibilityLabel(
-                isHeader ? "Header: \(cell.content.accessibilityText)" : cell.content.accessibilityText
+                isHeader
+                    ? Text(semantics.localized(.tableHeader(content: cell.content.accessibilityText)))
+                    : Text(cell.content.accessibilityText)
             )
             .accessibilityAddTraits(isHeader ? .isHeader : .isStaticText)
     }
@@ -425,6 +450,7 @@ private struct NativeAdaptiveMermaidFallback: View {
     let diagramType: String?
     let source: String
     let style: SwiftUIStyleConfiguration
+    let semantics: NativePresentationSemantics
 
     var body: some View {
         VStack(alignment: .leading, spacing: style.listItemSpacing) {
@@ -439,12 +465,12 @@ private struct NativeAdaptiveMermaidFallback: View {
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: style.listItemContentSpacing) {
-                    Text("Mermaid Diagram")
+                    Text(semantics.localized(.mermaidTitle))
                         .font(style.codeFont.bold())
                         .foregroundStyle(style.textColor)
 
                     if let diagramType {
-                        Text("(\(diagramType))")
+                        Text(verbatim: "(\(diagramType))")
                             .font(style.codeFont)
                             .foregroundStyle(.secondary)
                     }
@@ -469,7 +495,7 @@ private struct NativeAdaptiveMermaidFallback: View {
         )
         .compositingGroup()
         .clipShape(.rect(cornerRadius: style.codeCornerRadius))
-        .accessibilityLabel("Mermaid diagram: \(diagramType ?? "unknown type")")
+        .accessibilityLabel(Text(semantics.localized(.mermaidDiagram(type: diagramType))))
         .accessibilityValue(source)
         .accessibilityAddTraits(.isStaticText)
     }

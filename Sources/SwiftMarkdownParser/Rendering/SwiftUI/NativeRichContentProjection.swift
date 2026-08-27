@@ -16,11 +16,17 @@ struct NativeRichContentProjection {
     private let adapter: SwiftUIRichContentAdapter?
     private let style: SwiftUIStyleConfiguration
     private let adaptivePresentation: NativeAdaptivePresentation
+    private let semantics: NativePresentationSemantics
 
-    init(options: SwiftUIRenderOptions, adaptivePresentation: NativeAdaptivePresentation) {
+    init(
+        options: SwiftUIRenderOptions,
+        adaptivePresentation: NativeAdaptivePresentation,
+        semantics: NativePresentationSemantics
+    ) {
         self.adapter = options.richContentAdapter
         self.style = options.styleConfiguration
         self.adaptivePresentation = adaptivePresentation
+        self.semantics = semantics
     }
 
     /// Invokes the host adapter at most once, then materializes a readable fallback if declined.
@@ -64,17 +70,17 @@ struct NativeRichContentProjection {
         case let .inlineMath(node):
             return inlineSourceFallback(
                 source: node.content,
-                accessibilityLabel: "Math: \(node.content)"
+                accessibilityLabel: semantics.localized(.inlineMath(content: node.content))
             )
         case let .htmlBlock(node):
             return blockSourceFallback(
                 source: node.content,
-                accessibilityLabel: "HTML content"
+                accessibilityLabel: semantics.localized(.htmlBlock)
             )
         case let .htmlInline(node):
             return inlineSourceFallback(
                 source: node.content,
-                accessibilityLabel: "HTML: \(node.content)"
+                accessibilityLabel: semantics.localized(.htmlInline(content: node.content))
             )
         }
     }
@@ -93,7 +99,9 @@ struct NativeRichContentProjection {
                 case .empty:
                     ProgressView()
                         .frame(height: style.imagePlaceholderHeight)
-                        .accessibilityLabel("Loading image: \(node.altText)")
+                        .accessibilityLabel(Text(semantics.localized(
+                            .loadingImage(alternativeText: node.altText)
+                        )))
                 case let .success(image):
                     image
                         .resizable()
@@ -129,13 +137,16 @@ struct NativeRichContentProjection {
             }
             .background(style.codeBackgroundColor)
             .clipShape(.rect(cornerRadius: style.codeCornerRadius))
-            .accessibilityLabel("Math expression")
+            .accessibilityLabel(Text(semantics.localized(.mathExpression)))
             .accessibilityValue(node.content)
             .accessibilityAddTraits(.isStaticText)
         )
     }
 
-    private func inlineSourceFallback(source: String, accessibilityLabel: String) -> AnyView {
+    private func inlineSourceFallback(
+        source: String,
+        accessibilityLabel: LocalizedStringResource
+    ) -> AnyView {
         AnyView(
             Text(source)
                 .font(style.codeFont)
@@ -144,12 +155,15 @@ struct NativeRichContentProjection {
                 .background(style.codeBackgroundColor)
                 .compositingGroup()
                 .clipShape(.rect(cornerRadius: style.codeCornerRadius))
-                .accessibilityLabel(accessibilityLabel)
+                .accessibilityLabel(Text(accessibilityLabel))
                 .accessibilityAddTraits(.isStaticText)
         )
     }
 
-    private func blockSourceFallback(source: String, accessibilityLabel: String) -> AnyView {
+    private func blockSourceFallback(
+        source: String,
+        accessibilityLabel: LocalizedStringResource
+    ) -> AnyView {
         AnyView(
             Text(source)
                 .font(style.codeFont)
@@ -158,7 +172,7 @@ struct NativeRichContentProjection {
                 .background(style.codeBackgroundColor)
                 .compositingGroup()
                 .clipShape(.rect(cornerRadius: style.codeCornerRadius))
-                .accessibilityLabel(accessibilityLabel)
+                .accessibilityLabel(Text(accessibilityLabel))
                 .accessibilityValue(source)
                 .accessibilityAddTraits(.isStaticText)
         )

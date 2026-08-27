@@ -57,10 +57,12 @@ private extension SwiftUIRichContentRequest {
 private func makeNativeInlineProjection(
     options: SwiftUIRenderOptions = SwiftUIRenderOptions()
 ) -> NativeInlineProjection {
-    let adaptivePresentation = NativeAdaptivePresentation(options: options)
+    let semantics = NativePresentationSemantics()
+    let adaptivePresentation = NativeAdaptivePresentation(options: options, semantics: semantics)
     let richContentProjection = NativeRichContentProjection(
         options: options,
-        adaptivePresentation: adaptivePresentation
+        adaptivePresentation: adaptivePresentation,
+        semantics: semantics
     )
     return NativeInlineProjection(
         options: options,
@@ -196,9 +198,43 @@ struct SwiftUIRendererTests {
 
     @Test("Ordered-list markers honor the document start number")
     func orderedListStartNumber() {
-        #expect(SwiftUIRenderSemantics.orderedListMarker(startNumber: 7, index: 0) == "7.")
-        #expect(SwiftUIRenderSemantics.orderedListMarker(startNumber: 7, index: 2) == "9.")
-        #expect(SwiftUIRenderSemantics.orderedListMarker(startNumber: nil, index: 1) == "2.")
+        let semantics = NativePresentationSemantics()
+        #expect(semantics.orderedListMarker(startNumber: 7, index: 0) == "7.")
+        #expect(semantics.orderedListMarker(startNumber: 7, index: 2) == "9.")
+        #expect(semantics.orderedListMarker(startNumber: nil, index: 1) == "2.")
+    }
+
+    @Test("Localizes every native semantic role from the package bundle")
+    func nativeSemanticLocalization() {
+        let semantics = NativePresentationSemantics()
+        let cases: [(NativePresentationSemantics.Message, String)] = [
+            (.sectionDivider, "Divisor de seção"),
+            (.codeBlock(language: nil), "Bloco de código"),
+            (.codeBlock(language: "Swift"), "Bloco de código em Swift"),
+            (.footnote(identifier: "fonte"), "Nota de rodapé fonte"),
+            (.task(isCompleted: true, content: "Validar"), "Tarefa concluída: Validar"),
+            (.task(isCompleted: false, content: "Validar"), "Tarefa incompleta: Validar"),
+            (.table, "Tabela"),
+            (.tableHeader(content: "Estado"), "Cabeçalho: Estado"),
+            (.mermaidTitle, "Diagrama Mermaid"),
+            (.mermaidDiagram(type: "flowchart"), "Diagrama Mermaid: flowchart"),
+            (.mermaidDiagram(type: nil), "Diagrama Mermaid: tipo desconhecido"),
+            (.inlineMath(content: "x²"), "Matemática: x²"),
+            (.htmlBlock, "Conteúdo HTML"),
+            (.htmlInline(content: "<kbd>K</kbd>"), "HTML: <kbd>K</kbd>"),
+            (.loadingImage(alternativeText: "Capa"), "Carregando imagem: Capa"),
+            (.mathExpression, "Expressão matemática"),
+            (
+                .unsupportedNodeType("custom"),
+                "Tipo de nó da AST não compatível: custom"
+            ),
+        ]
+
+        for (message, expected) in cases {
+            var resource = semantics.localized(message)
+            resource.locale = Locale(identifier: "pt-BR")
+            #expect(String(localized: resource) == expected)
+        }
     }
 
     @Test("Renders footnote references and definitions through the document seam")
@@ -398,6 +434,34 @@ struct SwiftUIRendererTests {
         }
     }
 
+    @Test("Materializes package-localized native fallback text")
+    func materializesLocalizedNativeFallback() async throws {
+        let document = AST.DocumentNode(children: [
+            AST.MermaidDiagramNode(content: "flowchart LR; A-->B")
+        ])
+        let content = try await SwiftUIRenderer().render(document)
+        let renderer = ImageRenderer(content:
+            content
+                .environment(\.locale, Locale(identifier: "pt-BR"))
+                .frame(width: 320, alignment: .leading)
+                .padding(12)
+                .background(.white)
+        )
+        renderer.scale = 2
+
+        let image = try #require(renderer.cgImage)
+        #expect(image.width == 688)
+        #expect(image.height > 80)
+
+        if let output = ProcessInfo.processInfo.environment[
+            "SWIFTMARKDOWNPARSER_LOCALIZED_RENDER_OUTPUT"
+        ] {
+            let representation = NSBitmapImageRep(cgImage: image)
+            let data = try #require(representation.representation(using: .png, properties: [:]))
+            try data.write(to: URL(fileURLWithPath: output), options: .atomic)
+        }
+    }
+
     @Test("Materializes wrapping mixed inline content into pixels")
     func materializesMixedInlineContent() throws {
         let projection = makeNativeInlineProjection(options: SwiftUIRenderOptions(
@@ -471,7 +535,7 @@ struct SwiftUIRendererTests {
             SyntaxToken(content: "42", tokenType: .number, range: numberStart..<source.endIndex)
         ]
 
-        let runs = SwiftUIRenderSemantics.codeRuns(source: source, tokens: tokens)
+        let runs = NativePresentationSemantics().codeRuns(source: source, tokens: tokens)
 
         #expect(runs.map(\.text).joined() == source)
         #expect(runs.map(\.tokenType) == [.keyword, nil, .number])

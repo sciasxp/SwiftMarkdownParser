@@ -85,7 +85,9 @@ public enum SwiftUIRenderingError: Error, LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case let .unsupportedNodeType(type):
-            return "Unsupported AST node type: \(type.rawValue)"
+            return String(localized: NativePresentationSemantics().localized(
+                .unsupportedNodeType(type.rawValue)
+            ))
         }
     }
 }

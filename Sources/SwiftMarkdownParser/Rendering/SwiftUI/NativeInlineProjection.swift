@@ -53,12 +53,12 @@ struct NativeInlineProjection {
     }
 
     private func combinedText(from fragments: [NativeInlinePlan.Fragment]) -> Text {
-        fragments.reduce(Text("")) { result, fragment in
+        fragments.reduce(Text(verbatim: "")) { result, fragment in
             switch fragment {
             case let .text(value, styles, link):
                 return result + styledText(value, styles: styles, link: link)
             case .lineBreak:
-                return result + Text("\n")
+                return result + Text(verbatim: "\n")
             case .image, .inlineMath, .htmlInline:
                 preconditionFailure("Rich fragments cannot be materialized as one Text")
             }
@@ -167,7 +167,7 @@ struct NativeInlineContent: View {
         static func lineBreak() -> Self {
             Self(
                 id: UUID(),
-                view: AnyView(Text(" ").hidden().frame(width: 0)),
+                view: AnyView(Text(verbatim: " ").hidden().frame(width: 0)),
                 startsNewLine: true
             )
         }

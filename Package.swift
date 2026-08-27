@@ -5,6 +5,7 @@ import PackageDescription
 
 let package = Package(
     name: "SwiftMarkdownParser",
+    defaultLocalization: "en",
     platforms: [
         .macOS(.v14), .iOS(.v17)
     ],
@@ -26,7 +27,10 @@ let package = Package(
         .target(
             name: "SwiftMarkdownParser",
             dependencies: [],
-            resources: [.copy("Resources/Browser")],
+            resources: [
+                .copy("Resources/Browser"),
+                .process("Resources/Localizable.xcstrings"),
+            ],
             swiftSettings: [
                 .enableUpcomingFeature("ExistentialAny"),
                 .enableUpcomingFeature("InternalImportsByDefault"),

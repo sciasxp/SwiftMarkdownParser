@@ -97,6 +97,19 @@ accessibility text size, the same projected cells become labeled rows that keep
 column headers beside their values. Rich inline adapters are materialized once;
 choosing a presentation does not reinvoke host adapters.
 
+## Native semantics and localization
+
+Visible fallback titles, renderer errors, and VoiceOver labels are resolved from
+the Swift package resource bundle. English is the source language and Brazilian
+Portuguese is included. Resolution remains deferred through
+`LocalizedStringResource`, so a host-provided SwiftUI locale also applies to the
+renderer's native semantic text.
+
+Markdown content is never treated as a localization key. Source text, image
+alternative text, footnote identifiers, code-language names, and Mermaid types
+remain verbatim values interpolated into complete translator-reorderable
+messages.
+
 ## Supported document content
 
 The native renderer handles CommonMark nodes, GFM tables, task lists,
