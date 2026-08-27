@@ -20,11 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - CSS class generation with configurable prefixes
   - Caller-defined color styling through semantic token classes
   - Semantic HTML output with proper `<code>` and `<pre>` structure
-- **SwiftUI Code Blocks**: Basic monospace code block rendering
-  - Plain text monospace rendering (no syntax highlighting)
+- **SwiftUI Code Blocks**: Native code rendering with opt-in semantic highlighting
+  - Complete-source fallback for unlabelled, unsupported, or failed highlighting
   - Custom font configuration support
   - Accessible code block presentation
-  - Theme integration with SwiftUI color system
+  - GitHub, Xcode, VS Code Dark, and custom theme integration
+- **SwiftUI Rendering Coverage**: Completed native document behavior at the public renderer seam
+  - Wrapping formatted links with host-controlled URL routing and relative URL resolution
+  - Default `AsyncImage` rendering plus custom image loading
+  - Ordered-list start numbers, footnotes, static task semantics, and formatted table cells
+  - Explicit host adapters with readable source fallbacks for Mermaid, math, and raw HTML
 - **Deterministic Resource Limits**: Added source-length, nesting-depth, and work budgets
   - The same Markdown Source and limits now produce the same result or structured error
   - Wall-clock time no longer changes parser correctness

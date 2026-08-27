@@ -1,7 +1,7 @@
 # Syntax Highlighting Guide
 
-SwiftMarkdownParser includes semantic syntax highlighting for HTML code blocks
-through one actor-isolated module.
+SwiftMarkdownParser includes semantic syntax highlighting for HTML and native
+SwiftUI code blocks through one actor-isolated module.
 
 ## 🌟 Features
 
@@ -12,7 +12,7 @@ through one actor-isolated module.
 - **Bounded Reuse**: Selection, fallback, token validation, and LRU caching share one owner
 - **Thread-Safe**: Built with Swift 6 concurrency patterns
 - **HTML Renderer**: Escaped semantic spans with caller-configurable CSS classes
-- **SwiftUI Renderer**: Basic code blocks with monospace styling (no syntax highlighting)
+- **SwiftUI Renderer**: Opt-in token colors through native `Text` composition
 
 ## 🚀 Quick Start
 
@@ -52,9 +52,11 @@ let renderer = HTMLRenderer(options: context)
 let highlightedHTML = try await renderer.renderFragment(ast)
 ````
 
-### SwiftUI Integration (Basic Code Blocks Only)
+### SwiftUI Integration
 
-**Note**: SwiftUI renderer does NOT support syntax highlighting. It only renders plain monospace code blocks.
+Pass a `SyntaxHighlightingTheme` to enable native token-level colors. When the
+language is absent, unsupported, or highlighting fails, the renderer preserves
+the complete source using the configured plain-code style.
 
 ```swift
 import SwiftUI
@@ -100,9 +102,9 @@ struct MarkdownView: View {
             let parser = SwiftMarkdownParser()
             let ast = try parser.parse(markdown)
 
-            // Use a predefined SwiftUI style - NO syntax highlighting available
             let context = SwiftUIRenderOptions(
-                styleConfiguration: SwiftUIStyleConfiguration.github
+                styleConfiguration: SwiftUIStyleConfiguration.github,
+                syntaxHighlightingTheme: .xcode
             )
 
             let renderer = SwiftUIRenderer(options: context)
@@ -295,17 +297,15 @@ let context = HTMLRenderOptions(
 
 ### SwiftUI Renderer Configuration
 
-**Note**: SwiftUI renderer does not support syntax highlighting. Only basic styling is available.
-
 ```swift
 let context = SwiftUIRenderOptions(
     styleConfiguration: SwiftUIStyleConfiguration(
-        // Only basic code styling - no syntax highlighting
         codeFont: .system(.body, design: .monospaced),
         codeTextColor: .primary,
         codeBackgroundColor: Color.gray.opacity(0.1),
         codeCornerRadius: 8.0
-    )
+    ),
+    syntaxHighlightingTheme: .vsCodeDark
 )
 ```
 
@@ -333,10 +333,9 @@ let context = HTMLRenderOptions(
 // .custom-comment { color: #888888; }
 ```
 
-### SwiftUI Basic Styling
+### SwiftUI Styling
 
 ```swift
-// Only basic styling available for SwiftUI
 let customStyle = SwiftUIStyleConfiguration(
     codeFont: .system(.footnote, design: .monospaced),
     codeTextColor: Color.blue,
@@ -344,7 +343,10 @@ let customStyle = SwiftUIStyleConfiguration(
     codeCornerRadius: 4.0
 )
 
-let context = SwiftUIRenderOptions(styleConfiguration: customStyle)
+let context = SwiftUIRenderOptions(
+    styleConfiguration: customStyle,
+    syntaxHighlightingTheme: .github
+)
 ```
 
 ### Token Color Mapping
@@ -403,7 +405,9 @@ if let tokens = await highlighter.highlight(
 - **Validated Results**: Tokens are sorted, non-overlapping, and tied to the supplied source
 - **Portable Cache Entries**: Cached offsets are rebound to the current source string
 
-**Note**: SwiftUI renderer performance is simpler as it doesn't perform syntax highlighting.
+SwiftUI and HTML reuse the same bounded, actor-isolated semantic highlighter.
+Each `SwiftUIRenderer` owns its highlighter, so repeated blocks rendered by that
+instance benefit from its cache.
 
 ## 🔧 Advanced Usage
 
@@ -536,7 +540,7 @@ let html = try await generateHighlightedHTML()
 print(html)
 ````
 
-### SwiftUI Example (Basic Code Blocks)
+### SwiftUI Example
 
 ```swift
 import SwiftUI
@@ -571,13 +575,13 @@ struct SwiftUICodeExample: View {
             let parser = SwiftMarkdownParser()
             let ast = try parser.parse(codeMarkdown)
 
-            // SwiftUI basic styling - no syntax highlighting
             let context = SwiftUIRenderOptions(
                 styleConfiguration: SwiftUIStyleConfiguration(
                     codeFont: .system(.body, design: .monospaced),
                     codeTextColor: .primary,
                     codeBackgroundColor: Color.gray.opacity(0.1)
-                )
+                ),
+                syntaxHighlightingTheme: .xcode
             )
 
             let renderer = SwiftUIRenderer(options: context)
@@ -593,17 +597,18 @@ struct SwiftUICodeExample: View {
 
 | Feature | HTML Renderer | SwiftUI Renderer |
 |---------|---------------|------------------|
-| Syntax Highlighting | ✅ Full support | ❌ Not supported |
-| Themes | Caller CSS via semantic classes | Basic styling only |
-| Token-level styling | ✅ 25+ token types | ❌ Plain text only |
+| Syntax Highlighting | ✅ Full support | ✅ Opt-in |
+| Themes | Caller CSS via semantic classes | `.github`, `.xcode`, `.vsCodeDark`, or custom |
+| Token-level styling | ✅ 25+ token types | ✅ Native token colors |
 | Custom CSS classes | ✅ Configurable | ❌ N/A |
-| Performance | ✅ Cached highlighting | ✅ Simple rendering |
+| Performance | ✅ Cached highlighting | ✅ Cached highlighting |
 | Use case | Web/HTML output | Native iOS/macOS apps |
 
 ---
 
-The HTML renderer provides cached semantic highlighting for its six built-in
-languages. SwiftUI output continues to use plain monospace code blocks.
+Both renderers provide cached semantic highlighting for the six built-in
+languages. SwiftUI keeps plain monospace rendering as the default until a theme
+is supplied.
 
 See [Architecture](Architecture.md) for module ownership and the separation
 between semantic classification and HTML presentation.

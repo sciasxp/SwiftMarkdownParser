@@ -18,5 +18,9 @@ jobs:
         swift --version
     - name: Build
       run: swift build --build-tests
+    - name: Build iOS SwiftUI surface
+      run: |
+        simulator_sdk="$(xcrun --sdk iphonesimulator --show-sdk-path)"
+        swift build --target SwiftMarkdownParser --triple arm64-apple-ios17.0-simulator --sdk "$simulator_sdk"
     - name: Run tests
       run: swift test

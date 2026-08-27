@@ -17,7 +17,7 @@ A Swift-native Markdown parser with AST generation, HTML rendering, and SwiftUI 
 - **AST generation** for custom processing and analysis
 - **Zero dependencies** - pure Swift implementation
 - **Async/await** support with Swift 6 concurrency
-- **Mermaid diagram** support for both HTML and SwiftUI output
+- **Mermaid diagram** support in HTML plus SwiftUI host adapters and source fallback
 - **KaTeX math** rendering for inline and display math expressions
 
 ## Requirements
@@ -199,7 +199,9 @@ always recognized. Every parser-produced node includes a precise source range.
 
 ### Mermaid Diagrams
 
-Both HTML and SwiftUI renderers support Mermaid diagrams:
+HTML renders Mermaid through the configured browser runtime. Native SwiftUI
+preserves a readable source fallback and can delegate visual rendering through
+`SwiftUIRichContentHandlers.mermaid`:
 
 ````swift
 let diagramMarkdown = """
@@ -215,6 +217,13 @@ let parser = SwiftMarkdownParser()
 let document = try parser.parse(diagramMarkdown)
 let html = try await HTMLRenderer().renderFragment(document)
 // HTML output includes embedded Mermaid diagram
+
+let nativeOptions = SwiftUIRenderOptions(
+    richContentHandlers: .init(mermaid: { node, configuration in
+        AnyView(MyMermaidView(source: node.content, configuration: configuration))
+    })
+)
+let nativeView = try await SwiftUIRenderer(options: nativeOptions).render(document)
 ````
 
 ## Architecture

@@ -54,6 +54,15 @@ let options = SwiftUIRenderOptions(
     baseURL: URL(string: "https://example.com/docs/"),
     styleConfiguration: .github,
     mermaidConfiguration: MermaidConfiguration(theme: .dark),
+    syntaxHighlightingTheme: .xcode,
+    richContentHandlers: SwiftUIRichContentHandlers(
+        mermaid: { node, configuration in
+            AnyView(MyMermaidView(source: node.content, configuration: configuration))
+        },
+        mathBlock: { node in
+            AnyView(MyMathView(source: node.content, displayMode: true))
+        }
+    ),
     linkHandler: { url in
         // Route the URL through the host application.
     },
@@ -67,13 +76,20 @@ let view = try await SwiftUIRenderer(options: options).render(document)
 
 Built-in styles include `.github`, `.minimal`, and `.academic`. A custom
 `SwiftUIStyleConfiguration` can control typography, colors, spacing, tables,
-task lists, code blocks, and images.
+task lists, code blocks, and images. Semantic code highlighting is opt-in via
+`syntaxHighlightingTheme`; `.github`, `.xcode`, and `.vsCodeDark` are included.
+Unsupported and unlabelled languages retain the plain code style without losing
+source text.
 
 ## Supported document content
 
 The native renderer handles CommonMark nodes, GFM tables, task lists,
-strikethrough, math fallbacks, and Mermaid diagrams. On macOS, Mermaid uses an
-internal WebKit-backed view; other platforms receive the native fallback.
+strikethrough, footnotes, wrapping formatted links, relative image URLs, and
+semantic code highlighting. Raw HTML, math, and Mermaid have readable,
+accessible source fallbacks. Applications that need visual rendering for those
+formats provide the corresponding closure in `SwiftUIRichContentHandlers`.
+This keeps WebKit, KaTeX, Mermaid, or another rendering dependency under host
+ownership on both iOS and macOS.
 
 The public interface intentionally renders only complete documents. To render a
 single programmatically-created node, place it in a document first:
@@ -85,8 +101,8 @@ let view = try await SwiftUIRenderer().render(document)
 
 ## HTML-backed presentation
 
-Use `MarkdownWebView` when the desired output is the HTML renderer displayed by
-WebKit rather than native SwiftUI views:
+On macOS, use `MarkdownWebView` when the desired output is the complete HTML
+renderer displayed by WebKit rather than native SwiftUI views:
 
 ```swift
 MarkdownWebView(

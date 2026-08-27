@@ -46,6 +46,11 @@ let html = try await HTMLRenderer().renderFragment(document)
 
 ## SwiftUI Integration
 
+The native renderer shows an accessible source fallback by default. Supply a
+`SwiftUIRichContentHandlers.mermaid` adapter when the application owns a visual
+Mermaid implementation; the adapter receives the configured
+`MermaidConfiguration`.
+
 ```swift
 import SwiftUI
 import SwiftMarkdownParser
@@ -83,7 +88,12 @@ struct ContentView: View {
         do {
             let parser = SwiftMarkdownParser()
             let ast = try parser.parse(markdown)
-            let renderer = SwiftUIRenderer()
+            let renderer = SwiftUIRenderer(options: SwiftUIRenderOptions(
+                mermaidConfiguration: .default,
+                richContentHandlers: .init(mermaid: { node, configuration in
+                    AnyView(MyMermaidView(source: node.content, configuration: configuration))
+                })
+            ))
             self.content = try await renderer.render(ast)
         } catch {
             self.content = AnyView(Text("Error loading content"))

@@ -14,9 +14,12 @@ public struct SwiftUIRenderer {
     /// Rendering options for configuration and styling
     public let options: SwiftUIRenderOptions
 
+    private let syntaxHighlighter: SyntaxHighlighter
+
     /// Initialize with rendering options
     public init(options: SwiftUIRenderOptions = .init()) {
         self.options = options
+        self.syntaxHighlighter = SyntaxHighlighter()
     }
 
     /// Render a complete document AST to SwiftUI view
@@ -32,6 +35,7 @@ public struct SwiftUIRenderer {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .modifier(SwiftUILinkActionModifier(handler: options.linkHandler))
         )
     }
 
@@ -63,7 +67,7 @@ public struct SwiftUIRenderer {
             return renderCodeSpan(codeSpanNode)
 
         case let codeBlockNode as AST.CodeBlockNode:
-            return renderCodeBlock(codeBlockNode)
+            return await renderCodeBlock(codeBlockNode)
 
         case let listNode as AST.ListNode:
             return try await renderList(listNode)
@@ -101,6 +105,13 @@ public struct SwiftUIRenderer {
 
         case let tableNode as AST.GFMTableNode:
             return try await renderTable(tableNode)
+
+        // Footnote Support
+        case let footnoteReferenceNode as AST.FootnoteReferenceNode:
+            return renderFootnoteReference(footnoteReferenceNode)
+
+        case let footnoteDefinitionNode as AST.FootnoteDefinitionNode:
+            return try await renderFootnoteDefinition(footnoteDefinitionNode)
 
         // Mermaid Support
         case let mermaidNode as AST.MermaidDiagramNode:
@@ -199,61 +210,77 @@ extension SwiftUIRenderer {
 
     /// Check if nodes can be combined into a single Text view
     private func canUseTextCombination(for nodes: [any ASTNode]) -> Bool {
-        for node in nodes {
-            if !isTextCompatible(node) {
-                return false
-            }
+        if nodes.contains(where: requiresRichInlineAdapter) {
+            return false
         }
-        return true
+        return SwiftUIRenderSemantics.inlineRuns(for: nodes, relativeTo: options.baseURL) != nil
     }
 
-    /// Check if a node is compatible with Text combination
-    private func isTextCompatible(_ node: any ASTNode) -> Bool {
-        switch node {
-        case _ as AST.TextNode,
-             _ as AST.CodeSpanNode,
-             _ as AST.InlineMathNode,
-             _ as AST.LineBreakNode,
-             _ as AST.SoftBreakNode,
-             _ as AST.HTMLInlineNode:
+    private func requiresRichInlineAdapter(_ node: any ASTNode) -> Bool {
+        if node is AST.InlineMathNode, options.richContentHandlers.inlineMath != nil {
             return true
-        case let emphasisNode as AST.EmphasisNode:
-            for child in emphasisNode.children {
-                if !isTextCompatible(child) {
-                    return false
-                }
-            }
-            return true
-        case let strongNode as AST.StrongEmphasisNode:
-            for child in strongNode.children {
-                if !isTextCompatible(child) {
-                    return false
-                }
-            }
-            return true
-        case let strikethroughNode as AST.StrikethroughNode:
-            for child in strikethroughNode.children {
-                if !isTextCompatible(child) {
-                    return false
-                }
-            }
-            return true
-        case _ as AST.LinkNode,
-             _ as AST.ImageNode,
-             _ as AST.AutolinkNode:
-            return false
-        default:
-            return false
         }
+        if node is AST.HTMLInlineNode, options.richContentHandlers.htmlInline != nil {
+            return true
+        }
+        return node.children.contains(where: requiresRichInlineAdapter)
     }
 
     /// Create a combined Text view from child nodes that supports proper text wrapping
     private func createCombinedText(from nodes: [any ASTNode]) async throws -> Text {
+        if let runs = SwiftUIRenderSemantics.inlineRuns(for: nodes, relativeTo: options.baseURL) {
+            return createCombinedText(from: runs)
+        }
+
         var combinedText = Text("")
 
         for node in nodes {
             let textComponent = try await createTextComponent(from: node)
             combinedText = combinedText + textComponent
+        }
+
+        return combinedText
+            .font(options.styleConfiguration.bodyFont)
+            .foregroundStyle(options.styleConfiguration.textColor)
+    }
+
+    /// Materialize semantic inline runs as one wrapping `Text` value.
+    private func createCombinedText(from runs: [SwiftUIRenderSemantics.InlineRun]) -> Text {
+        var combinedText = Text("")
+
+        for run in runs {
+            var attributed = AttributedString(run.text)
+            attributed.link = run.link
+            var component = Text(attributed)
+
+            if run.styles.contains(.emphasis) {
+                component = component.italic()
+            }
+            if run.styles.contains(.strong) {
+                component = component.fontWeight(.bold)
+            }
+            if run.styles.contains(.code) {
+                component = component
+                    .font(options.styleConfiguration.codeFont)
+                    .foregroundStyle(options.styleConfiguration.codeTextColor)
+            }
+            if run.styles.contains(.strikethrough) {
+                component = component
+                    .strikethrough()
+                    .foregroundStyle(options.styleConfiguration.strikethroughColor)
+            }
+            if run.styles.contains(.footnote) {
+                component = component
+                    .font(.footnote)
+                    .baselineOffset(4)
+            }
+            if run.link != nil {
+                component = component
+                    .foregroundStyle(options.styleConfiguration.linkColor)
+                    .underline()
+            }
+
+            combinedText = combinedText + component
         }
 
         return combinedText
@@ -302,6 +329,12 @@ extension SwiftUIRenderer {
             return Text(htmlInlineNode.content)
                 .font(options.styleConfiguration.codeFont)
                 .foregroundStyle(options.styleConfiguration.codeTextColor)
+
+        case let footnoteReferenceNode as AST.FootnoteReferenceNode:
+            return Text("[\(footnoteReferenceNode.identifier)]")
+                .font(.footnote)
+                .foregroundStyle(options.styleConfiguration.linkColor)
+                .baselineOffset(4)
 
         default:
             // For other node types, try to extract text content
@@ -417,7 +450,7 @@ extension SwiftUIRenderer {
             try await render(node: child)
         }
 
-        guard let url = URL(string: node.url) else {
+        guard let url = resolvedURL(for: node.url) else {
             // Invalid URL, render as plain text
             return AnyView(
                 HStack(spacing: 0) {
@@ -428,9 +461,26 @@ extension SwiftUIRenderer {
             )
         }
 
+        guard let linkHandler = options.linkHandler else {
+            return AnyView(
+                Link(destination: url) {
+                    HStack(spacing: 0) {
+                        ForEach(IdentifiedValue.wrap(childViews)) { item in
+                            item.value
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(options.styleConfiguration.linkColor)
+                .underline()
+                .accessibilityLabel("Link: \(node.url)")
+                .accessibilityHint("Double tap to open link")
+            )
+        }
+
         return AnyView(
             Button(action: {
-                options.linkHandler?(url)
+                linkHandler(url)
             }) {
                 HStack(spacing: 0) {
                     ForEach(IdentifiedValue.wrap(childViews)) { item in
@@ -449,7 +499,7 @@ extension SwiftUIRenderer {
 
     /// Render image node
     private func renderImage(_ node: AST.ImageNode) -> AnyView {
-        guard let url = URL(string: node.url) else {
+        guard let url = resolvedURL(for: node.url) else {
             // Invalid URL, show alt text
             return AnyView(
                 Text(node.altText)
@@ -459,16 +509,38 @@ extension SwiftUIRenderer {
             )
         }
 
+        if let imageHandler = options.imageHandler {
+            return imageHandler(url)
+        }
+
         return AnyView(
-            AsyncImage(url: url) { image in
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .empty:
+                    ProgressView()
+                        .frame(height: options.styleConfiguration.imagePlaceholderHeight)
+                        .accessibilityLabel("Loading image: \(node.altText)")
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: options.styleConfiguration.imageMaxWidth)
+                        .clipShape(.rect(cornerRadius: options.styleConfiguration.imageCornerRadius))
+                case .failure:
+                    VStack(spacing: 8) {
+                        Image(systemName: "photo")
+                            .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
+                        Text(node.altText)
+                            .font(options.styleConfiguration.bodyFont)
+                            .foregroundStyle(options.styleConfiguration.textColor)
+                    }
                     .frame(maxWidth: options.styleConfiguration.imageMaxWidth)
-                    .clipShape(.rect(cornerRadius: options.styleConfiguration.imageCornerRadius))
-            } placeholder: {
-                ProgressView()
-                    .frame(height: options.styleConfiguration.imagePlaceholderHeight)
+                    .frame(minHeight: options.styleConfiguration.imagePlaceholderHeight)
+                @unknown default:
+                    Text(node.altText)
+                        .font(options.styleConfiguration.bodyFont)
+                }
             }
             .accessibilityLabel(node.altText)
             .accessibilityAddTraits(.isImage)
@@ -491,7 +563,7 @@ extension SwiftUIRenderer {
 
     /// Render autolink node
     private func renderAutolink(_ node: AST.AutolinkNode) -> AnyView {
-        guard let url = URL(string: node.url) else {
+        guard let url = resolvedURL(for: node.url) else {
             return AnyView(
                 Text(node.text)
                     .font(options.styleConfiguration.bodyFont)
@@ -499,9 +571,20 @@ extension SwiftUIRenderer {
             )
         }
 
+        guard let linkHandler = options.linkHandler else {
+            return AnyView(
+                Link(node.text, destination: url)
+                    .font(options.styleConfiguration.bodyFont)
+                    .foregroundStyle(options.styleConfiguration.linkColor)
+                    .underline()
+                    .accessibilityLabel("Link: \(node.url)")
+                    .accessibilityHint("Double tap to open link")
+            )
+        }
+
         return AnyView(
             Button(action: {
-                options.linkHandler?(url)
+                linkHandler(url)
             }) {
                 Text(node.text)
                     .font(options.styleConfiguration.bodyFont)
@@ -514,6 +597,11 @@ extension SwiftUIRenderer {
             .accessibilityHint("Double tap to open link")
         )
     }
+
+    /// Resolve a Markdown destination once and reject executable URL schemes.
+    private func resolvedURL(for destination: String) -> URL? {
+        SwiftUIRenderSemantics.resolvedURL(for: destination, relativeTo: options.baseURL)
+    }
 }
 
 // MARK: - Code Block Rendering
@@ -522,21 +610,41 @@ extension SwiftUIRenderer {
 extension SwiftUIRenderer {
 
     /// Render code block node
-    private func renderCodeBlock(_ node: AST.CodeBlockNode) -> AnyView {
+    private func renderCodeBlock(_ node: AST.CodeBlockNode) async -> AnyView {
+        let highlighted = await highlightedCode(for: node)
+
         return AnyView(
             ScrollView(.horizontal, showsIndicators: true) {
-                Text(node.content)
+                highlighted.text
                     .font(options.styleConfiguration.codeFont)
-                    .foregroundStyle(options.styleConfiguration.codeTextColor)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(options.styleConfiguration.codeBlockPadding)
             }
-            .background(options.styleConfiguration.codeBackgroundColor)
+            .background(highlighted.backgroundColor)
             .clipShape(.rect(cornerRadius: options.styleConfiguration.codeCornerRadius))
             .accessibilityLabel("Code block" + (node.language.map { " in \($0)" } ?? ""))
             .accessibilityValue(node.content)
             .accessibilityAddTraits(.isStaticText)
         )
+    }
+
+    private func highlightedCode(for node: AST.CodeBlockNode) async -> (text: Text, backgroundColor: Color) {
+        guard let theme = options.syntaxHighlightingTheme,
+              let language = node.language,
+              let tokens = await syntaxHighlighter.highlight(node.content, language: language) else {
+            return (
+                Text(node.content).foregroundStyle(options.styleConfiguration.codeTextColor),
+                options.styleConfiguration.codeBackgroundColor
+            )
+        }
+
+        let runs = SwiftUIRenderSemantics.codeRuns(source: node.content, tokens: tokens)
+        var text = Text("")
+        for run in runs {
+            let color = run.tokenType.flatMap { theme.tokenColors[$0] } ?? theme.textColor
+            text = text + Text(run.text).foregroundStyle(color)
+        }
+        return (text, theme.backgroundColor)
     }
 }
 
@@ -560,7 +668,10 @@ extension SwiftUIRenderer {
                         // Only show the default list marker when this item is NOT a GFM task-list item.
                         if !isTaskListFlags[item.index] {
                             if node.isOrdered {
-                                Text("\(item.index + 1).")
+                                Text(SwiftUIRenderSemantics.orderedListMarker(
+                                    startNumber: node.startNumber,
+                                    index: item.index
+                                ))
                                     .font(options.styleConfiguration.bodyFont)
                                     .foregroundStyle(options.styleConfiguration.listMarkerColor)
                                     .frame(minWidth: options.styleConfiguration.listMarkerWidth, alignment: .trailing)
@@ -605,66 +716,81 @@ extension SwiftUIRenderer {
 @available(iOS 17.0, macOS 14.0, *)
 extension SwiftUIRenderer {
 
-    /// Render task list item node
-    private func renderTaskListItem(_ node: AST.GFMTaskListItemNode) async throws -> AnyView {
+    /// Render a read-only footnote reference without advertising unavailable navigation.
+    private func renderFootnoteReference(_ node: AST.FootnoteReferenceNode) -> AnyView {
+        AnyView(
+            Text("[\(node.identifier)]")
+                .font(.footnote)
+                .foregroundStyle(options.styleConfiguration.linkColor)
+                .baselineOffset(4)
+                .accessibilityLabel("Footnote \(node.identifier)")
+                .accessibilityAddTraits(.isStaticText)
+        )
+    }
+
+    /// Render a footnote definition and preserve its complete block content.
+    private func renderFootnoteDefinition(_ node: AST.FootnoteDefinitionNode) async throws -> AnyView {
         let childViews = try await node.children.asyncMap { child in
             try await render(node: child)
         }
 
         return AnyView(
-            HStack(alignment: .top, spacing: options.styleConfiguration.taskListSpacing) {
-                Button(action: {
-                    // Task list items are typically read-only in rendered content
-                    // But we could add a callback here for interactive task lists
-                }) {
-                    ZStack {
-                        // Background circle for checked items to make them more prominent
-                        if node.isChecked {
-                            Circle()
-                                .fill(options.styleConfiguration.taskListCheckedColor)
-                                .frame(width: 20, height: 20)
-                        }
+            HStack(alignment: .top, spacing: options.styleConfiguration.listMarkerSpacing) {
+                Text("[\(node.identifier)]")
+                    .font(options.styleConfiguration.bodyFont)
+                    .foregroundStyle(options.styleConfiguration.textColor.opacity(0.65))
+                    .accessibilityHidden(true)
 
-                        // Checkbox icon
-                        Image(systemName: node.isChecked ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(node.isChecked ? .white : options.styleConfiguration.taskListUncheckedColor)
-                            .font(.system(size: 18, weight: node.isChecked ? .bold : .regular))
-                            .shadow(color: node.isChecked ? .black.opacity(0.1) : .clear, radius: 1, x: 0, y: 1)
-                    }
-                    .scaleEffect(node.isChecked ? 1.1 : 1.0)
-                    .animation(.easeInOut(duration: 0.2), value: node.isChecked)
-                }
-                .buttonStyle(PlainButtonStyle())
-                .disabled(true) // Read-only by default
-                .accessibilityLabel(node.isChecked ? "Completed task" : "Incomplete task")
-                .accessibilityAddTraits(.isButton)
-
-                VStack(alignment: .leading, spacing: options.styleConfiguration.taskListContentSpacing) {
+                VStack(alignment: .leading, spacing: options.styleConfiguration.listItemContentSpacing) {
                     ForEach(IdentifiedValue.wrap(childViews)) { item in
                         item.value
-                            .opacity(node.isChecked ? 0.7 : 1.0) // Dim completed tasks slightly
-                            .overlay(
-                                // Add subtle strikethrough effect for completed tasks
-                                node.isChecked ?
-                                Rectangle()
-                                    .frame(height: 1)
-                                    .foregroundStyle(options.styleConfiguration.taskListCheckedColor.opacity(0.6))
-                                    .offset(y: 0)
-                                : nil
-                            )
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.vertical, 2) // Add slight vertical padding for better visual separation
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Footnote \(node.identifier)")
+        )
+    }
+
+    /// Render task list item node
+    private func renderTaskListItem(_ node: AST.GFMTaskListItemNode) async throws -> AnyView {
+        let accessibilityText = SwiftUIRenderSemantics.plainText(for: node.children)
+        let childViews: [AnyView]
+        if canUseTextCombination(for: node.children) {
+            childViews = [AnyView(try await createCombinedText(from: node.children))]
+        } else {
+            childViews = try await node.children.asyncMap { child in
+                try await render(node: child)
+            }
+        }
+
+        return AnyView(
+            HStack(alignment: .top, spacing: options.styleConfiguration.taskListSpacing) {
+                Image(systemName: node.isChecked ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(node.isChecked ? options.styleConfiguration.taskListCheckedColor : options.styleConfiguration.taskListUncheckedColor)
+                    .font(.system(size: 18, weight: node.isChecked ? .bold : .regular))
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: options.styleConfiguration.taskListContentSpacing) {
+                    ForEach(IdentifiedValue.wrap(childViews)) { item in
+                        item.value
+                            .opacity(node.isChecked ? 0.7 : 1.0)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.vertical, 2)
             .background(
-                // Subtle background highlight for checked items
                 node.isChecked ?
                 RoundedRectangle(cornerRadius: 6)
                     .fill(options.styleConfiguration.taskListCheckedColor.opacity(0.08))
                 : nil
             )
             .accessibilityElement(children: .combine)
+            .accessibilityLabel(
+                "\(node.isChecked ? "Completed task" : "Incomplete task"): \(accessibilityText)"
+            )
         )
     }
 
@@ -691,17 +817,17 @@ extension SwiftUIRenderer {
         let headerRows = node.rows.filter { $0.isHeader }
         let bodyRows = node.rows.filter { !$0.isHeader }
 
-        let headerViews = headerRows.map { row in
-            renderTableRow(row, alignments: node.alignments, isHeader: true)
+        let headerViews = try await headerRows.asyncMap { row in
+            try await renderTableRow(row, alignments: node.alignments, isHeader: true)
         }
 
-        let bodyViews = bodyRows.map { row in
-            renderTableRow(row, alignments: node.alignments, isHeader: false)
+        let bodyViews = try await bodyRows.asyncMap { row in
+            try await renderTableRow(row, alignments: node.alignments, isHeader: false)
         }
 
         return AnyView(
             ScrollView(.horizontal, showsIndicators: true) {
-                VStack(alignment: .leading, spacing: 0) {
+                Grid(alignment: .topLeading, horizontalSpacing: 0, verticalSpacing: 0) {
                     // Header
                     if !headerViews.isEmpty {
                         ForEach(IdentifiedValue.wrap(headerViews)) { item in
@@ -710,6 +836,7 @@ extension SwiftUIRenderer {
 
                         Divider()
                             .background(options.styleConfiguration.tableBorderColor)
+                            .gridCellUnsizedAxes(.horizontal)
                     }
 
                     // Body
@@ -719,6 +846,7 @@ extension SwiftUIRenderer {
                         if item.index < bodyViews.count - 1 {
                             Divider()
                                 .background(options.styleConfiguration.tableBorderColor)
+                                .gridCellUnsizedAxes(.horizontal)
                         }
                     }
                 }
@@ -735,13 +863,21 @@ extension SwiftUIRenderer {
     }
 
     /// Render table row
-    private func renderTableRow(_ row: AST.GFMTableRowNode, alignments: [GFMTableAlignment], isHeader: Bool) -> AnyView {
-        return AnyView(
-            HStack(alignment: .top, spacing: 0) {
-                ForEach(IdentifiedValue.wrap(row.cells)) { item in
-                    let alignment = item.index < alignments.count ? alignments[item.index] : .none
+    private func renderTableRow(_ row: AST.GFMTableRowNode, alignments: [GFMTableAlignment], isHeader: Bool) async throws -> AnyView {
+        let cellTexts = try await row.cells.asyncMap { cell in
+            if cell.children.isEmpty {
+                return Text(cell.content)
+            }
+            return try await createCombinedText(from: cell.children)
+        }
 
-                    Text(item.value.content)
+        return AnyView(
+            GridRow(alignment: .top) {
+                ForEach(IdentifiedValue.wrap(cellTexts)) { item in
+                    let alignment = item.index < alignments.count ? alignments[item.index] : .none
+                    let cell = row.cells[item.index]
+
+                    item.value
                         .font(isHeader ? options.styleConfiguration.tableHeaderFont : options.styleConfiguration.tableBodyFont)
                         .foregroundStyle(isHeader ? options.styleConfiguration.tableHeaderTextColor : options.styleConfiguration.tableBodyTextColor)
                         .fontWeight(isHeader ? .bold : .regular)
@@ -752,7 +888,7 @@ extension SwiftUIRenderer {
                             Rectangle()
                                 .stroke(options.styleConfiguration.tableBorderColor, lineWidth: options.styleConfiguration.tableBorderWidth)
                         )
-                        .accessibilityLabel(isHeader ? "Header: \(item.value.content)" : item.value.content)
+                        .accessibilityLabel(isHeader ? "Header: \(cell.content)" : cell.content)
                         .accessibilityAddTraits(isHeader ? .isHeader : .isStaticText)
                 }
             }
@@ -779,6 +915,10 @@ extension SwiftUIRenderer {
 
     /// Render HTML block node (fallback to plain text)
     private func renderHTMLBlock(_ node: AST.HTMLBlockNode) -> AnyView {
+        if let handler = options.richContentHandlers.htmlBlock {
+            return handler(node)
+        }
+
         return AnyView(
             Text(node.content)
                 .font(options.styleConfiguration.codeFont)
@@ -794,6 +934,10 @@ extension SwiftUIRenderer {
 
     /// Render HTML inline node (fallback to plain text)
     private func renderHTMLInline(_ node: AST.HTMLInlineNode) -> AnyView {
+        if let handler = options.richContentHandlers.htmlInline {
+            return handler(node)
+        }
+
         return AnyView(
             Text(node.content)
                 .font(options.styleConfiguration.codeFont)
@@ -814,6 +958,10 @@ extension SwiftUIRenderer {
 
     /// Render math block node (display math)
     private func renderMathBlock(_ node: AST.MathBlockNode) -> AnyView {
+        if let handler = options.richContentHandlers.mathBlock {
+            return handler(node)
+        }
+
         return AnyView(
             ScrollView(.horizontal, showsIndicators: true) {
                 Text(node.content)
@@ -832,6 +980,10 @@ extension SwiftUIRenderer {
 
     /// Render inline math node
     private func renderInlineMath(_ node: AST.InlineMathNode) -> AnyView {
+        if let handler = options.richContentHandlers.inlineMath {
+            return handler(node)
+        }
+
         return AnyView(
             Text(node.content)
                 .font(options.styleConfiguration.codeFont)
@@ -852,7 +1004,10 @@ extension SwiftUIRenderer {
 
     /// Render Mermaid diagram node
     private func renderMermaidDiagram(_ node: AST.MermaidDiagramNode) -> AnyView {
-        // For now, always use fallback rendering to avoid MainActor complexity
+        if let handler = options.richContentHandlers.mermaid {
+            return handler(node, options.mermaidConfiguration)
+        }
+
         return renderMermaidFallback(node)
     }
 
@@ -901,13 +1056,30 @@ extension SwiftUIRenderer {
 }
 
 private struct IdentifiedValue<Value>: Identifiable {
-    let id: UUID
+    let id: Int
     let index: Int
     let value: Value
 
     static func wrap(_ values: [Value]) -> [Self] {
         values.enumerated().map { index, value in
-            Self(id: UUID(), index: index, value: value)
+            Self(id: index, index: index, value: value)
+        }
+    }
+}
+
+@available(iOS 17.0, macOS 14.0, *)
+private struct SwiftUILinkActionModifier: ViewModifier {
+    let handler: (@Sendable (URL) -> Void)?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let handler {
+            content.environment(\.openURL, OpenURLAction { url in
+                handler(url)
+                return .handled
+            })
+        } else {
+            content
         }
     }
 }

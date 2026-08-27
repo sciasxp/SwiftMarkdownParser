@@ -8,6 +8,31 @@ public import Foundation
 
 // MARK: - SwiftUIRenderOptions
 
+/// Host adapters for rich content that has no faithful system SwiftUI primitive.
+/// Missing adapters deliberately fall back to readable source content.
+@available(iOS 17.0, macOS 14.0, *)
+public struct SwiftUIRichContentHandlers: Sendable {
+    public let mermaid: (@Sendable (AST.MermaidDiagramNode, MermaidConfiguration) -> AnyView)?
+    public let mathBlock: (@Sendable (AST.MathBlockNode) -> AnyView)?
+    public let inlineMath: (@Sendable (AST.InlineMathNode) -> AnyView)?
+    public let htmlBlock: (@Sendable (AST.HTMLBlockNode) -> AnyView)?
+    public let htmlInline: (@Sendable (AST.HTMLInlineNode) -> AnyView)?
+
+    public init(
+        mermaid: (@Sendable (AST.MermaidDiagramNode, MermaidConfiguration) -> AnyView)? = nil,
+        mathBlock: (@Sendable (AST.MathBlockNode) -> AnyView)? = nil,
+        inlineMath: (@Sendable (AST.InlineMathNode) -> AnyView)? = nil,
+        htmlBlock: (@Sendable (AST.HTMLBlockNode) -> AnyView)? = nil,
+        htmlInline: (@Sendable (AST.HTMLInlineNode) -> AnyView)? = nil
+    ) {
+        self.mermaid = mermaid
+        self.mathBlock = mathBlock
+        self.inlineMath = inlineMath
+        self.htmlBlock = htmlBlock
+        self.htmlInline = htmlInline
+    }
+}
+
 /// Immutable options consumed by `SwiftUIRenderer`.
 @available(iOS 17.0, macOS 14.0, *)
 public struct SwiftUIRenderOptions: Sendable {
@@ -20,6 +45,13 @@ public struct SwiftUIRenderOptions: Sendable {
     /// Configuration for Mermaid diagram rendering
     public let mermaidConfiguration: MermaidConfiguration
 
+    /// Optional semantic highlighting theme for supported fenced code languages.
+    /// Unsupported or unlabelled blocks retain the configured plain-code appearance.
+    public let syntaxHighlightingTheme: SyntaxHighlightingTheme?
+
+    /// Optional host renderers for Mermaid, math, and raw HTML.
+    public let richContentHandlers: SwiftUIRichContentHandlers
+
     /// Link handler for tap actions
     public let linkHandler: (@Sendable (URL) -> Void)?
 
@@ -30,12 +62,16 @@ public struct SwiftUIRenderOptions: Sendable {
         baseURL: URL? = nil,
         styleConfiguration: SwiftUIStyleConfiguration = SwiftUIStyleConfiguration(),
         mermaidConfiguration: MermaidConfiguration = .default,
+        syntaxHighlightingTheme: SyntaxHighlightingTheme? = nil,
+        richContentHandlers: SwiftUIRichContentHandlers = .init(),
         linkHandler: (@Sendable (URL) -> Void)? = nil,
         imageHandler: (@Sendable (URL) -> AnyView)? = nil
     ) {
         self.baseURL = baseURL
         self.styleConfiguration = styleConfiguration
         self.mermaidConfiguration = mermaidConfiguration
+        self.syntaxHighlightingTheme = syntaxHighlightingTheme
+        self.richContentHandlers = richContentHandlers
         self.linkHandler = linkHandler
         self.imageHandler = imageHandler
     }
