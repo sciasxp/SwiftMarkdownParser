@@ -1,11 +1,10 @@
 import Foundation
 import SwiftUI
 
-/// Owns the interpretation and native materialization of inline Markdown for SwiftUI output.
+/// Materializes already-planned inline Markdown meaning for native SwiftUI output.
 @available(iOS 17.0, macOS 14.0, *)
 @MainActor
 struct NativeInlineProjection {
-    private let baseURL: URL?
     private let style: SwiftUIStyleConfiguration
     private let richContentProjection: NativeRichContentProjection
     private let materializer: NativeViewMaterializer
@@ -15,16 +14,14 @@ struct NativeInlineProjection {
         richContentProjection: NativeRichContentProjection,
         materializer: NativeViewMaterializer
     ) {
-        self.baseURL = options.baseURL
         self.style = options.styleConfiguration
         self.richContentProjection = richContentProjection
         self.materializer = materializer
     }
 
-    /// Validates the complete inline tree before invoking any host adapter.
-    func project(_ nodes: [any ASTNode]) throws -> NativeInlineContent {
-        let plan = try NativeInlinePlan(nodes: nodes, baseURL: baseURL)
-        let storage = materialize(plan.fragments)
+    /// Materializes meaning that Atomic Native Document Projection already validated.
+    func materialize(_ plan: NativeInlinePlan) -> NativeInlineContent {
+        let storage = materializeFragments(plan.fragments)
         return NativeInlineContent(
             id: materializer.identity(),
             storage: storage,
@@ -33,7 +30,9 @@ struct NativeInlineProjection {
         )
     }
 
-    private func materialize(_ fragments: [NativeInlinePlan.Fragment]) -> NativeInlineContent.Storage {
+    private func materializeFragments(
+        _ fragments: [NativeInlinePlan.Fragment]
+    ) -> NativeInlineContent.Storage {
         if fragments.allSatisfy(\.isText) {
             return .text(combinedText(from: fragments))
         }
@@ -210,7 +209,7 @@ struct NativeInlineContent: Identifiable, View {
     }
 }
 
-private struct NativeInlinePlan {
+struct NativeInlinePlan {
     struct Styles: OptionSet, Equatable, Sendable {
         let rawValue: UInt8
 

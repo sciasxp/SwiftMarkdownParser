@@ -381,6 +381,84 @@ struct SwiftUIRendererTests {
         #expect(recorder.values.isEmpty)
     }
 
+    @Test("Validates the complete document before invoking adapters")
+    func documentFailurePreventsEarlierAdapterEffects() async {
+        let recorder = RichContentRecorder()
+        let options = SwiftUIRenderOptions(
+            richContentAdapter: SwiftUIRichContentAdapter { request in
+                recorder.record(request.testDescription)
+                return AnyView(Text(request.testDescription))
+            }
+        )
+        let document = AST.DocumentNode(children: [
+            AST.MermaidDiagramNode(content: "flowchart LR; A-->B"),
+            UnsupportedSwiftUITestNode()
+        ])
+
+        await #expect(throws: SwiftUIRenderingError.self) {
+            _ = try await SwiftUIRenderer(options: options).render(document)
+        }
+        #expect(recorder.values.isEmpty)
+    }
+
+    @Test("Finds nested document failures before invoking earlier adapters")
+    func nestedDocumentFailurePreventsAdapterEffects() async {
+        let recorder = RichContentRecorder()
+        let options = SwiftUIRenderOptions(
+            richContentAdapter: SwiftUIRichContentAdapter { request in
+                recorder.record(request.testDescription)
+                return AnyView(Text(request.testDescription))
+            }
+        )
+        let document = AST.DocumentNode(children: [
+            AST.ParagraphNode(children: [AST.InlineMathNode(content: "must-not-run")]),
+            AST.BlockQuoteNode(children: [
+                AST.ListNode(isOrdered: false, items: [
+                    AST.ListItemNode(children: [
+                        AST.ParagraphNode(children: [
+                            AST.StrongEmphasisNode(children: [
+                                UnsupportedSwiftUITestNode()
+                            ])
+                        ])
+                    ])
+                ])
+            ])
+        ])
+
+        await #expect(throws: SwiftUIRenderingError.self) {
+            _ = try await SwiftUIRenderer(options: options).render(document)
+        }
+        #expect(recorder.values.isEmpty)
+    }
+
+    @Test("Reports the first unsupported node in depth-first document order")
+    func documentFailureOrderIsDepthFirst() async {
+        let document = AST.DocumentNode(children: [
+            AST.BlockQuoteNode(children: [
+                AST.ListNode(isOrdered: false, items: [
+                    AST.ListItemNode(children: [
+                        AST.ParagraphNode(children: [
+                            UnsupportedSwiftUITestNode("first-depth-first")
+                        ])
+                    ])
+                ])
+            ]),
+            UnsupportedSwiftUITestNode("second-top-level")
+        ])
+
+        do {
+            _ = try await SwiftUIRenderer().render(document)
+            Issue.record("Expected the first unsupported node to fail projection")
+        } catch let error as SwiftUIRenderingError {
+            switch error {
+            case let .unsupportedNodeType(type):
+                #expect(type.rawValue == "first-depth-first")
+            }
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     #if os(macOS)
     @Test("Adapts native containers to width and accessibility text sizes")
     func adaptiveNativePresentation() async throws {

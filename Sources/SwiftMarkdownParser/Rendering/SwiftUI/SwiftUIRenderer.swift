@@ -15,6 +15,7 @@ public struct SwiftUIRenderer {
     public let options: SwiftUIRenderOptions
 
     private let syntaxHighlighter: SyntaxHighlighter
+    private let nativeDocumentProjection: NativeDocumentProjection
     private let nativeInlineProjection: NativeInlineProjection
     private let nativeAdaptivePresentation: NativeAdaptivePresentation
     private let nativeRichContentProjection: NativeRichContentProjection
@@ -39,6 +40,7 @@ public struct SwiftUIRenderer {
 
         self.options = options
         self.syntaxHighlighter = SyntaxHighlighter()
+        self.nativeDocumentProjection = NativeDocumentProjection(options: options)
         self.nativeInlineProjection = NativeInlineProjection(
             options: options,
             richContentProjection: richContentProjection,
@@ -52,84 +54,57 @@ public struct SwiftUIRenderer {
 
     /// Render a complete document AST to SwiftUI view
     public func render(_ document: AST.DocumentNode) async throws -> AnyView {
-        let views = try await document.children.asyncMap { child in
-            try await render(node: child)
-        }
+        let plan = try nativeDocumentProjection.project(document)
+        let views = await materialize(plan.blocks)
 
         let documentView = nativeAdaptivePresentation.present(.document(views))
         return AnyView(documentView.modifier(SwiftUILinkActionModifier(handler: options.linkHandler)))
     }
 
-    /// Render any AST node to SwiftUI view
-    private func render(node: any ASTNode) async throws -> NativeMaterializedView {
-        switch node {
-        case is AST.TextNode,
-             is AST.EmphasisNode,
-             is AST.StrongEmphasisNode,
-             is AST.LinkNode,
-             is AST.ImageNode,
-             is AST.CodeSpanNode,
-             is AST.LineBreakNode,
-             is AST.SoftBreakNode,
-             is AST.AutolinkNode,
-             is AST.HTMLInlineNode,
-             is AST.StrikethroughNode,
-             is AST.FootnoteReferenceNode,
-             is AST.InlineMathNode:
+    private func materialize(
+        _ blocks: [NativeDocumentProjection.Block]
+    ) async -> [NativeMaterializedView] {
+        var views: [NativeMaterializedView] = []
+        views.reserveCapacity(blocks.count)
+        for block in blocks {
+            views.append(await materialize(block))
+        }
+        return views
+    }
+
+    /// Materializes one block from a complete, already-validated document plan.
+    private func materialize(
+        _ block: NativeDocumentProjection.Block
+    ) async -> NativeMaterializedView {
+        switch block {
+        case let .inline(plan):
             return nativeMaterializer.materialize(
-                try nativeInlineProjection.project([node])
+                nativeInlineProjection.materialize(plan)
                     .font(options.styleConfiguration.bodyFont)
                     .foregroundStyle(options.styleConfiguration.textColor)
             )
-
-        case let paragraphNode as AST.ParagraphNode:
-            return try await renderParagraph(paragraphNode)
-
-        case let headingNode as AST.HeadingNode:
-            return try await renderHeading(headingNode)
-
-        case let codeBlockNode as AST.CodeBlockNode:
-            return await renderCodeBlock(codeBlockNode)
-
-        case let listNode as AST.ListNode:
-            return try await renderList(listNode)
-
-        case let listItemNode as AST.ListItemNode:
-            return try await renderListItem(listItemNode)
-
-        case let blockQuoteNode as AST.BlockQuoteNode:
-            return try await renderBlockQuote(blockQuoteNode)
-
-        case let thematicBreakNode as AST.ThematicBreakNode:
-            return renderThematicBreak(thematicBreakNode)
-
-        case let htmlBlockNode as AST.HTMLBlockNode:
-            return nativeRichContentProjection.project(.htmlBlock(htmlBlockNode))
-
-        // GFM Extensions
-        case let taskListItemNode as AST.GFMTaskListItemNode:
-            return try await renderTaskListItem(taskListItemNode)
-
-        case let tableNode as AST.GFMTableNode:
-            return try await renderTable(tableNode)
-
-        // Footnote Support
-        case let footnoteDefinitionNode as AST.FootnoteDefinitionNode:
-            return try await renderFootnoteDefinition(footnoteDefinitionNode)
-
-        // Mermaid Support
-        case let mermaidNode as AST.MermaidDiagramNode:
-            return nativeRichContentProjection.project(.mermaid(
-                node: mermaidNode,
-                configuration: options.mermaidConfiguration
-            ))
-
-        // Math Support
-        case let mathBlockNode as AST.MathBlockNode:
-            return nativeRichContentProjection.project(.mathBlock(mathBlockNode))
-
-        default:
-            throw SwiftUIRenderingError.unsupportedNodeType(node.nodeType)
+        case let .paragraph(content):
+            return renderParagraph(content)
+        case let .heading(level, content):
+            return renderHeading(level: level, content: content)
+        case let .codeBlock(node):
+            return await renderCodeBlock(node)
+        case let .list(list):
+            return await renderList(list)
+        case let .content(children):
+            return await renderContent(children)
+        case let .blockQuote(children):
+            return await renderBlockQuote(children)
+        case .thematicBreak:
+            return renderThematicBreak()
+        case let .rich(request):
+            return nativeRichContentProjection.project(request)
+        case let .task(isChecked, content):
+            return renderTaskListItem(isChecked: isChecked, content: content)
+        case let .table(table):
+            return renderTable(table)
+        case let .footnote(identifier, children):
+            return await renderFootnoteDefinition(identifier: identifier, children: children)
         }
     }
 }
@@ -139,9 +114,8 @@ public struct SwiftUIRenderer {
 @available(iOS 17.0, macOS 14.0, *)
 extension SwiftUIRenderer {
 
-    /// Render paragraph node
-    private func renderParagraph(_ node: AST.ParagraphNode) async throws -> NativeMaterializedView {
-        let content = try nativeInlineProjection.project(node.children)
+    private func renderParagraph(_ plan: NativeInlinePlan) -> NativeMaterializedView {
+        let content = nativeInlineProjection.materialize(plan)
         return nativeMaterializer.materialize(
             content
                 .font(options.styleConfiguration.bodyFont)
@@ -152,12 +126,13 @@ extension SwiftUIRenderer {
         )
     }
 
-    /// Render heading node
-    private func renderHeading(_ node: AST.HeadingNode) async throws -> NativeMaterializedView {
-        let content = try nativeInlineProjection.project(node.children)
-
-        let font = options.styleConfiguration.headingFont(for: node.level)
-        let spacing = options.styleConfiguration.headingSpacing(for: node.level)
+    private func renderHeading(
+        level: Int,
+        content plan: NativeInlinePlan
+    ) -> NativeMaterializedView {
+        let content = nativeInlineProjection.materialize(plan)
+        let font = options.styleConfiguration.headingFont(for: level)
+        let spacing = options.styleConfiguration.headingSpacing(for: level)
 
         return nativeMaterializer.materialize(
             content
@@ -171,17 +146,14 @@ extension SwiftUIRenderer {
         )
     }
 
-    /// Render block quote node
-    private func renderBlockQuote(_ node: AST.BlockQuoteNode) async throws -> NativeMaterializedView {
-        let childViews = try await node.children.asyncMap { child in
-            try await render(node: child)
-        }
-
+    private func renderBlockQuote(
+        _ children: [NativeDocumentProjection.Block]
+    ) async -> NativeMaterializedView {
+        let childViews = await materialize(children)
         return nativeAdaptivePresentation.present(.blockQuote(childViews))
     }
 
-    /// Render thematic break (horizontal rule)
-    private func renderThematicBreak(_ node: AST.ThematicBreakNode) -> NativeMaterializedView {
+    private func renderThematicBreak() -> NativeMaterializedView {
         return nativeMaterializer.materialize(
             Divider()
                 .background(options.styleConfiguration.thematicBreakColor)
@@ -241,35 +213,35 @@ extension SwiftUIRenderer {
 @available(iOS 17.0, macOS 14.0, *)
 extension SwiftUIRenderer {
 
-    /// Render list node
-    private func renderList(_ node: AST.ListNode) async throws -> NativeMaterializedView {
-        let itemViews = try await node.items.asyncMap { item in
-            try await render(node: item)
-        }
-        let items = zip(node.items.indices, itemViews).map { index, view in
+    private func renderList(
+        _ list: NativeDocumentProjection.List
+    ) async -> NativeMaterializedView {
+        var items: [NativeAdaptivePresentation.ListItem] = []
+        items.reserveCapacity(list.items.count)
+
+        for (index, item) in list.items.enumerated() {
+            let view = await materialize(item.content)
             let marker: NativeAdaptivePresentation.ListItem.Marker?
-            if node.items[index] is AST.GFMTaskListItemNode {
+            if item.isTask {
                 marker = nil
-            } else if node.isOrdered {
+            } else if list.isOrdered {
                 marker = .ordered(nativeSemantics.orderedListMarker(
-                    startNumber: node.startNumber,
+                    startNumber: list.startNumber,
                     index: index
                 ))
             } else {
                 marker = .bullet
             }
-            return NativeAdaptivePresentation.ListItem(marker: marker, content: view)
+            items.append(NativeAdaptivePresentation.ListItem(marker: marker, content: view))
         }
 
         return nativeAdaptivePresentation.present(.list(items))
     }
 
-    /// Render list item node
-    private func renderListItem(_ node: AST.ListItemNode) async throws -> NativeMaterializedView {
-        let childViews = try await node.children.asyncMap { child in
-            try await render(node: child)
-        }
-
+    private func renderContent(
+        _ children: [NativeDocumentProjection.Block]
+    ) async -> NativeMaterializedView {
+        let childViews = await materialize(children)
         return nativeAdaptivePresentation.present(.content(childViews))
     }
 }
@@ -279,43 +251,39 @@ extension SwiftUIRenderer {
 @available(iOS 17.0, macOS 14.0, *)
 extension SwiftUIRenderer {
 
-    /// Render a footnote definition and preserve its complete block content.
     private func renderFootnoteDefinition(
-        _ node: AST.FootnoteDefinitionNode
-    ) async throws -> NativeMaterializedView {
-        let childViews = try await node.children.asyncMap { child in
-            try await render(node: child)
-        }
+        identifier: String,
+        children: [NativeDocumentProjection.Block]
+    ) async -> NativeMaterializedView {
+        let childViews = await materialize(children)
 
         return nativeAdaptivePresentation.present(.footnote(
-            identifier: node.identifier,
+            identifier: identifier,
             children: childViews
         ))
     }
 
-    /// Render task list item node
     private func renderTaskListItem(
-        _ node: AST.GFMTaskListItemNode
-    ) async throws -> NativeMaterializedView {
-        let content = try nativeInlineProjection.project(node.children)
+        isChecked: Bool,
+        content plan: NativeInlinePlan
+    ) -> NativeMaterializedView {
+        let content = nativeInlineProjection.materialize(plan)
 
         return nativeAdaptivePresentation.present(.task(
-            isChecked: node.isChecked,
+            isChecked: isChecked,
             content: content
         ))
     }
 
-    /// Render table node
-    private func renderTable(_ node: AST.GFMTableNode) async throws -> NativeMaterializedView {
-        let rows = try node.rows.map { row in
-            let cells = try row.cells.enumerated().map { index, cell in
-                let nodes: [any ASTNode] = cell.children.isEmpty
-                    ? [AST.TextNode(content: cell.content)]
-                    : cell.children
+    private func renderTable(
+        _ table: NativeDocumentProjection.Table
+    ) -> NativeMaterializedView {
+        let rows = table.rows.map { row in
+            let cells = row.cells.map { cell in
                 return NativeAdaptivePresentation.Table.Cell(
-                    content: try nativeInlineProjection.project(nodes),
-                    alignment: index < node.alignments.count ? node.alignments[index] : .none,
-                    columnIndex: index
+                    content: nativeInlineProjection.materialize(cell.content),
+                    alignment: cell.alignment,
+                    columnIndex: cell.columnIndex
                 )
             }
             return NativeAdaptivePresentation.Table.Row(
@@ -343,18 +311,5 @@ private struct SwiftUILinkActionModifier: ViewModifier {
         } else {
             content
         }
-    }
-}
-
-// MARK: - Async Array Extension
-
-extension Array {
-    /// Async map function for rendering child nodes
-    func asyncMap<T>(_ transform: (Element) async throws -> T) async rethrows -> [T] {
-        var results: [T] = []
-        for element in self {
-            results.append(try await transform(element))
-        }
-        return results
     }
 }

@@ -11,9 +11,13 @@ struct UnsupportedTestNode: ASTNode {
 }
 
 struct UnsupportedSwiftUITestNode: ASTNode {
-    let nodeType = ASTNodeType(rawValue: "unsupported-swiftui")
+    let nodeType: ASTNodeType
     let children: [any ASTNode] = []
     let sourceLocation: SourceLocation? = nil
+
+    init(_ rawValue: String = "unsupported-swiftui") {
+        self.nodeType = ASTNodeType(rawValue: rawValue)
+    }
 }
 
 struct RewritableTestContainer: ASTRewritableNode {

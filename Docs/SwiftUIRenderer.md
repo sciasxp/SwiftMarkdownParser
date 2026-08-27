@@ -85,6 +85,24 @@ task lists, code blocks, and images. Semantic code highlighting is opt-in via
 Unsupported and unlabelled languages retain the plain code style without losing
 source text.
 
+## Atomic document projection
+
+Before producing any view, `SwiftUIRenderer` interprets and validates the whole
+document in deterministic depth-first order. This first phase creates a typed,
+one-shot native plan containing block structure, inline meaning, and deferred
+rich-content requests. It does not allocate view identity, invoke the host rich
+content adapter, or perform syntax highlighting.
+
+Materialization starts only after the complete plan succeeds. Consequently, an
+unsupported node cannot leave behind a partial native view graph or an earlier
+host-adapter effect, including when the unsupported node is nested inside inline
+formatting, a list, a quote, a table, or a footnote. If several nodes are
+unsupported, the first one in depth-first document order is reported.
+
+The plan uses temporary memory proportional to the document. It is consumed by
+one render and then discarded; the public renderer interface and the returned
+view remain unchanged.
+
 ## Adaptive native presentation
 
 The returned view is container-aware. It does not assume a device class or read

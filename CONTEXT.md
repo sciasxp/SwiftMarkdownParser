@@ -32,6 +32,10 @@ _Avoid_: Shared rendering pipeline, render context
 The SwiftUI-output interpretation of inline Markdown meaning into an ordered native presentation independent of its containing block, preserving styles, safe destinations, breaks, references, and rich-content requirements without silently discarding unsupported meaning.
 _Avoid_: Inline rendering pipeline, text flattening
 
+**Atomic Native Document Projection**:
+The complete depth-first interpretation and validation of one Markdown Document before native identity, view materialization, rich-content adaptation, or other output work begins.
+_Avoid_: Incremental node rendering, partial native output
+
 **Native Presentation Semantics**:
 The package-owned interpretation of native-output roles into deferred localized messages and pure presentation values, keeping VoiceOver meaning, visible fallback labels, errors, ordered markers, and code-token continuity consistent across SwiftUI modules.
 _Avoid_: Hardcoded accessibility copy, localization helper bag

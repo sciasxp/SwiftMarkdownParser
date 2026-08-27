@@ -81,17 +81,29 @@ adapter registry or cache representation.
 
 ## Native SwiftUI presentation
 
-`SwiftUIRenderer` interprets the complete document and delegates five
-independent forms of output policy. `NativePresentationSemantics` maps typed
-roles to deferred package-localized meaning and owns pure ordered-marker and
-code-token continuity decisions. `NativeViewMaterializer` assigns stable unary
-view identity and centralizes internal type erasure. `NativeInlineProjection`
-validates and materializes ordered inline meaning once while leaving image
-destination policy outside its seam. `NativeRichContentProjection` resolves and
-validates image destinations, projects image, Mermaid, math, and HTML requests
-through one optional host adapter, and owns their readable native fallbacks.
-`NativeAdaptivePresentation` then presents projected blocks according to the
-container proposal and Dynamic Type category.
+`SwiftUIRenderer` delegates six independent forms of native output policy.
+`NativeDocumentProjection` first interprets and validates the complete document
+into a typed, one-shot plan in deterministic depth-first order. The plan embeds
+`NativeInlinePlan` values and rich-content requests, but contains no views,
+identity, adapter results, or syntax-highlighting work.
+`NativePresentationSemantics` maps typed roles to deferred package-localized
+meaning and owns pure ordered-marker and code-token continuity decisions.
+`NativeViewMaterializer` assigns stable unary view identity and centralizes
+internal type erasure. `NativeInlineProjection` materializes already-planned
+ordered inline meaning while leaving image destination policy outside its seam.
+`NativeRichContentProjection` resolves and validates image destinations,
+projects image, Mermaid, math, and HTML requests through one optional host
+adapter, and owns their readable native fallbacks. `NativeAdaptivePresentation`
+then presents materialized blocks according to the container proposal and
+Dynamic Type category.
+
+Only after document projection succeeds does the renderer materialize blocks,
+invoke host adapters, assign identity, or request syntax highlighting.
+Materialization is asynchronous but nonthrowing. This makes a failed document
+atomic at the native output seam: no partial view graph or host-visible adapter
+effect escapes, and the first unsupported node in depth-first order wins. The
+temporary plan is proportional to the document and is discarded after one
+render.
 
 The adaptive module owns document laziness, decoration budgets, marker/content
 layout, accessible footnotes, task rows, Mermaid fallback composition, and the
@@ -131,6 +143,10 @@ rich-content adapter seam.
 - Add native rich content by extending `SwiftUIRichContentRequest` and its
   centralized fallback together. Do not add a parallel per-node handler or
   bypass destination validation.
+- Add native AST interpretation through `NativeDocumentProjection` and include
+  its inline meaning in the typed plan. Never interleave document validation
+  with view materialization, identity allocation, adapter effects, or syntax
+  highlighting.
 - Add native user-facing meaning as a typed
   `NativePresentationSemantics.Message` and translate it in the package string
   catalog. Do not assemble localized sentences in a view.
@@ -162,3 +178,4 @@ Sources/SwiftMarkdownParser/
 - [ADR 0007: Deepen the native rich-content seam](adr/0007-deepen-native-rich-content-seam.md)
 - [ADR 0008: Concentrate native semantics and localization](adr/0008-concentrate-native-semantics-and-localization.md)
 - [ADR 0009: Own native identity and materialization](adr/0009-own-native-identity-and-materialization.md)
+- [ADR 0010: Plan native documents before materialization](adr/0010-plan-native-documents-before-materialization.md)
