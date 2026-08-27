@@ -1,3 +1,5 @@
+import Foundation
+
 /// Structured host input consumed while assembling a complete HTML document.
 public struct HTMLDocumentAssembly: Sendable, Equatable {
     public let metadata: HTMLDocumentMetadata
