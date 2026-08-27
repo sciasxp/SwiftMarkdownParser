@@ -1,5 +1,3 @@
-import Foundation
-
 /// Per-parse deterministic resource accounting. A budget is never shared
 /// between parser calls, so `SwiftMarkdownParser` remains immutable and safe to
 /// use concurrently.

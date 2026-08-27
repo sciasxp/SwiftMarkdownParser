@@ -362,23 +362,6 @@ final class BlockParser {
         return AST.ListItemNode(children: children, sourceLocation: itemRange)
     }
 
-    private func isNextListItem() -> Bool {
-        // Look ahead to see if we have a list marker at start of line
-        let currentPos = tokenStream.currentPosition
-
-        // Skip newlines and whitespace
-        while !tokenStream.isAtEnd && (tokenStream.check(.newline) || tokenStream.check(.whitespace)) {
-            tokenStream.advance()
-        }
-
-        let isListItem = tokenStream.check(.listMarker)
-
-        // Restore position
-        tokenStream.setPosition(currentPos)
-
-        return isListItem
-    }
-
     private func isAtStartOfListItem() -> Bool {
         // Check if we're at the start of a line with a list marker
         let currentPos = tokenStream.currentPosition
@@ -794,26 +777,6 @@ final class BlockParser {
         )
     }
 
-    private func isBlockBoundary() -> Bool {
-        let token = tokenStream.current
-
-        switch token.type {
-        case .newline:
-            // Check if followed by another newline (blank line)
-            return tokenStream.peek().type == .newline
-        case .atxHeaderStart, .blockQuoteMarker, .listMarker, .thematicBreak:
-            return true
-        case .backtick, .tildeCodeFence:
-            return token.content.count >= 3
-        case .indentedCodeBlock:
-            return true
-        case .eof:
-            return true
-        default:
-            return false
-        }
-    }
-
     // MARK: - Utility Methods
 
     private func skipWhitespace() {
@@ -851,6 +814,5 @@ final class BlockParser {
         return try parseBlock()
     }
 }
-
 
 

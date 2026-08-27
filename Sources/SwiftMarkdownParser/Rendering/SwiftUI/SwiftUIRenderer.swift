@@ -4,11 +4,6 @@
 /// with proper styling, accessibility support, and performance optimizations.
 
 import SwiftUI
-import Foundation
-
-#if canImport(WebKit)
-import WebKit
-#endif
 
 // MARK: - SwiftUIRenderer
 
@@ -904,28 +899,6 @@ extension SwiftUIRenderer {
         )
     }
 }
-
-#if os(macOS)
-/// Wrapper view for MermaidWebView that handles MainActor requirements
-@available(iOS 17.0, macOS 14.0, *)
-struct MermaidWebViewWrapper: View {
-    let diagramNode: AST.MermaidDiagramNode
-    let configuration: MermaidConfiguration
-    let styleConfiguration: SwiftUIStyleConfiguration
-
-    var body: some View {
-        MermaidWebView(
-            diagramNode: diagramNode,
-            configuration: configuration
-        )
-        .frame(minHeight: 200)
-        .background(styleConfiguration.codeBackgroundColor)
-        .clipShape(.rect(cornerRadius: styleConfiguration.codeCornerRadius))
-        .accessibilityLabel("Mermaid diagram: \(diagramNode.diagramType ?? "unknown type")")
-        .accessibilityAddTraits(.isImage)
-    }
-}
-#endif
 
 private struct IdentifiedValue<Value>: Identifiable {
     let id: UUID

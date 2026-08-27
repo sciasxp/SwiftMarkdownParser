@@ -1,5 +1,4 @@
 import Testing
-import Foundation
 @testable import SwiftMarkdownParser
 
 /// Test suite for HTML table renderer improvements
@@ -261,7 +260,7 @@ import Foundation
         #expect(html.contains("style=\"padding: 12px;\""))
     }
 
-    // MARK: - Performance Tests
+    // MARK: - Large Input Tests
 
     @Test func table_handlesLargeDatasets() async throws {
         // Generate a large table
@@ -270,14 +269,8 @@ import Foundation
             markdown += "| \(i) | Item \(i) | Value \(i) |\n"
         }
 
-        let startTime = Date()
         let ast = try parser.parse(markdown)
         let html = try await renderer.renderFragment(ast)
-        let endTime = Date()
-
-        let renderTime = endTime.timeIntervalSince(startTime)
-
-        print("Large table parsed and rendered in \(renderTime) seconds")
         #expect(html.contains("<table>"))
         #expect(html.contains("Item 1000"))
     }

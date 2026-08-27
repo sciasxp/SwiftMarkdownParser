@@ -1,5 +1,4 @@
 import Testing
-import Foundation
 @testable import SwiftMarkdownParser
 
 /// Tests for Mermaid diagram parsing functionality
@@ -309,7 +308,7 @@ import Foundation
         #expect(mermaidNode.sourceLocation?.line == 3) // Third line
     }
 
-    // MARK: - Performance Tests
+    // MARK: - Large Input Tests
 
     @Test func largeMermaidDiagram() async throws {
         var mermaidContent = "graph TD\n"
@@ -321,11 +320,7 @@ import Foundation
 
         let markdown = "```mermaid\n\(mermaidContent)```"
 
-        let startTime = Date()
         let ast = try parser.parse(markdown)
-        let endTime = Date()
-
-        print("Mermaid parsing sample completed in \(endTime.timeIntervalSince(startTime)) seconds")
 
         let mermaidNode = try #require(ast.children.first as? AST.MermaidDiagramNode, "Expected MermaidDiagramNode")
 

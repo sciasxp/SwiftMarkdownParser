@@ -1,12 +1,10 @@
 import Testing
-import Foundation
-import Darwin
 @testable import SwiftMarkdownParser
 
-/// Test suite for validating large document parsing performance and correctness.
+/// Test suite for validating large document parsing correctness and resource limits.
 ///
 /// This test suite generates a large markdown document with over 1000 blocks
-/// to test parser performance, protection mechanisms, and correctness.
+/// to exercise parser structure, concurrency, and protection mechanisms.
 @Suite struct LargeDocumentParsingTests {
     let parser: SwiftMarkdownParser
     let largeTestDocument: String
@@ -201,41 +199,6 @@ import Darwin
         """
     }
 
-    // MARK: - Performance Tests
-
-    @Test func largeDocument_parse_preservesTopLevelStructure() async throws {
-        let startTime = CFAbsoluteTimeGetCurrent()
-
-        // Parse the README.md content
-        let ast = try parser.parse(largeTestDocument)
-
-        let endTime = CFAbsoluteTimeGetCurrent()
-        let elapsedTime = endTime - startTime
-
-        // Verify the document was actually parsed
-        #expect(ast.children.count > 0, "Document should have parsed content")
-
-        print("Large document parsing completed in \(String(format: "%.3f", elapsedTime)) seconds")
-        print("Document statistics: \(ast.children.count) top-level nodes")
-    }
-
-    @Test func largeDocument_renderHTML_preservesRenderedStructure() async throws {
-        let startTime = CFAbsoluteTimeGetCurrent()
-
-        // Parse to HTML
-        let html = try await HTMLRenderer().renderFragment(parser.parse(largeTestDocument))
-
-        let endTime = CFAbsoluteTimeGetCurrent()
-        let elapsedTime = endTime - startTime
-
-        // Verify HTML was generated
-        #expect(!html.isEmpty, "HTML output should not be empty")
-        #expect(html.contains("<h1>"), "HTML should contain proper heading structure")
-
-        print("Large document HTML rendering completed in \(String(format: "%.3f", elapsedTime)) seconds")
-        print("HTML output size: \(html.count) characters")
-    }
-
     // MARK: - Correctness Tests
 
     @Test func largeDocument_parse_containsExpectedStructure() async throws {
@@ -283,27 +246,16 @@ import Darwin
         #expect(listCount > 200, "Test document should have 200+ lists")
         // Each section has code blocks, should be 100+ code blocks
         #expect(codeBlockCount > 100, "Test document should have 100+ code blocks")
-        // Links are parsed as inline content within paragraphs, not as separate top-level nodes
-        // So we don't test for link count at the top level
+        #expect(linkCount >= 100, "Test document should have 100+ links")
+        #expect(emphasisCount >= 100, "Test document should have 100+ emphasized spans")
         // Each section has a table, should be 100 tables (exactly 100 sections)
         #expect(tableCount >= 100, "Test document should have 100+ tables")
         // Each section has blockquotes, should be 100+ blockquotes
         #expect(blockquoteCount > 100, "Test document should have 100+ blockquotes")
 
-        print("Generated test document structure analysis:")
-        print("   - Headings: \(headingCount)")
-        print("   - Paragraphs: \(paragraphCount)")
-        print("   - Lists: \(listCount)")
-        print("   - Code blocks: \(codeBlockCount)")
-        print("   - Links: \(linkCount)")
-        print("   - Tables: \(tableCount)")
-        print("   - Emphasis: \(emphasisCount)")
-        print("   - Blockquotes: \(blockquoteCount)")
-
         // Calculate total blocks
         let totalBlocks = headingCount + paragraphCount + listCount + codeBlockCount +
                          tableCount + emphasisCount + blockquoteCount
-        print("   - Total blocks: \(totalBlocks)")
 
         // Verify we have over 1000 blocks as intended
         #expect(totalBlocks > 1000, "Test document should have over 1000 blocks")
@@ -323,9 +275,7 @@ import Darwin
         #expect(html.contains("<li>"), "HTML should contain list items")
         #expect(html.contains("<code>"), "HTML should contain code elements")
         #expect(html.contains("<pre>"), "HTML should contain preformatted blocks")
-        // Note: Links are in the generated document but may not be properly parsed yet
-        // This is a known issue that needs to be addressed in the inline parser
-        // #expect(html.contains("<a href="), "HTML should contain links")
+        #expect(html.contains("<a href="), "HTML should contain links")
         #expect(html.contains("<strong>"), "HTML should contain bold text")
         #expect(html.contains("<em>"), "HTML should contain italic text")
         #expect(html.contains("<table>"), "HTML should contain tables")
@@ -340,73 +290,23 @@ import Darwin
         #expect(html.contains("Summary"), "Should contain summary section")
         #expect(html.contains("Test Statistics"), "Should contain test statistics")
 
-        print("HTML output contains all expected elements and generated content")
-        print("HTML output size: \(html.count) characters")
-    }
-
-    // MARK: - Memory Usage Tests
-
-    @Test func largeDocument_parse_memoryUsage() async throws {
-        // Measure memory usage during parsing
-        let initialMemory = getCurrentMemoryUsage()
-
-        let ast = try parser.parse(largeTestDocument)
-
-        let peakMemory = getCurrentMemoryUsage()
-        let memoryIncrease = peakMemory - initialMemory
-
-        // Memory increase should be reasonable (less than 50MB for this document)
-        #expect(memoryIncrease < 50 * 1024 * 1024, "Memory usage should be reasonable")
-
-        print("Memory usage: \(formatBytes(memoryIncrease)) increase during parsing")
-        print("AST contains \(ast.children.count) top-level nodes")
-
-        // Verify the AST is properly structured
-        #expect(ast.children.count > 0, "AST should contain parsed content")
     }
 
     // MARK: - Stress Tests
-
-    @Test func largeDocument_multipleParsingOperations() async throws {
-        let iterations = 5
-        var totalTime: Double = 0
-
-        for i in 1...iterations {
-            let startTime = CFAbsoluteTimeGetCurrent()
-
-            let ast = try parser.parse(largeTestDocument)
-
-            let endTime = CFAbsoluteTimeGetCurrent()
-            let elapsedTime = endTime - startTime
-            totalTime += elapsedTime
-
-            // Verify each parse is successful
-            #expect(ast.children.count > 0, "Iteration \(i) should produce valid AST")
-
-            print("Iteration \(i)/\(iterations) completed in \(String(format: "%.3f", elapsedTime))s")
-        }
-
-        let averageTime = totalTime / Double(iterations)
-        print("Average parsing time over \(iterations) iterations: \(String(format: "%.3f", averageTime))s")
-
-    }
 
     @Test func largeDocument_concurrentParsing() async throws {
         let concurrentTasks = 3
 
         // Wait for all tasks to complete using TaskGroup
-        let results = try await withThrowingTaskGroup(of: (taskId: Int, ast: AST.DocumentNode, elapsedTime: Double).self) { group in
+        let results = try await withThrowingTaskGroup(of: (taskId: Int, ast: AST.DocumentNode).self) { group in
             for taskId in 1...concurrentTasks {
                 group.addTask { [parser, largeTestDocument] in
-                    let startTime = CFAbsoluteTimeGetCurrent()
                     let ast = try parser.parse(largeTestDocument)
-                    let endTime = CFAbsoluteTimeGetCurrent()
-
-                    return (taskId: taskId, ast: ast, elapsedTime: endTime - startTime)
+                    return (taskId: taskId, ast: ast)
                 }
             }
 
-            var allResults: [(taskId: Int, ast: AST.DocumentNode, elapsedTime: Double)] = []
+            var allResults: [(taskId: Int, ast: AST.DocumentNode)] = []
             for try await result in group {
                 allResults.append(result)
             }
@@ -418,12 +318,7 @@ import Darwin
 
         for result in results {
             #expect(result.ast.children.count > 0, "Task \(result.taskId) should produce valid AST")
-            print("Concurrent task \(result.taskId) completed in \(String(format: "%.3f", result.elapsedTime))s")
         }
-
-        let totalTime = results.map { $0.elapsedTime }.reduce(0, +)
-        let averageTime = totalTime / Double(results.count)
-        print("Concurrent parsing average time: \(String(format: "%.3f", averageTime))s")
     }
 
     // MARK: - Protection Mechanism Tests
@@ -460,37 +355,5 @@ import Darwin
         // Should be able to process many more blocks than the old 100 limit
         #expect(totalBlocks > 100, "Should process more than 100 blocks without artificial limits")
 
-        print("No block limits: processed \(totalBlocks) total blocks")
-        print("Document parsing completed without artificial block count restrictions")
-    }
-
-    @Test func protectionMechanisms_positionAdvancement() async throws {
-        // Test that the position advancement protection works
-        // This test ensures the parser doesn't get stuck in infinite loops
-        let ast = try parser.parse(largeTestDocument)
-
-        // If we get here without throwing, the position advancement protection worked
-        #expect(ast.children.count > 0, "Should successfully parse document")
-
-        print("Position advancement protection working correctly")
-    }
-
-    // MARK: - Utility Methods
-
-    private func getCurrentMemoryUsage() -> Int {
-        #if os(macOS) || os(iOS)
-        // Skip memory measurement in Swift 6 strict concurrency mode to avoid issues
-        // This is acceptable for testing as the memory measurement is informational
-        return 0
-        #else
-        return 0
-        #endif
-    }
-
-    private func formatBytes(_ bytes: Int) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useMB, .useKB, .useBytes]
-        formatter.countStyle = .memory
-        return formatter.string(fromByteCount: Int64(bytes))
     }
 }

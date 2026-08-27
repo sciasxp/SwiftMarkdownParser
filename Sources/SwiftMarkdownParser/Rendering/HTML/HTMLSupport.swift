@@ -159,11 +159,6 @@ enum RendererUtils {
         return url
     }
 
-    /// Generate CSS class name from node type
-    static func cssClassName(for nodeType: ASTNodeType, prefix: String = "md-") -> String {
-        return prefix + nodeType.rawValue.replacingOccurrences(of: "_", with: "-")
-    }
-
     /// Generate HTML attributes from style configuration
     static func htmlAttributes(
         for nodeType: ASTNodeType,
@@ -176,9 +171,6 @@ enum RendererUtils {
         if let cssClass = styleConfig.cssClasses[nodeType] {
             attributes["class"] = cssClass
         }
-        // Note: Removed the automatic fallback to cssClassName for default styling
-        // This keeps HTML output clean by default, CSS classes only when explicitly requested
-
         // Add custom attributes
         if let customAttrs = styleConfig.customAttributes[nodeType] {
             attributes.merge(customAttrs) { _, new in new }

@@ -4,8 +4,6 @@
 /// with support for modern features like async/await, property wrappers,
 /// result builders, string interpolation, and structured concurrency.
 
-import Foundation
-
 /// Swift syntax highlighting engine implementation
 struct SwiftSyntaxEngine: SyntaxHighlightingEngine {
 
@@ -77,22 +75,6 @@ struct SwiftSyntaxEngine: SyntaxHighlightingEngine {
         "static", "class", "final", "override", "required", "convenience",
         "lazy", "weak", "unowned", "mutating", "nonmutating", "dynamic",
         "indirect", "consuming", "borrowing", "sending"
-    ]
-
-    private static let attributeNames: Set<String> = [
-        // Property wrappers
-        "State", "Binding", "ObservedObject", "StateObject", "EnvironmentObject",
-        "Environment", "Published", "AppStorage", "SceneStorage", "UserDefault",
-
-        // Compiler attributes
-        "available", "objc", "objcMembers", "discardableResult", "warn_unqualified_access",
-        "autoclosure", "escaping", "noescape", "inline", "usableFromInline",
-        "inlinable", "frozen", "unknown", "main", "testable", "IBAction", "IBOutlet",
-        "IBDesignable", "IBInspectable", "NSManaged", "GKInspectable",
-
-        // Result builders
-        "resultBuilder", "ViewBuilder", "SceneBuilder", "ToolbarContentBuilder",
-        "CommandsBuilder", "WidgetBundleBuilder"
     ]
 
     // MARK: - Public Interface

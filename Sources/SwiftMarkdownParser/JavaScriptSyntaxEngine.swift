@@ -4,8 +4,6 @@
 /// with support for modern features like async/await, arrow functions, template literals,
 /// destructuring, and more.
 
-import Foundation
-
 /// JavaScript syntax highlighting engine implementation
 struct JavaScriptSyntaxEngine: SyntaxHighlightingEngine {
 

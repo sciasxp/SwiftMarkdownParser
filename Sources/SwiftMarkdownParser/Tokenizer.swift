@@ -276,12 +276,6 @@ final class MarkdownTokenizer {
         return characters[position]
     }
     
-    private func peek(_ offset: Int = 1) -> Character {
-        let pos = position + offset
-        guard pos < characters.count else { return "\0" }
-        return characters[pos]
-    }
-    
     private var isAtEnd: Bool {
         return budget.isExhausted || position >= characters.count
     }
@@ -909,6 +903,18 @@ final class MarkdownTokenizer {
             line = startLocation.line
             column = startLocation.column
             return nil
+        }
+
+        // A whitespace-only line is blank Markdown, not an indented code block.
+        // Reference definitions are replaced with spaces before tokenization to
+        // preserve source offsets, so this distinction also prevents those
+        // placeholders from leaking into the semantic document.
+        if isAtEnd || currentChar == "\n" || currentChar == "\r" {
+            return Token(
+                type: .whitespace,
+                content: String(repeating: " ", count: spaceCount),
+                location: startLocation
+            )
         }
         
         return Token(type: .indentedCodeBlock, content: String(repeating: " ", count: spaceCount), location: startLocation)

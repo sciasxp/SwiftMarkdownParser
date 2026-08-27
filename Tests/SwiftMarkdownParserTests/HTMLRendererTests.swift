@@ -643,7 +643,7 @@ import Foundation
         #expect(html.contains("<td>✅</td>"))
     }
 
-    // MARK: - Performance Tests
+    // MARK: - Large Input Tests
 
     @Test func renderLargeDocument() async throws {
         // Create a large document with many elements
@@ -658,16 +658,10 @@ import Foundation
 
         let document = AST.DocumentNode(children: children)
 
-        let startTime = Date()
         let html = try await renderer.renderFragment(document)
-        let endTime = Date()
-
-        let renderTime = endTime.timeIntervalSince(startTime)
-        print("Rendered 1000 sections in \(renderTime) seconds")
 
         // Verify the output contains expected elements
         #expect(html.contains("<h2>Section 1</h2>"))
         #expect(html.contains("<h2>Section 1000</h2>"))
-        print("HTML renderer sample completed in \(renderTime) seconds")
     }
 }

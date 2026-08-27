@@ -203,11 +203,6 @@ final class InlineParser {
         return AST.TextNode(content: token.content, sourceLocation: token.location)
     }
 
-    private func parseWhitespace() -> AST.TextNode {
-        let token = tokenStream.consume()
-        return AST.TextNode(content: token.content, sourceLocation: token.location)
-    }
-
     // MARK: - Emphasis and Strong Emphasis
 
     private func parseEmphasisOrStrong(delimiter: String) throws -> ASTNode? {
@@ -721,13 +716,6 @@ final class InlineParser {
         return AST.TextNode(content: escapedContent, sourceLocation: token.location)
     }
 
-    private func parseEntity() throws -> ASTNode {
-        let token = tokenStream.consume()
-        // TODO: Implement proper entity decoding
-        // For now, return the entity as-is
-        return AST.TextNode(content: token.content, sourceLocation: token.location)
-    }
-
     private func parseAutolink() -> AST.AutolinkNode? {
         let token = tokenStream.consume()
         let displayText = token.content.trimmingCharacters(in: CharacterSet(charactersIn: "<>"))
@@ -788,21 +776,6 @@ final class InlineParser {
             tokenStream.setPosition(startPosition)
             return nil
         }
-    }
-
-    private func parseHTMLInline() -> AST.HTMLInlineNode {
-        let token = tokenStream.consume()
-        return AST.HTMLInlineNode(content: token.content, sourceLocation: token.location)
-    }
-
-    private func parseHardBreak() -> AST.LineBreakNode {
-        let token = tokenStream.consume()
-        return AST.LineBreakNode(isHard: true, sourceLocation: token.location)
-    }
-
-    private func parseSoftBreak() -> AST.SoftBreakNode {
-        let token = tokenStream.consume()
-        return AST.SoftBreakNode(sourceLocation: token.location)
     }
 
 }

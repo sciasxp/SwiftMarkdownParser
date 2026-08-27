@@ -1,5 +1,4 @@
 import Testing
-import Foundation
 @testable import SwiftMarkdownParser
 
 /// Test suite for the SwiftMarkdownParser functionality.
@@ -61,44 +60,16 @@ import Foundation
 
     // MARK: - GFM Tests
 
-    @Test func gfm_parseSimpleTableLine() async throws {
-        print("[TEST] Starting simple table line test...")
-
-        let markdown = "| Name | Age |"
-
-        print("[TEST] Markdown input: '\(markdown)'")
-        print("[TEST] Calling parse...")
-
-        let ast = try parser.parse(markdown)
-
-        print("[TEST] Parse completed! Children count: \(ast.children.count)")
-        print("[TEST] First child type: \(type(of: ast.children.first!))")
-
-        // This should still be parsed as a paragraph (single line can't be a table without separator)
-        #expect(ast.children.first is AST.ParagraphNode)
-    }
-
-    @Test func gfm_parseMinimalTable() async throws {
-        print("[TEST] Starting minimal table test...")
-
-        // For now, test that we can parse a single line without hanging
-        let markdown = "| A | B |"
-
-        print("[TEST] Markdown input: '\(markdown)'")
-        print("[TEST] Calling parse...")
-
-        let ast = try parser.parse(markdown)
-
-        print("[TEST] Parse completed! Children count: \(ast.children.count)")
-        print("[TEST] First child type: \(type(of: ast.children.first!))")
-
-        // This should be parsed as a paragraph (single line can't be a table)
-        #expect(ast.children.first is AST.ParagraphNode)
+    @Test(
+        "Treats a table-like line without a delimiter row as a paragraph",
+        arguments: ["| Name | Age |", "| A | B |"]
+    )
+    func gfm_singleTableLikeLineIsParagraph(markdown: String) throws {
+        let document = try parser.parse(markdown)
+        #expect(document.children.first is AST.ParagraphNode)
     }
 
     @Test func gfm_parseTable() async throws {
-        print("[TEST] Starting table parsing test...")
-
         let markdown = """
         | Name | Age | City |
         |------|-----|------|
@@ -106,19 +77,12 @@ import Foundation
         | Jane | 30  | LA   |
         """
 
-        print("[TEST] Markdown input: '\(markdown)'")
-
-        let parser = SwiftMarkdownParser()
-        print("[TEST] Calling parse...")
         let document = try parser.parse(markdown)
-        print("[TEST] Parse completed! Children count: \(document.children.count)")
 
         // Should have one table
         #expect(document.children.count == 1)
 
         let table = try #require(document.children.first as? AST.GFMTableNode, "Expected GFMTableNode, got \(type(of: document.children.first))")
-
-        print("[TEST] Found table with \(table.rows.count) rows")
 
         // Should have 3 rows (header + 2 data rows)
         #expect(table.rows.count == 3)
@@ -152,7 +116,6 @@ import Foundation
         #expect(table.alignments[1] == .none)
         #expect(table.alignments[2] == .none)
 
-        print("[TEST] Table parsing test completed successfully!")
     }
 
     @Test func gfm_parseTaskList() async throws {

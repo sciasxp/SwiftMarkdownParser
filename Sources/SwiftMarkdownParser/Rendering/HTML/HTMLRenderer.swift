@@ -1,5 +1,3 @@
-import Foundation
-
 /// Renders complete Markdown documents to HTML while owning all HTML-specific
 /// escaping, feature assets, styling, and document composition.
 public struct HTMLRenderer: Sendable {

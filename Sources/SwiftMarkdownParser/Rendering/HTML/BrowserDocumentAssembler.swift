@@ -1,5 +1,3 @@
-import Foundation
-
 /// Owns browser enrichment, asset assembly, bootstrap behavior, and the
 /// complete HTML document shell behind the `HTMLRenderer` interface.
 struct BrowserDocumentAssembler: Sendable {

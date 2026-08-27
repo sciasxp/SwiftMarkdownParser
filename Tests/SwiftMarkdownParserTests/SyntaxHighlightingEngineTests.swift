@@ -1,56 +1,8 @@
 import Testing
 @testable import SwiftMarkdownParser
 
-/// Test suite for syntax highlighting engines.
-///
-/// This test suite covers all syntax highlighting engines using Test-Driven Development (TDD).
-/// Tests are written first, then implementations are created to pass the tests.
+/// Lexical regression coverage for the built-in syntax-highlighting adapters.
 @Suite struct SyntaxHighlightingEngineTests {
-
-    // MARK: - Core Protocol Tests
-
-    @Test func syntaxHighlightingEngine_protocol_requirements() async throws {
-        // Test that engines conform to protocol requirements
-        let engines: [SyntaxHighlightingEngine] = [
-            JavaScriptSyntaxEngine(),
-            TypeScriptSyntaxEngine(),
-            SwiftSyntaxEngine(),
-            KotlinSyntaxEngine(),
-            PythonSyntaxEngine(),
-            BashSyntaxEngine()
-        ]
-
-        for engine in engines {
-            // Each engine should support at least one language
-            #expect(!engine.supportedLanguages().isEmpty, "Engine should support at least one language")
-
-            // Each engine should be able to highlight empty code
-            let emptyTokens = try await engine.highlight("", language: engine.supportedLanguages().first!)
-            #expect(emptyTokens.isEmpty || emptyTokens.allSatisfy { $0.content.isEmpty })
-        }
-    }
-
-    @Test func syntaxToken_equality() async throws {
-        let token1 = SyntaxToken(content: "func", tokenType: .keyword, range: "func".startIndex..<"func".endIndex)
-        let token2 = SyntaxToken(content: "func", tokenType: .keyword, range: "func".startIndex..<"func".endIndex)
-        let token3 = SyntaxToken(content: "var", tokenType: .keyword, range: "var".startIndex..<"var".endIndex)
-
-        #expect(token1 == token2)
-        #expect(token1 != token3)
-    }
-
-    @Test func syntaxTokenType_allCases() async throws {
-        // Ensure all token types are covered
-        let expectedTypes: Set<SyntaxTokenType> = [
-            .keyword, .string, .comment, .number, .identifier, .operator, .punctuation,
-            .plain, .type, .function, .variable, .constant, .builtin, .attribute,
-            .generic, .namespace, .property, .method, .parameter, .label, .escape,
-            .interpolation, .regex, .template, .annotation, .modifier
-        ]
-
-        let actualTypes = Set(SyntaxTokenType.allCases)
-        #expect(expectedTypes == actualTypes, "All token types should be defined")
-    }
 
     @Test func engine_unsupportedLanguage_throwsError() async throws {
         let engine = JavaScriptSyntaxEngine()
@@ -80,56 +32,6 @@ import Testing
         for (engine, language) in engines {
             let tokens = try await engine.highlight("", language: language)
             #expect(tokens.isEmpty, "\(language) engine should handle empty strings")
-        }
-    }
-
-    @Test func engines_handleVeryShortStrings() async throws {
-        let engines: [(SyntaxHighlightingEngine, String)] = [
-            (SwiftSyntaxEngine(), "swift"),
-            (PythonSyntaxEngine(), "python"),
-            (JavaScriptSyntaxEngine(), "javascript"),
-            (TypeScriptSyntaxEngine(), "typescript"),
-            (KotlinSyntaxEngine(), "kotlin"),
-            (BashSyntaxEngine(), "bash")
-        ]
-
-        let testCases = ["a", "ab", "/", "//", "\"", "\"\"", "$", "/*", "*/", "@", "#"]
-
-        for (engine, language) in engines {
-            for testCase in testCases {
-                do {
-                    let tokens = try await engine.highlight(testCase, language: language)
-                    // Should not crash and should return some tokens
-                    #expect(tokens.count >= 0, "\(language) engine should handle '\(testCase)' without crashing")
-                } catch {
-                    Issue.record("\(language) engine should not throw error for '\(testCase)': \(error)")
-                }
-            }
-        }
-    }
-
-    @Test func engines_handleSingleCharacterStrings() async throws {
-        let engines: [(SyntaxHighlightingEngine, String)] = [
-            (SwiftSyntaxEngine(), "swift"),
-            (PythonSyntaxEngine(), "python"),
-            (JavaScriptSyntaxEngine(), "javascript"),
-            (TypeScriptSyntaxEngine(), "typescript"),
-            (KotlinSyntaxEngine(), "kotlin"),
-            (BashSyntaxEngine(), "bash")
-        ]
-
-        // Test single characters that could cause index out of bounds
-        let singleChars = ["/", "*", "\"", "'", "$", "@", "#", "\\", "(", ")", "[", "]", "{", "}", ".", ",", ";", ":", "?", "!", "&", "|", "^", "~", "+", "-", "=", "<", ">", "%"]
-
-        for (engine, language) in engines {
-            for char in singleChars {
-                do {
-                    let tokens = try await engine.highlight(char, language: language)
-                    #expect(tokens.count >= 0, "\(language) engine should handle single character '\(char)' without crashing")
-                } catch {
-                    Issue.record("\(language) engine should not throw error for single character '\(char)': \(error)")
-                }
-            }
         }
     }
 

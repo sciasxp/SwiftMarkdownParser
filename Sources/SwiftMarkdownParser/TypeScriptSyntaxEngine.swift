@@ -4,8 +4,6 @@
 /// with support for type annotations, generics, interfaces, decorators,
 /// and all modern JavaScript features.
 
-import Foundation
-
 /// TypeScript syntax highlighting engine implementation
 struct TypeScriptSyntaxEngine: SyntaxHighlightingEngine {
 

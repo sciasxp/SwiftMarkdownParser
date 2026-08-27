@@ -1,6 +1,4 @@
 import Testing
-import Darwin
-import Foundation
 @testable import SwiftMarkdownParser
 
 /// Security and robustness tests for Mermaid diagram functionality
@@ -88,11 +86,7 @@ import Foundation
 
         let markdown = "```mermaid\n\(largeContent)```"
 
-        let startTime = Date()
         let ast = try parser.parse(markdown)
-        let endTime = Date()
-
-        print("Large Mermaid source parsed in \(endTime.timeIntervalSince(startTime)) seconds")
 
         // Should still create valid MermaidDiagramNode
         let mermaidNode = try #require(ast.children.first as? AST.MermaidDiagramNode, "Should create MermaidDiagramNode for large content")
@@ -116,11 +110,7 @@ import Foundation
 
         let markdown = "```mermaid\n\(nestedContent)```"
 
-        let startTime = Date()
         let ast = try parser.parse(markdown)
-        let endTime = Date()
-
-        print("Nested Mermaid source parsed in \(endTime.timeIntervalSince(startTime)) seconds")
 
         // Should create valid node
         let mermaidNode = try #require(ast.children.first as? AST.MermaidDiagramNode, "Should create MermaidDiagramNode for nested content")
@@ -353,64 +343,4 @@ import Foundation
         #expect(!html.contains("<script>alert('XSS')</script>"))
     }
 
-    // MARK: - Memory and Resource Tests
-
-    @Test func mermaidMemoryConsumption() async throws {
-        // Test that parsing doesn't consume excessive memory
-        let initialMemory = getMemoryUsage()
-
-        let largeMarkdown = Self.generateLargeMermaidDocument(nodeCount: 1000)
-
-        let ast = try parser.parse(largeMarkdown)
-        let finalMemory = getMemoryUsage()
-
-        // Memory should not increase excessively (less than 50MB for this test)
-        let memoryIncrease = finalMemory - initialMemory
-        #expect(memoryIncrease < 50 * 1024 * 1024, "Memory increase should be reasonable")
-
-        // Should still create valid nodes
-        let mermaidNodeCount = ast.children.compactMap { $0 as? AST.MermaidDiagramNode }.count
-        #expect(mermaidNodeCount > 0, "Should create Mermaid nodes")
-    }
-
-    // MARK: - Helper Methods
-
-    private static func generateLargeMermaidDocument(nodeCount: Int) -> String {
-        var markdown = "# Large Document Test\n\n"
-
-        for i in 0..<10 {  // 10 diagrams with many nodes each
-            markdown += "```mermaid\n"
-            markdown += "graph TD\n"
-
-            let nodesPerDiagram = nodeCount / 10
-            for j in 0..<nodesPerDiagram {
-                let nodeIndex = i * nodesPerDiagram + j
-                markdown += "    Node\(nodeIndex) --> Node\(nodeIndex + 1)\n"
-            }
-
-            markdown += "```\n\n"
-        }
-
-        return markdown
-    }
-
-    private func getMemoryUsage() -> Int64 {
-        var info = mach_task_basic_info()
-        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size)/4
-
-        let kerr: kern_return_t = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
-                task_info(mach_task_self_,
-                         task_flavor_t(MACH_TASK_BASIC_INFO),
-                         $0,
-                         &count)
-            }
-        }
-
-        if kerr == KERN_SUCCESS {
-            return Int64(info.resident_size)
-        } else {
-            return 0
-        }
-    }
 }

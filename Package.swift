@@ -43,7 +43,6 @@ let package = Package(
         .testTarget(
             name: "SwiftMarkdownParserTests",
             dependencies: ["SwiftMarkdownParser"],
-            resources: [.process("Fixtures")],
             swiftSettings: [
                 .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
             ]),

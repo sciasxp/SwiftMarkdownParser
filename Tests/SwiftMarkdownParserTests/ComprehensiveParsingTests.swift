@@ -1,302 +1,269 @@
 import Testing
 @testable import SwiftMarkdownParser
 
-/// Comprehensive test suite for validating complex markdown parsing
-/// Tests the sample markdown from README to ensure all elements parse correctly
-@Suite struct ComprehensiveParsingTests {
+@Suite("Complex Markdown documents")
+struct ComprehensiveParsingTests {
+    private let parser = SwiftMarkdownParser()
 
-    let parser: SwiftMarkdownParser
+    @Test("Builds one semantic tree across interacting Markdown features")
+    func buildsSemanticDocument() throws {
+        let document = try parser.parse(Self.releaseRunbook)
 
-    init() {
-        parser = SwiftMarkdownParser()
+        #expect(document.children.map(\.nodeType) == [
+            .heading,
+            .blockQuote,
+            .heading,
+            .list,
+            .heading,
+            .table,
+            .heading,
+            .codeBlock,
+            .mermaidDiagram,
+            .mathBlock
+        ])
+        #expect(nodes(of: AST.FragmentNode.self, in: document).isEmpty)
+
+        let headings = nodes(of: AST.HeadingNode.self, in: document)
+        #expect(headings.map(\.level) == [1, 2, 2, 2])
+        #expect(headings.map { plainText(in: $0) } == [
+            "Release 2.4",
+            "Checklist",
+            "Components",
+            "Automation"
+        ])
+
+        let code = try #require(document.children[7] as? AST.CodeBlockNode)
+        #expect(code.language == "swift")
+        #expect(code.content == "let payload = \"<release>&\"\ndeploy(payload)\n")
+
+        let diagram = try #require(document.children[8] as? AST.MermaidDiagramNode)
+        #expect(diagram.diagramType == "flowchart")
+        #expect(diagram.content.contains("Parse --> Render"))
+
+        let math = try #require(document.children[9] as? AST.MathBlockNode)
+        #expect(math.content.contains(#"\sum_{i=1}^{n} x_i"#))
     }
 
-    // MARK: - Core Document Parsing Tests
+    @Test("Resolves references and inline semantics inside nested containers")
+    func resolvesNestedSemantics() throws {
+        let document = try parser.parse(Self.releaseRunbook)
 
-    @Test func parseComprehensiveSampleDocument() async throws {
-        let sampleMarkdown = """
-        # My Document
+        let quote = try #require(document.children[1] as? AST.BlockQuoteNode)
+        let operationsLink = try #require(nodes(of: AST.LinkNode.self, in: quote).first)
+        #expect(operationsLink.url == "https://example.com/operations")
+        #expect(operationsLink.title == "Operations")
+        #expect(nodes(of: AST.InlineMathNode.self, in: quote).map(\.content) == ["0.05"])
 
-        This is a **sample** document with *various* elements:
+        let list = try #require(document.children[3] as? AST.ListNode)
+        let tasks = list.items.compactMap { $0 as? AST.GFMTaskListItemNode }
+        #expect(tasks.map(\.isChecked) == [true, false, false])
+        #expect(nodes(of: AST.CodeSpanNode.self, in: list).map(\.content) == ["schema.sql"])
+        #expect(nodes(of: AST.StrongEmphasisNode.self, in: list).count == 1)
+        #expect(nodes(of: AST.StrikethroughNode.self, in: list).count == 1)
 
-        - List item 1
-        - List item 2
-        - List item 3
-        - List item 4
+        let table = try #require(document.children[5] as? AST.GFMTableNode)
+        #expect(table.alignments == [.left, .center, .right])
+        #expect(table.rows.map { $0.cells.map(\.content) } == [
+            ["Component", "Owner", "State"],
+            ["Parser", "Core", "ready"],
+            ["Renderer", "Web", "blocked"]
+        ])
+        let tableLink = try #require(nodes(of: AST.LinkNode.self, in: table).first)
+        #expect(tableLink.url == "https://example.com/core")
+        #expect(tableLink.title == nil)
+    }
 
-        ```swift
-        let code = "Hello, World!"
-        print(code)
-        ```
+    @Test("Renders a complex document with semantic HTML and only required runtimes")
+    func rendersSemanticHTML() async throws {
+        let document = try parser.parse(Self.releaseRunbook)
 
-        > This is a blockquote with important information.
+        let html = try await HTMLRenderer().renderDocument(
+            document,
+            metadata: HTMLDocumentMetadata(title: "Release <2.4>", language: "pt-BR")
+        )
 
-        | Column 1 | Column 2 |
-        |----------|----------|
-        | Data A   | Data B   |
-        """
+        #expect(html.contains("<html lang=\"pt-BR\">"))
+        #expect(html.contains("<title>Release &lt;2.4&gt;</title>"))
+        #expect(html.contains("<h1>Release 2.4</h1>"))
+        #expect(html.contains("<blockquote>"))
+        #expect(html.contains("href=\"https://example.com/operations\""))
+        #expect(html.contains("title=\"Operations\""))
 
-        let document = try parser.parse(sampleMarkdown)
+        #expect(html.occurrences(of: "type=\"checkbox\"") == 3)
+        #expect(html.occurrences(of: "aria-checked=\"true\"") == 1)
+        #expect(html.occurrences(of: "aria-checked=\"false\"") == 2)
+        #expect(html.contains("<strong>API</strong>"))
+        #expect(html.contains("<del>legacy</del>"))
 
-        // Basic validation
-        #expect(document.children.count > 0, "Document should have children")
+        #expect(html.contains("<table>"))
+        #expect(html.contains("href=\"https://example.com/core\""))
+        #expect(html.contains("<code>ready</code>"))
+        #expect(html.contains("<del>blocked</del>"))
 
-        // Validate key structural elements exist
-        var hasHeading = false
-        var hasList = false
-        var hasCodeBlock = false
-        var hasBlockQuote = false
-        var hasTable = false
+        #expect(html.contains("class=\"language-swift\""))
+        #expect(html.contains("&lt;release&gt;&amp;"))
+        #expect(!html.contains("<release>"))
+        #expect(html.contains("<pre class=\"mermaid\""))
+        #expect(html.contains("<span class=\"math math-inline\">0.05</span>"))
+        #expect(html.contains("<div class=\"math math-display\">"))
 
-        for node in document.children {
-            switch node {
-            case is AST.HeadingNode:
-                hasHeading = true
-            case is AST.ListNode:
-                hasList = true
-            case is AST.CodeBlockNode:
-                hasCodeBlock = true
-            case is AST.BlockQuoteNode:
-                hasBlockQuote = true
-            case is AST.GFMTableNode:
-                hasTable = true
+        #expect(html.occurrences(of: "mermaid@10.9.1/dist/mermaid.min.js") == 1)
+        #expect(html.occurrences(of: "katex@0.16.21/dist/katex.min.js") == 1)
+        #expect(html.contains("const requiredFeatures = [\"katex\",\"mermaid\",\"taskLists\"]"))
+    }
+
+    @Test("Rewrites nested prose while retaining typed containers and literal payloads")
+    func rewritesNestedProse() throws {
+        let original = try parser.parse(Self.releaseRunbook)
+
+        let rewritten = try original.rewriting { visit in
+            guard let text = visit.node as? AST.TextNode else { return .keep }
+
+            switch text.content {
+            case "approval":
+                return .replace(AST.TextNode(
+                    content: "authorization",
+                    sourceLocation: text.sourceLocation
+                ))
+            case "blocked":
+                return .replace(AST.TextNode(
+                    content: "deferred",
+                    sourceLocation: text.sourceLocation
+                ))
             default:
-                break
+                return .keep
             }
         }
 
-        #expect(hasHeading, "Should contain heading")
-        #expect(hasList, "Should contain list")
-        #expect(hasCodeBlock, "Should contain code block")
-        #expect(hasBlockQuote, "Should contain block quote")
-        #expect(hasTable, "Should contain table")
+        #expect(plainText(in: original).contains("approval"))
+        #expect(plainText(in: original).contains("blocked"))
+        #expect(plainText(in: rewritten).contains("authorization"))
+        #expect(plainText(in: rewritten).contains("deferred"))
+
+        let originalTable = try #require(nodes(of: AST.GFMTableNode.self, in: original).first)
+        let rewrittenTable = try #require(nodes(of: AST.GFMTableNode.self, in: rewritten).first)
+        #expect(rewrittenTable.rows.map { $0.cells.map(\.content) } == [
+            ["Component", "Owner", "State"],
+            ["Parser", "Core", "ready"],
+            ["Renderer", "Web", "deferred"]
+        ])
+        #expect(rewrittenTable.alignments == originalTable.alignments)
+        #expect(nodes(of: AST.LinkNode.self, in: rewrittenTable).map(\.url) == [
+            "https://example.com/core"
+        ])
+
+        #expect(
+            nodes(of: AST.CodeBlockNode.self, in: rewritten).map(\.content)
+                == nodes(of: AST.CodeBlockNode.self, in: original).map(\.content)
+        )
+        #expect(
+            nodes(of: AST.MermaidDiagramNode.self, in: rewritten).map(\.content)
+                == nodes(of: AST.MermaidDiagramNode.self, in: original).map(\.content)
+        )
+        #expect(
+            nodes(of: AST.MathBlockNode.self, in: rewritten).map(\.content)
+                == nodes(of: AST.MathBlockNode.self, in: original).map(\.content)
+        )
     }
 
-    @Test func renderSampleDocumentToHTML() async throws {
-        let sampleMarkdown = """
-        # My Document
+    @Test("Recovers after malformed inline syntax without swallowing later blocks")
+    func recoversAfterMalformedInlineSyntax() throws {
+        let markdown = """
+        # Valid start
 
-        This is a **sample** document with *various* elements:
+        Broken **strong and [link](destination
 
-        - List item 1
-        - List item 2
-        - List item 3
-        - List item 4
+        ## Recovery
+
+        - [x] parsed after malformed inline
 
         ```swift
-        let code = "Hello, World!"
-        print(code)
+        let answer = 42
         ```
-
-        > This is a blockquote with important information.
-
-        | Column 1 | Column 2 |
-        |----------|----------|
-        | Data A   | Data B   |
         """
 
-        let html = try await HTMLRenderer().renderFragment(parser.parse(sampleMarkdown))
+        let document = try parser.parse(markdown)
 
-        // Verify key HTML elements are present
-        #expect(html.contains("<h1>My Document</h1>"), "Should contain h1 heading")
-        #expect(html.contains("<strong>sample</strong>"), "Should contain strong text")
-        #expect(html.contains("<em>various</em>"), "Should contain emphasis text")
-        #expect(html.contains("List item 1"), "Should contain list items")
-        #expect(html.contains("Hello, World!"), "Should contain code content")
-        #expect(html.contains("<blockquote>"), "Should contain blockquote")
-        #expect(html.contains("<table>"), "Should contain table")
-        #expect(html.contains("Hello, World!"), "Should contain code content")
+        let headings = nodes(of: AST.HeadingNode.self, in: document)
+        #expect(headings.map(\.level) == [1, 2])
+        #expect(headings.map { plainText(in: $0) } == ["Valid start", "Recovery"])
+
+        let malformedParagraph = try #require(
+            nodes(of: AST.ParagraphNode.self, in: document).first
+        )
+        #expect(plainText(in: malformedParagraph) == "Broken **strong and [link](destination")
+        #expect(nodes(of: AST.StrongEmphasisNode.self, in: malformedParagraph).isEmpty)
+        #expect(nodes(of: AST.LinkNode.self, in: malformedParagraph).isEmpty)
+
+        let task = try #require(nodes(of: AST.GFMTaskListItemNode.self, in: document).first)
+        #expect(task.isChecked)
+        #expect(plainText(in: task).contains("parsed after malformed inline"))
+
+        let code = try #require(nodes(of: AST.CodeBlockNode.self, in: document).first)
+        #expect(code.language == "swift")
+        #expect(code.content == "let answer = 42\n")
     }
 
-    @MainActor
-    @Test func renderSampleDocumentToSwiftUI() async throws {
-        let sampleMarkdown = """
-        # My Document
-
-        This is a **sample** document with *various* elements:
-
-        - List item 1
-        - List item 2
-
-        ```swift
-        let code = "Hello, World!"
-        print(code)
-        ```
-
-        > This is a blockquote with important information.
-
-        | Column 1 | Column 2 |
-        |----------|----------|
-        | Data A   | Data B   |
-        """
-
-        // Test that SwiftUI rendering doesn't throw
-        let context = SwiftUIRenderOptions()
-        let renderer = SwiftUIRenderer(options: context)
-        let document = try parser.parse(sampleMarkdown)
-
-        // Should not throw - basic rendering test
-        _ = try await renderer.render(document)
+    private func nodes<Node: ASTNode>(of type: Node.Type, in root: ASTNode) -> [Node] {
+        root.depthFirst().compactMap { $0.node as? Node }
     }
 
-    @Test func parseWithInvalidMarkdown() async throws {
-        let problematicMarkdown = """
-        # Heading with [unclosed link
-
-        **Bold without closing
-
-        ```
-        Code block without closing
-
-        | Incomplete table
-        """
-
-        // Should not throw - parser should handle gracefully
-        let document = try parser.parse(problematicMarkdown)
-        #expect(document.children.count > 0, "Should parse some content")
-    }
-
-
-    // MARK: - README Example Tests
-
-    @Test func parseREADMESwiftUIIntegrationExample() async throws {
-        // Test the simplified markdown example without complex SwiftUI code
-        let readmeMarkdown = """
-        # My Document
-
-        This is a **sample** document with *various* elements:
-
-        - List item 1
-        - List item 2
-        - List item 3
-        - List item 4
-
-        ```swift
-        let code = "Hello, World!"
-        print(code)
-        ```
-
-        > This is a blockquote with important information.
-
-        | Column 1 | Column 2 |
-        |----------|----------|
-        | Data A   | Data B   |
-        """
-
-        // Basic validation that the document was parsed
-        let document = try parser.parse(readmeMarkdown)
-        #expect(document.children.count > 0, "Should have parsed content")
-
-        // Verify it can be converted to HTML
-        let html = try await HTMLRenderer().renderFragment(parser.parse(readmeMarkdown))
-        #expect(!html.isEmpty, "HTML output should not be empty")
-    }
-
-    // MARK: - Edge Case Tests
-
-    @MainActor
-    @Test func parseNestedCodeBlockEdgeCase() async throws {
-        // Test markdown containing a code block that has code block syntax inside it
-        let nestedCodeBlockMarkdown = """
-        # Nested Code Block Example
-
-        Here's how to write a code block in markdown:
-
-        ```markdown
-        You can create code blocks using triple backticks:
-
-        ```swift
-        let greeting = "Hello, World!"
-        print(greeting)
-        ```
-
-        This is useful for documentation.
-        ```
-
-        The outer code block should preserve the inner backticks as literal text.
-        """
-
-        let document = try parser.parse(nestedCodeBlockMarkdown)
-        // Based on debug output, the parser creates more elements than expected
-        // Let's verify the key elements exist rather than exact count
-        #expect(document.children.count > 3, "Should have multiple top-level elements")
-
-        // Check that we have a heading
-        let heading = try #require(document.children[0] as? AST.HeadingNode, "First element should be heading")
-        #expect(heading.level == 1, "Should be H1")
-
-        // Check that we have a paragraph
-        #expect(document.children[1] is AST.ParagraphNode, "Second element should be paragraph")
-
-        // Find the first code block in the document
-        var foundCodeBlock: AST.CodeBlockNode?
-        for child in document.children {
-            if let codeBlock = child as? AST.CodeBlockNode {
-                foundCodeBlock = codeBlock
-                break
+    private func plainText(in root: ASTNode) -> String {
+        root.depthFirst().compactMap { visit in
+            switch visit.node {
+            case let text as AST.TextNode:
+                return text.content
+            case let code as AST.CodeSpanNode:
+                return code.content
+            default:
+                return nil
             }
-        }
-
-        let codeBlock = try #require(foundCodeBlock, "Should contain at least one code block")
-
-        // Verify the code block language
-        #expect(codeBlock.language == "markdown", "Code block should have markdown language")
-
-        // Verify HTML rendering works correctly
-        let html = try await HTMLRenderer().renderFragment(parser.parse(nestedCodeBlockMarkdown))
-        #expect(html.contains("<pre>"), "Should contain preformatted block")
-        #expect(!html.isEmpty, "Should generate non-empty HTML")
-
-        // Verify SwiftUI rendering doesn't crash
-        let context = SwiftUIRenderOptions()
-        let renderer = SwiftUIRenderer(options: context)
-        _ = try await renderer.render(document)
+        }.joined()
     }
 
-    @Test func parseMultipleNestedCodeBlocks() async throws {
-        // Test multiple code blocks with different nesting patterns
-        let complexNestedMarkdown = """
-        # Complex Code Block Scenarios
+    private static let releaseRunbook = #"""
+    # Release 2.4
 
-        ## Scenario 1: Markdown in Code
-        ```markdown
-        # Title
-        > This is a blockquote
-        ```python
-        def hello():
-            print("Hello")
-        ```
-        ```
+    > Deploy only after **approval** from [operations][ops].
+    >
+    > Rollback if error rate exceeds $0.05$.
 
-        ## Scenario 2: HTML in Code
-        ```html
-        <pre><code class="language-javascript">
-        console.log("Hello");
-        </code></pre>
-        ```
+    ## Checklist
 
-        ## Scenario 3: Escaped Backticks
-        ```text
-        To show backticks: \\`\\`\\`
-        Use backslashes to escape them.
-        ```
-        """
+    - [x] Apply `schema.sql`
+    - [ ] Roll out **API**
+    - [ ] Verify ~~legacy~~ dashboards
 
-        let document = try parser.parse(complexNestedMarkdown)
-        // Count code blocks - should be exactly 3 (one for each scenario)
-        var codeBlockCount = 0
-        for node in document.children {
-            if node is AST.CodeBlockNode {
-                codeBlockCount += 1
-            }
-        }
+    ## Components
 
-        #expect(codeBlockCount == 3, "Should have exactly 3 code blocks (one per scenario)")
+    | Component | Owner | State |
+    |:----------|:-----:|------:|
+    | Parser | [Core][core] | `ready` |
+    | Renderer | **Web** | ~~blocked~~ |
 
-        // Verify HTML rendering preserves structure
-        let html = try await HTMLRenderer().renderFragment(parser.parse(complexNestedMarkdown))
-        #expect(html.contains("def hello()"), "Should contain Python code")
-        #expect(html.contains("console.log"), "Should contain JavaScript code")
-        #expect(html.contains("backticks"), "Should contain text about backticks")
+    ## Automation
+
+    ```swift
+    let payload = "<release>&"
+    deploy(payload)
+    ```
+
+    ```mermaid
+    flowchart LR
+      Parse --> Render
+    ```
+
+    $$
+    S = \sum_{i=1}^{n} x_i
+    $$
+
+    [ops]: https://example.com/operations "Operations"
+    [core]: https://example.com/core
+    """#
+}
+
+private extension String {
+    func occurrences(of value: String) -> Int {
+        components(separatedBy: value).count - 1
     }
 }
