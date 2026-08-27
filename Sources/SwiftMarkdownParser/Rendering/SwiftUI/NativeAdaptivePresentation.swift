@@ -6,41 +6,54 @@ import SwiftUI
 struct NativeAdaptivePresentation {
     private let style: SwiftUIStyleConfiguration
     private let semantics: NativePresentationSemantics
+    private let materializer: NativeViewMaterializer
 
-    init(options: SwiftUIRenderOptions, semantics: NativePresentationSemantics) {
+    init(
+        options: SwiftUIRenderOptions,
+        semantics: NativePresentationSemantics,
+        materializer: NativeViewMaterializer
+    ) {
         self.style = options.styleConfiguration
         self.semantics = semantics
+        self.materializer = materializer
     }
 
     /// Presents one semantic block while hiding width and Dynamic Type adaptation from callers.
-    func present(_ block: Block) -> AnyView {
+    func present(_ block: Block) -> NativeMaterializedView {
         switch block {
         case let .document(children):
-            AnyView(NativeAdaptiveDocument(children: children, style: style))
+            materializer.materialize(NativeAdaptiveDocument(children: children, style: style))
         case let .content(children):
-            AnyView(NativeAdaptiveContentGroup(children: children, spacing: style.listItemContentSpacing))
+            materializer.materialize(NativeAdaptiveContentGroup(
+                children: children,
+                spacing: style.listItemContentSpacing
+            ))
         case let .blockQuote(children):
-            AnyView(NativeAdaptiveBlockQuote(children: children, style: style))
+            materializer.materialize(NativeAdaptiveBlockQuote(children: children, style: style))
         case let .list(items):
-            AnyView(NativeAdaptiveList(items: items, style: style))
+            materializer.materialize(NativeAdaptiveList(items: items, style: style))
         case let .footnote(identifier, children):
-            AnyView(NativeAdaptiveFootnote(
+            materializer.materialize(NativeAdaptiveFootnote(
                 identifier: identifier,
                 children: children,
                 style: style,
                 semantics: semantics
             ))
         case let .task(isChecked, content):
-            AnyView(NativeAdaptiveTask(
+            materializer.materialize(NativeAdaptiveTask(
                 isChecked: isChecked,
                 content: content,
                 style: style,
                 semantics: semantics
             ))
         case let .table(table):
-            AnyView(NativeAdaptiveTable(table: table, style: style, semantics: semantics))
+            materializer.materialize(NativeAdaptiveTable(
+                table: table,
+                style: style,
+                semantics: semantics
+            ))
         case let .mermaidFallback(diagramType, source):
-            AnyView(NativeAdaptiveMermaidFallback(
+            materializer.materialize(NativeAdaptiveMermaidFallback(
                 diagramType: diagramType,
                 source: source,
                 style: style,
@@ -53,11 +66,11 @@ struct NativeAdaptivePresentation {
 @available(iOS 17.0, macOS 14.0, *)
 extension NativeAdaptivePresentation {
     enum Block {
-        case document([AnyView])
-        case content([AnyView])
-        case blockQuote([AnyView])
+        case document([NativeMaterializedView])
+        case content([NativeMaterializedView])
+        case blockQuote([NativeMaterializedView])
         case list([ListItem])
-        case footnote(identifier: String, children: [AnyView])
+        case footnote(identifier: String, children: [NativeMaterializedView])
         case task(isChecked: Bool, content: NativeInlineContent)
         case table(Table)
         case mermaidFallback(diagramType: String?, source: String)
@@ -69,43 +82,40 @@ extension NativeAdaptivePresentation {
             case ordered(String)
         }
 
-        let id = UUID()
         let marker: Marker?
-        let content: AnyView
+        let content: NativeMaterializedView
+
+        var id: NativeViewIdentity { content.id }
     }
 
     struct Table {
         let rows: [Row]
 
         struct Row: Identifiable {
-            let id = UUID()
+            let id: NativeViewIdentity
             let isHeader: Bool
             let cells: [Cell]
         }
 
         struct Cell: Identifiable {
-            let id = UUID()
             let content: NativeInlineContent
             let alignment: GFMTableAlignment
             let columnIndex: Int
+
+            var id: NativeViewIdentity { content.id }
         }
     }
 }
 
 @available(iOS 17.0, macOS 14.0, *)
 private struct NativeAdaptiveDocument: View {
-    private let children: [NativeAdaptiveViewItem]
+    let children: [NativeMaterializedView]
     let style: SwiftUIStyleConfiguration
-
-    init(children: [AnyView], style: SwiftUIStyleConfiguration) {
-        self.children = children.map(NativeAdaptiveViewItem.init)
-        self.style = style
-    }
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: style.documentSpacing) {
             ForEach(children) { child in
-                child.content
+                child
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -114,18 +124,13 @@ private struct NativeAdaptiveDocument: View {
 
 @available(iOS 17.0, macOS 14.0, *)
 private struct NativeAdaptiveContentGroup: View {
-    private let children: [NativeAdaptiveViewItem]
+    let children: [NativeMaterializedView]
     let spacing: CGFloat
-
-    init(children: [AnyView], spacing: CGFloat) {
-        self.children = children.map(NativeAdaptiveViewItem.init)
-        self.spacing = spacing
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: spacing) {
             ForEach(children) { child in
-                child.content
+                child
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -137,13 +142,8 @@ private struct NativeAdaptiveContentGroup: View {
 private struct NativeAdaptiveBlockQuote: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private let children: [NativeAdaptiveViewItem]
+    let children: [NativeMaterializedView]
     let style: SwiftUIStyleConfiguration
-
-    init(children: [AnyView], style: SwiftUIStyleConfiguration) {
-        self.children = children.map(NativeAdaptiveViewItem.init)
-        self.style = style
-    }
 
     var body: some View {
         HStack(alignment: .top, spacing: horizontalSpacing) {
@@ -153,7 +153,7 @@ private struct NativeAdaptiveBlockQuote: View {
 
             VStack(alignment: .leading, spacing: style.blockQuoteContentSpacing) {
                 ForEach(children) { child in
-                    child.content
+                    child
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -235,18 +235,18 @@ private struct NativeAdaptiveFootnote: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let identifier: String
-    private let children: [NativeAdaptiveViewItem]
+    let children: [NativeMaterializedView]
     let style: SwiftUIStyleConfiguration
     let semantics: NativePresentationSemantics
 
     init(
         identifier: String,
-        children: [AnyView],
+        children: [NativeMaterializedView],
         style: SwiftUIStyleConfiguration,
         semantics: NativePresentationSemantics
     ) {
         self.identifier = identifier
-        self.children = children.map(NativeAdaptiveViewItem.init)
+        self.children = children
         self.style = style
         self.semantics = semantics
     }
@@ -265,7 +265,7 @@ private struct NativeAdaptiveFootnote: View {
 
             VStack(alignment: .leading, spacing: style.listItemContentSpacing) {
                 ForEach(children) { child in
-                    child.content
+                    child
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -498,15 +498,6 @@ private struct NativeAdaptiveMermaidFallback: View {
         .accessibilityLabel(Text(semantics.localized(.mermaidDiagram(type: diagramType))))
         .accessibilityValue(source)
         .accessibilityAddTraits(.isStaticText)
-    }
-}
-
-private struct NativeAdaptiveViewItem: Identifiable {
-    let id = UUID()
-    let content: AnyView
-
-    init(_ content: AnyView) {
-        self.content = content
     }
 }
 

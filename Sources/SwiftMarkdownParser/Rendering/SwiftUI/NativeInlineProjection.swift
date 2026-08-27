@@ -8,11 +8,17 @@ struct NativeInlineProjection {
     private let baseURL: URL?
     private let style: SwiftUIStyleConfiguration
     private let richContentProjection: NativeRichContentProjection
+    private let materializer: NativeViewMaterializer
 
-    init(options: SwiftUIRenderOptions, richContentProjection: NativeRichContentProjection) {
+    init(
+        options: SwiftUIRenderOptions,
+        richContentProjection: NativeRichContentProjection,
+        materializer: NativeViewMaterializer
+    ) {
         self.baseURL = options.baseURL
         self.style = options.styleConfiguration
         self.richContentProjection = richContentProjection
+        self.materializer = materializer
     }
 
     /// Validates the complete inline tree before invoking any host adapter.
@@ -20,6 +26,7 @@ struct NativeInlineProjection {
         let plan = try NativeInlinePlan(nodes: nodes, baseURL: baseURL)
         let storage = materialize(plan.fragments)
         return NativeInlineContent(
+            id: materializer.identity(),
             storage: storage,
             accessibilityText: plan.accessibilityText,
             lineSpacing: max(0, style.lineBreakSpacing)
@@ -37,16 +44,30 @@ struct NativeInlineProjection {
             case let .text(value, styles, link):
                 materialized.append(contentsOf: mixedTextFragments(value, styles: styles, link: link))
             case .lineBreak:
-                materialized.append(.lineBreak())
+                materialized.append(NativeInlineContent.Fragment(
+                    content: materializer.materialize(
+                        Text(verbatim: " ").hidden().frame(width: 0)
+                    ),
+                    startsNewLine: true
+                ))
             case let .image(node, source, styles, link):
                 let image = richContentProjection.project(.image(node: node, source: source))
-                materialized.append(.view(styled(image, styles: styles, link: link)))
+                materialized.append(NativeInlineContent.Fragment(
+                    content: styled(image, styles: styles, link: link),
+                    startsNewLine: false
+                ))
             case let .inlineMath(node, styles, link):
                 let content = richContentProjection.project(.inlineMath(node))
-                materialized.append(.view(styled(content, styles: styles, link: link)))
+                materialized.append(NativeInlineContent.Fragment(
+                    content: styled(content, styles: styles, link: link),
+                    startsNewLine: false
+                ))
             case let .htmlInline(node, styles, link):
                 let content = richContentProjection.project(.htmlInline(node))
-                materialized.append(.view(styled(content, styles: styles, link: link)))
+                materialized.append(NativeInlineContent.Fragment(
+                    content: styled(content, styles: styles, link: link),
+                    startsNewLine: false
+                ))
             }
         }
         return .mixed(materialized)
@@ -71,7 +92,10 @@ struct NativeInlineProjection {
         link: URL?
     ) -> [NativeInlineContent.Fragment] {
         NativeInlineTextPieces(value).values.map { piece in
-            .view(AnyView(styledText(piece, styles: styles, link: link)))
+            NativeInlineContent.Fragment(
+                content: materializer.materialize(styledText(piece, styles: styles, link: link)),
+                startsNewLine: false
+            )
         }
     }
 
@@ -114,65 +138,59 @@ struct NativeInlineProjection {
     }
 
     private func styled(
-        _ view: AnyView,
+        _ view: NativeMaterializedView,
         styles: NativeInlinePlan.Styles,
         link: URL?
-    ) -> AnyView {
+    ) -> NativeMaterializedView {
         var result = view
         if styles.contains(.emphasis) {
-            result = AnyView(result.italic())
+            result = materializer.transform(result) { $0.italic() }
         }
         if styles.contains(.strong) {
-            result = AnyView(result.fontWeight(.bold))
+            result = materializer.transform(result) { $0.fontWeight(.bold) }
         }
         if styles.contains(.code) {
-            result = AnyView(result.font(style.codeFont).foregroundStyle(style.codeTextColor))
+            result = materializer.transform(result) {
+                $0.font(style.codeFont).foregroundStyle(style.codeTextColor)
+            }
         }
         if styles.contains(.strikethrough) {
-            result = AnyView(result.strikethrough().foregroundStyle(style.strikethroughColor))
+            result = materializer.transform(result) {
+                $0.strikethrough().foregroundStyle(style.strikethroughColor)
+            }
         }
         if styles.contains(.footnote) {
-            result = AnyView(result.font(.footnote).baselineOffset(4))
+            result = materializer.transform(result) { $0.font(.footnote).baselineOffset(4) }
         }
 
         guard let link else { return result }
-        return AnyView(
-            Link(destination: link) { result }
+        return materializer.transform(result) { content in
+            Link(destination: link) { content }
                 .buttonStyle(.plain)
                 .foregroundStyle(style.linkColor)
                 .underline()
                 .accessibilityAddTraits(.isLink)
-        )
+        }
     }
 
 }
 
 @available(iOS 17.0, macOS 14.0, *)
 @MainActor
-struct NativeInlineContent: View {
+struct NativeInlineContent: Identifiable, View {
     fileprivate enum Storage {
         case text(Text)
         case mixed([Fragment])
     }
 
     fileprivate struct Fragment: Identifiable {
-        let id: UUID
-        let view: AnyView
+        let content: NativeMaterializedView
         let startsNewLine: Bool
 
-        static func view(_ view: AnyView) -> Self {
-            Self(id: UUID(), view: view, startsNewLine: false)
-        }
-
-        static func lineBreak() -> Self {
-            Self(
-                id: UUID(),
-                view: AnyView(Text(verbatim: " ").hidden().frame(width: 0)),
-                startsNewLine: true
-            )
-        }
+        var id: NativeViewIdentity { content.id }
     }
 
+    let id: NativeViewIdentity
     fileprivate let storage: Storage
     let accessibilityText: String
     fileprivate let lineSpacing: CGFloat
@@ -184,7 +202,7 @@ struct NativeInlineContent: View {
         case let .mixed(fragments):
             NativeInlineFlowLayout(spacing: lineSpacing) {
                 ForEach(fragments) { fragment in
-                    fragment.view
+                    fragment.content
                         .layoutValue(key: NativeInlineLineBreakKey.self, value: fragment.startsNewLine)
                 }
             }

@@ -97,6 +97,12 @@ accessibility text size, the same projected cells become labeled rows that keep
 column headers beside their values. Rich inline adapters are materialized once;
 choosing a presentation does not reinvoke host adapters.
 
+Native content is materialized before SwiftUI evaluates `body`. One internal
+owner assigns stable identity to document children, list items, table rows and
+cells, and rich inline fragments. Adaptive alternatives reuse those concrete
+unary views, so layout selection does not regenerate identity or repeat type
+erasure.
+
 ## Native semantics and localization
 
 Visible fallback titles, renderer errors, and VoiceOver labels are resolved from

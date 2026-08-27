@@ -36,6 +36,10 @@ _Avoid_: Inline rendering pipeline, text flattening
 The package-owned interpretation of native-output roles into deferred localized messages and pure presentation values, keeping VoiceOver meaning, visible fallback labels, errors, ordered markers, and code-token continuity consistent across SwiftUI modules.
 _Avoid_: Hardcoded accessibility copy, localization helper bag
 
+**Native View Materialization**:
+The one-time conversion of projected native content into unary SwiftUI views with renderer-owned stable identity and centralized type erasure, completed before any view body evaluates.
+_Avoid_: UUID in body, caller-owned AnyView wrapping
+
 **Native Rich Content Seam**:
 The SwiftUI-output boundary where one host adapter may materialize a validated rich-content request or decline it, while native projection preserves readable accessible fallbacks and unsafe image destinations never cross the boundary.
 _Avoid_: Rich-content handler bag, per-node closure bundle

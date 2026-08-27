@@ -19,26 +19,35 @@ public struct SwiftUIRenderer {
     private let nativeAdaptivePresentation: NativeAdaptivePresentation
     private let nativeRichContentProjection: NativeRichContentProjection
     private let nativeSemantics: NativePresentationSemantics
+    private let nativeMaterializer: NativeViewMaterializer
 
     /// Initialize with rendering options
     public init(options: SwiftUIRenderOptions = .init()) {
         let semantics = NativePresentationSemantics()
-        let adaptivePresentation = NativeAdaptivePresentation(options: options, semantics: semantics)
+        let materializer = NativeViewMaterializer()
+        let adaptivePresentation = NativeAdaptivePresentation(
+            options: options,
+            semantics: semantics,
+            materializer: materializer
+        )
         let richContentProjection = NativeRichContentProjection(
             options: options,
             adaptivePresentation: adaptivePresentation,
-            semantics: semantics
+            semantics: semantics,
+            materializer: materializer
         )
 
         self.options = options
         self.syntaxHighlighter = SyntaxHighlighter()
         self.nativeInlineProjection = NativeInlineProjection(
             options: options,
-            richContentProjection: richContentProjection
+            richContentProjection: richContentProjection,
+            materializer: materializer
         )
         self.nativeAdaptivePresentation = adaptivePresentation
         self.nativeRichContentProjection = richContentProjection
         self.nativeSemantics = semantics
+        self.nativeMaterializer = materializer
     }
 
     /// Render a complete document AST to SwiftUI view
@@ -47,14 +56,12 @@ public struct SwiftUIRenderer {
             try await render(node: child)
         }
 
-        return AnyView(
-            nativeAdaptivePresentation.present(.document(views))
-            .modifier(SwiftUILinkActionModifier(handler: options.linkHandler))
-        )
+        let documentView = nativeAdaptivePresentation.present(.document(views))
+        return AnyView(documentView.modifier(SwiftUILinkActionModifier(handler: options.linkHandler)))
     }
 
     /// Render any AST node to SwiftUI view
-    private func render(node: any ASTNode) async throws -> AnyView {
+    private func render(node: any ASTNode) async throws -> NativeMaterializedView {
         switch node {
         case is AST.TextNode,
              is AST.EmphasisNode,
@@ -69,7 +76,7 @@ public struct SwiftUIRenderer {
              is AST.StrikethroughNode,
              is AST.FootnoteReferenceNode,
              is AST.InlineMathNode:
-            return AnyView(
+            return nativeMaterializer.materialize(
                 try nativeInlineProjection.project([node])
                     .font(options.styleConfiguration.bodyFont)
                     .foregroundStyle(options.styleConfiguration.textColor)
@@ -133,9 +140,9 @@ public struct SwiftUIRenderer {
 extension SwiftUIRenderer {
 
     /// Render paragraph node
-    private func renderParagraph(_ node: AST.ParagraphNode) async throws -> AnyView {
+    private func renderParagraph(_ node: AST.ParagraphNode) async throws -> NativeMaterializedView {
         let content = try nativeInlineProjection.project(node.children)
-        return AnyView(
+        return nativeMaterializer.materialize(
             content
                 .font(options.styleConfiguration.bodyFont)
                 .foregroundStyle(options.styleConfiguration.textColor)
@@ -146,13 +153,13 @@ extension SwiftUIRenderer {
     }
 
     /// Render heading node
-    private func renderHeading(_ node: AST.HeadingNode) async throws -> AnyView {
+    private func renderHeading(_ node: AST.HeadingNode) async throws -> NativeMaterializedView {
         let content = try nativeInlineProjection.project(node.children)
 
         let font = options.styleConfiguration.headingFont(for: node.level)
         let spacing = options.styleConfiguration.headingSpacing(for: node.level)
 
-        return AnyView(
+        return nativeMaterializer.materialize(
             content
                 .font(font)
                 .fontWeight(.bold)
@@ -165,7 +172,7 @@ extension SwiftUIRenderer {
     }
 
     /// Render block quote node
-    private func renderBlockQuote(_ node: AST.BlockQuoteNode) async throws -> AnyView {
+    private func renderBlockQuote(_ node: AST.BlockQuoteNode) async throws -> NativeMaterializedView {
         let childViews = try await node.children.asyncMap { child in
             try await render(node: child)
         }
@@ -174,8 +181,8 @@ extension SwiftUIRenderer {
     }
 
     /// Render thematic break (horizontal rule)
-    private func renderThematicBreak(_ node: AST.ThematicBreakNode) -> AnyView {
-        return AnyView(
+    private func renderThematicBreak(_ node: AST.ThematicBreakNode) -> NativeMaterializedView {
+        return nativeMaterializer.materialize(
             Divider()
                 .background(options.styleConfiguration.thematicBreakColor)
                 .padding(.vertical, options.styleConfiguration.thematicBreakSpacing)
@@ -191,10 +198,10 @@ extension SwiftUIRenderer {
 extension SwiftUIRenderer {
 
     /// Render code block node
-    private func renderCodeBlock(_ node: AST.CodeBlockNode) async -> AnyView {
+    private func renderCodeBlock(_ node: AST.CodeBlockNode) async -> NativeMaterializedView {
         let highlighted = await highlightedCode(for: node)
 
-        return AnyView(
+        return nativeMaterializer.materialize(
             ScrollView(.horizontal, showsIndicators: true) {
                 highlighted.text
                     .font(options.styleConfiguration.codeFont)
@@ -235,7 +242,7 @@ extension SwiftUIRenderer {
 extension SwiftUIRenderer {
 
     /// Render list node
-    private func renderList(_ node: AST.ListNode) async throws -> AnyView {
+    private func renderList(_ node: AST.ListNode) async throws -> NativeMaterializedView {
         let itemViews = try await node.items.asyncMap { item in
             try await render(node: item)
         }
@@ -258,7 +265,7 @@ extension SwiftUIRenderer {
     }
 
     /// Render list item node
-    private func renderListItem(_ node: AST.ListItemNode) async throws -> AnyView {
+    private func renderListItem(_ node: AST.ListItemNode) async throws -> NativeMaterializedView {
         let childViews = try await node.children.asyncMap { child in
             try await render(node: child)
         }
@@ -273,7 +280,9 @@ extension SwiftUIRenderer {
 extension SwiftUIRenderer {
 
     /// Render a footnote definition and preserve its complete block content.
-    private func renderFootnoteDefinition(_ node: AST.FootnoteDefinitionNode) async throws -> AnyView {
+    private func renderFootnoteDefinition(
+        _ node: AST.FootnoteDefinitionNode
+    ) async throws -> NativeMaterializedView {
         let childViews = try await node.children.asyncMap { child in
             try await render(node: child)
         }
@@ -285,7 +294,9 @@ extension SwiftUIRenderer {
     }
 
     /// Render task list item node
-    private func renderTaskListItem(_ node: AST.GFMTaskListItemNode) async throws -> AnyView {
+    private func renderTaskListItem(
+        _ node: AST.GFMTaskListItemNode
+    ) async throws -> NativeMaterializedView {
         let content = try nativeInlineProjection.project(node.children)
 
         return nativeAdaptivePresentation.present(.task(
@@ -295,7 +306,7 @@ extension SwiftUIRenderer {
     }
 
     /// Render table node
-    private func renderTable(_ node: AST.GFMTableNode) async throws -> AnyView {
+    private func renderTable(_ node: AST.GFMTableNode) async throws -> NativeMaterializedView {
         let rows = try node.rows.map { row in
             let cells = try row.cells.enumerated().map { index, cell in
                 let nodes: [any ASTNode] = cell.children.isEmpty
@@ -307,7 +318,11 @@ extension SwiftUIRenderer {
                     columnIndex: index
                 )
             }
-            return NativeAdaptivePresentation.Table.Row(isHeader: row.isHeader, cells: cells)
+            return NativeAdaptivePresentation.Table.Row(
+                id: nativeMaterializer.identity(),
+                isHeader: row.isHeader,
+                cells: cells
+            )
         }
 
         return nativeAdaptivePresentation.present(.table(.init(rows: rows)))

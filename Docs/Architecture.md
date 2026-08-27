@@ -81,14 +81,16 @@ adapter registry or cache representation.
 
 ## Native SwiftUI presentation
 
-`SwiftUIRenderer` interprets the complete document and delegates four
+`SwiftUIRenderer` interprets the complete document and delegates five
 independent forms of output policy. `NativePresentationSemantics` maps typed
 roles to deferred package-localized meaning and owns pure ordered-marker and
-code-token continuity decisions. `NativeInlineProjection` validates and
-materializes ordered inline meaning once. `NativeRichContentProjection` projects
-image, Mermaid, math, and HTML requests through one optional host adapter and
-owns their readable native fallbacks. `NativeAdaptivePresentation` then presents
-projected blocks according to the container proposal and Dynamic Type category.
+code-token continuity decisions. `NativeViewMaterializer` assigns stable unary
+view identity and centralizes internal type erasure. `NativeInlineProjection`
+validates and materializes ordered inline meaning once.
+`NativeRichContentProjection` projects image, Mermaid, math, and HTML requests
+through one optional host adapter and owns their readable native fallbacks.
+`NativeAdaptivePresentation` then presents projected blocks according to the
+container proposal and Dynamic Type category.
 
 The adaptive module owns document laziness, decoration budgets, marker/content
 layout, accessible footnotes, task rows, Mermaid fallback composition, and the
@@ -104,6 +106,13 @@ presentation modules. Its localization resources live in the package bundle,
 use English as the source language, and include Brazilian Portuguese. Markdown
 source, identifiers, programming-language names, and diagram types remain
 verbatim values inside translator-reorderable messages.
+
+The materialization module is main-actor confined and shared by the native
+modules belonging to one renderer. It allocates cheap monotonic identities
+outside `body`, preserves identity while applying styles or links, and exposes a
+concrete unary `NativeMaterializedView` to every `ForEach`. `AnyView` remains
+localized inside that module, at the public renderer return, and at the host
+rich-content adapter seam.
 
 ## Extension rules
 
@@ -124,6 +133,8 @@ verbatim values inside translator-reorderable messages.
 - Add native user-facing meaning as a typed
   `NativePresentationSemantics.Message` and translate it in the package string
   catalog. Do not assemble localized sentences in a view.
+- Materialize native views through `NativeViewMaterializer`. Do not allocate
+  collection identity or perform ad hoc type erasure in presentation callers.
 
 ## Source layout
 
@@ -149,3 +160,4 @@ Sources/SwiftMarkdownParser/
 - [ADR 0006: Deepen native adaptive presentation](adr/0006-deepen-native-adaptive-presentation.md)
 - [ADR 0007: Deepen the native rich-content seam](adr/0007-deepen-native-rich-content-seam.md)
 - [ADR 0008: Concentrate native semantics and localization](adr/0008-concentrate-native-semantics-and-localization.md)
+- [ADR 0009: Own native identity and materialization](adr/0009-own-native-identity-and-materialization.md)

@@ -58,15 +58,22 @@ private func makeNativeInlineProjection(
     options: SwiftUIRenderOptions = SwiftUIRenderOptions()
 ) -> NativeInlineProjection {
     let semantics = NativePresentationSemantics()
-    let adaptivePresentation = NativeAdaptivePresentation(options: options, semantics: semantics)
+    let materializer = NativeViewMaterializer()
+    let adaptivePresentation = NativeAdaptivePresentation(
+        options: options,
+        semantics: semantics,
+        materializer: materializer
+    )
     let richContentProjection = NativeRichContentProjection(
         options: options,
         adaptivePresentation: adaptivePresentation,
-        semantics: semantics
+        semantics: semantics,
+        materializer: materializer
     )
     return NativeInlineProjection(
         options: options,
-        richContentProjection: richContentProjection
+        richContentProjection: richContentProjection,
+        materializer: materializer
     )
 }
 
@@ -202,6 +209,26 @@ struct SwiftUIRendererTests {
         #expect(semantics.orderedListMarker(startNumber: 7, index: 0) == "7.")
         #expect(semantics.orderedListMarker(startNumber: 7, index: 2) == "9.")
         #expect(semantics.orderedListMarker(startNumber: nil, index: 1) == "2.")
+    }
+
+    @Test("Owns unique identity and preserves it through view transformations")
+    func nativeViewMaterializationIdentity() throws {
+        let materializer = NativeViewMaterializer()
+        let rowIdentity = materializer.identity()
+        let first = materializer.materialize(Text("First"))
+        let transformed = materializer.transform(first) { content in
+            content.fontWeight(.bold).foregroundStyle(.blue)
+        }
+        let second = materializer.materialize(Text("Second"))
+
+        #expect(rowIdentity < first.id)
+        #expect(first.id == transformed.id)
+        #expect(first.id < second.id)
+
+        #if os(macOS)
+        let renderer = ImageRenderer(content: transformed)
+        _ = try #require(renderer.cgImage)
+        #endif
     }
 
     @Test("Localizes every native semantic role from the package bundle")

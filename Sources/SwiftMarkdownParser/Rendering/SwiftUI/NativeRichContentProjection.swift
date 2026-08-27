@@ -17,23 +17,26 @@ struct NativeRichContentProjection {
     private let style: SwiftUIStyleConfiguration
     private let adaptivePresentation: NativeAdaptivePresentation
     private let semantics: NativePresentationSemantics
+    private let materializer: NativeViewMaterializer
 
     init(
         options: SwiftUIRenderOptions,
         adaptivePresentation: NativeAdaptivePresentation,
-        semantics: NativePresentationSemantics
+        semantics: NativePresentationSemantics,
+        materializer: NativeViewMaterializer
     ) {
         self.adapter = options.richContentAdapter
         self.style = options.styleConfiguration
         self.adaptivePresentation = adaptivePresentation
         self.semantics = semantics
+        self.materializer = materializer
     }
 
     /// Invokes the host adapter at most once, then materializes a readable fallback if declined.
-    func project(_ request: Request) -> AnyView {
+    func project(_ request: Request) -> NativeMaterializedView {
         if let adapterRequest = adapterRequest(for: request),
            let adapted = adapter?.render(adapterRequest) {
-            return adapted
+            return materializer.materialize(adapted)
         }
         return fallback(for: request)
     }
@@ -56,7 +59,7 @@ struct NativeRichContentProjection {
         }
     }
 
-    private func fallback(for request: Request) -> AnyView {
+    private func fallback(for request: Request) -> NativeMaterializedView {
         switch request {
         case let .image(node, source):
             return imageFallback(node: node, source: source)
@@ -85,15 +88,15 @@ struct NativeRichContentProjection {
         }
     }
 
-    private func imageFallback(node: AST.ImageNode, source: URL?) -> AnyView {
+    private func imageFallback(node: AST.ImageNode, source: URL?) -> NativeMaterializedView {
         guard let source else {
-            return AnyView(
+            return materializer.materialize(
                 Text(node.altText)
                     .accessibilityLabel(node.altText)
             )
         }
 
-        return AnyView(
+        return materializer.materialize(
             AsyncImage(url: source) { phase in
                 switch phase {
                 case .empty:
@@ -126,8 +129,8 @@ struct NativeRichContentProjection {
         )
     }
 
-    private func mathBlockFallback(_ node: AST.MathBlockNode) -> AnyView {
-        AnyView(
+    private func mathBlockFallback(_ node: AST.MathBlockNode) -> NativeMaterializedView {
+        materializer.materialize(
             ScrollView(.horizontal, showsIndicators: true) {
                 Text(node.content)
                     .font(style.codeFont)
@@ -146,8 +149,8 @@ struct NativeRichContentProjection {
     private func inlineSourceFallback(
         source: String,
         accessibilityLabel: LocalizedStringResource
-    ) -> AnyView {
-        AnyView(
+    ) -> NativeMaterializedView {
+        materializer.materialize(
             Text(source)
                 .font(style.codeFont)
                 .foregroundStyle(style.codeTextColor)
@@ -163,8 +166,8 @@ struct NativeRichContentProjection {
     private func blockSourceFallback(
         source: String,
         accessibilityLabel: LocalizedStringResource
-    ) -> AnyView {
-        AnyView(
+    ) -> NativeMaterializedView {
+        materializer.materialize(
             Text(source)
                 .font(style.codeFont)
                 .foregroundStyle(style.codeTextColor)
