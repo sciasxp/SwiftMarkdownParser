@@ -24,3 +24,10 @@ as a legacy internal input, rejects unknown numbered versions, and keeps the
 public `onRender` success/failure interface unchanged. Host-session identity,
 ordering, deadlines, cancellation, artifact publication, and fallback policy
 remain outside the package.
+
+Complete-document host decoration also crosses this assembler once. Callers provide an
+`HTMLDocumentAssembly` containing metadata, trusted styles, trusted scripts, and
+addressable marker regions. The assembler validates region uniqueness and ordering,
+projects wrappers in the rendered body, and places all resources while emitting the
+single document shell. Reopening the completed string to locate closing tags or replace
+markers is outside the renderer interface.

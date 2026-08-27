@@ -55,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Bundled Mermaid and KaTeX resources support deterministic offline output
   - Versioned runtime observations report required and failed features exactly once
   - WebKit presentation reports success only after required runtimes initialize while preserving its public callback
+  - `HTMLDocumentAssembly` places host styles, scripts, and addressable regions during the same complete-document assembly
 - **Source-Breaking Syntax Highlighting Interface**: Replaced the public registry, cache, and engine types with `SyntaxHighlighter`
   - Built-in adapter selection, aliases, validation, fallback, and caching have one owner
   - Unsupported languages and adapter failures preserve plain code output

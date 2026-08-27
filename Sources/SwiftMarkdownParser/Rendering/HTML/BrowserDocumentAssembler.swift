@@ -22,30 +22,30 @@ struct BrowserDocumentAssembler: Sendable {
     func renderDocument(
         body: String,
         requirements: BrowserRequirements,
-        metadata: HTMLDocumentMetadata
+        assembly: HTMLDocumentAssembly
     ) throws -> String {
-        let language = RendererUtils.escapeHTMLAttribute(metadata.language)
-        let title = RendererUtils.escapeHTML(metadata.title)
+        let host = try HTMLDocumentHostAssembler(assembly: assembly).assemble(body: body)
         let assets = try BrowserAssetAssembler(
             options: options,
             loader: assetLoader
         ).assemble(requirements: requirements)
-
         return """
         <!DOCTYPE html>
-        <html lang="\(language)">
+        <html lang="\(host.language)">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>\(title)</title>
+            <title>\(host.title)</title>
             \(options.includeDefaultStyles ? Self.markdownCSS() : "")
             \(assets.head)
+            \(host.styles)
         </head>
         <body>
             <div class="markdown-content">
-                \(body)
+                \(host.body)
             </div>
             \(assets.bootstrap)
+            \(host.scripts)
         </body>
         </html>
         """

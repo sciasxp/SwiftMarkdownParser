@@ -36,12 +36,23 @@ public struct HTMLRenderer: Sendable {
         _ document: AST.DocumentNode,
         metadata: HTMLDocumentMetadata = .init()
     ) async throws -> String {
+        try await renderDocument(
+            document,
+            assembly: HTMLDocumentAssembly(metadata: metadata)
+        )
+    }
+
+    /// Produces and decorates a complete HTML document in one structured pass.
+    public func renderDocument(
+        _ document: AST.DocumentNode,
+        assembly: HTMLDocumentAssembly
+    ) async throws -> String {
         var requirements = BrowserRequirements()
         let body = try await renderBody(document, requirements: &requirements)
         return try browserDocumentAssembler.renderDocument(
             body: body,
             requirements: requirements,
-            metadata: metadata
+            assembly: assembly
         )
     }
 

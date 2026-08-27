@@ -39,7 +39,7 @@ replaceable at explicit seams.
 | AST Traversal | `ASTNode.depthFirst()` | Lazy preorder visits with stable ancestry, path, parent, and depth context |
 | AST Rewrite | `AST.DocumentNode.rewriting(_:)` | One bottom-up immutable pass, metadata preservation, and typed-child validation |
 | Syntax Highlighting | `SyntaxHighlighter.highlight(_:language:)` | Built-in adapter selection, aliases, support discovery, token validation, best-effort fallback, and bounded LRU caching |
-| HTML Output | `HTMLRenderer.renderFragment(_:)` and `renderDocument(_:metadata:)` | HTML escaping, GFM output, semantic code spans, feature discovery, browser assets, bootstrap behavior, and document composition |
+| HTML Output | `HTMLRenderer.renderFragment(_:)` and `renderDocument(_:assembly:)` | HTML escaping, GFM output, semantic code spans, feature discovery, browser assets, host styles/scripts/regions, bootstrap behavior, and document composition |
 | Native SwiftUI Output | `SwiftUIRenderer.render(_:)` | Main-actor construction of native SwiftUI presentation from the completed document |
 | WebKit Presentation | `MarkdownWebView` | Loading complete HTML and reporting semantic browser-runtime readiness or failure |
 
@@ -54,6 +54,11 @@ document: Mermaid, KaTeX, footnote navigation, and task-list interaction.
 `BrowserDocumentAssembler` then adds the required resources exactly once,
 places them in the correct part of a fragment or complete document, and emits
 one readiness/failure bootstrap.
+
+For complete documents, `HTMLDocumentAssembly` is the structured host interface for
+metadata, trusted styles, trusted scripts, and addressable marker regions. The internal
+assembler validates and projects those regions in the rendered body, then emits the
+head and body once. Hosts do not patch completed HTML or duplicate shell placement.
 
 Mermaid and KaTeX resources can be bundled, loaded from pinned CDN versions,
 or supplied through validated custom URLs. Bundled resources are inlined for

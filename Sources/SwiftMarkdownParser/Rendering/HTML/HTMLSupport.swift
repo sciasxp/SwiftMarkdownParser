@@ -111,6 +111,7 @@ public enum HTMLRenderingError: Error, LocalizedError, Sendable {
     case bundledAssetUnavailable(String)
     case invalidAssetURL(feature: String, value: String)
     case browserConfigurationEncodingFailed
+    case invalidDocumentRegion(String)
 
     public var errorDescription: String? {
         switch self {
@@ -122,6 +123,8 @@ public enum HTMLRenderingError: Error, LocalizedError, Sendable {
             return "Invalid \(feature) browser asset URL: \(value)"
         case .browserConfigurationEncodingFailed:
             return "Browser runtime configuration could not be encoded."
+        case .invalidDocumentRegion(let id):
+            return "HTML document region could not be assembled: \(id)"
         }
     }
 }

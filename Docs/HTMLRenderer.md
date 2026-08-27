@@ -24,6 +24,30 @@ let completeDocument = try await renderer.renderDocument(
 places CSS and feature resources in `<head>` and returns a complete document
 suitable for WebKit or export.
 
+A host that supplies presentation CSS, browser behavior, or addressable content
+regions uses the same renderer with one structured assembly value:
+
+```swift
+let assembly = HTMLDocumentAssembly(
+    metadata: HTMLDocumentMetadata(title: "Preview", language: "pt-BR"),
+    styles: [presentationCSS],
+    scripts: [presentationJavaScript],
+    regions: [
+        HTMLDocumentRegion(
+            id: "section-1",
+            startMarker: "<section-start></section-start>",
+            endMarker: "<section-end></section-end>"
+        )
+    ]
+)
+let html = try await renderer.renderDocument(document, assembly: assembly)
+```
+
+`BrowserDocumentAssembler` validates every region and places host styles and scripts
+while it builds the shell. Callers never reopen a completed document to search for
+`</head>` or `</body>`. Styles and scripts are trusted host input; Markdown content
+continues to follow `sanitizeHTML`.
+
 ## Rendering architecture
 
 Body rendering first records the browser behavior actually required by the
@@ -34,8 +58,8 @@ readiness/failure bootstrap.
 ```text
 AST.DocumentNode
     -> escaped HTML body + discovered requirements
-    -> browser asset assembly
-    -> fragment or complete HTML document
+    -> browser assets + structured host assembly
+    -> fragment or complete HTML document once
 ```
 
 The discovered requirements are Mermaid, KaTeX, footnote navigation, and
