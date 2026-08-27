@@ -28,8 +28,8 @@ final class InlineParser {
     }
 
     /// Parse inline content from current position until specified boundary
-    func parseInlines(until boundary: Set<TokenType> = [.newline, .eof]) throws -> [ASTNode] {
-        var nodes: [ASTNode] = []
+    func parseInlines(until boundary: Set<TokenType> = [.newline, .eof]) throws -> [any ASTNode] {
+        var nodes: [any ASTNode] = []
 
         // Protection mechanisms
         var lastTokenPosition = -1
@@ -63,7 +63,7 @@ final class InlineParser {
     func parseInlineContent(
         _ text: String,
         startingAt location: SourceLocation = SourceLocation(line: 1, column: 1, offset: 0)
-    ) throws -> [ASTNode] {
+    ) throws -> [any ASTNode] {
         let inlineTokenizer = MarkdownTokenizer(
             text,
             startingAt: location,
@@ -79,7 +79,7 @@ final class InlineParser {
             maximumNestingDepth: maximumNestingDepth
         )
 
-        var nodes: [ASTNode] = []
+        var nodes: [any ASTNode] = []
 
         // Protection mechanisms
         var lastTokenPosition = -1
@@ -109,7 +109,7 @@ final class InlineParser {
     }
 
     /// Parse a single inline element
-    private func parseInline() throws -> [ASTNode] {
+    private func parseInline() throws -> [any ASTNode] {
         nestingDepth += 1
         defer { nestingDepth -= 1 }
         guard nestingDepth <= maximumNestingDepth else {
@@ -205,7 +205,7 @@ final class InlineParser {
 
     // MARK: - Emphasis and Strong Emphasis
 
-    private func parseEmphasisOrStrong(delimiter: String) throws -> ASTNode? {
+    private func parseEmphasisOrStrong(delimiter: String) throws -> (any ASTNode)? {
         let startLocation = tokenStream.current.location
         let delimiterChar = Character(delimiter)
 
@@ -227,7 +227,7 @@ final class InlineParser {
         }
 
         // Look for closing delimiters
-        var content: [ASTNode] = []
+        var content: [any ASTNode] = []
 
         while !tokenStream.isAtEnd {
             // Stop at newlines - emphasis shouldn't span line boundaries
@@ -427,7 +427,7 @@ final class InlineParser {
 
     // MARK: - Links and Images
 
-    private func parseLinkOrImage(startingAt explicitStart: SourceLocation? = nil) throws -> ASTNode? {
+    private func parseLinkOrImage(startingAt explicitStart: SourceLocation? = nil) throws -> (any ASTNode)? {
         let startLocation = explicitStart ?? tokenStream.current.location
         let linkStartPosition = tokenStream.currentPosition
 
@@ -468,7 +468,7 @@ final class InlineParser {
         // Restore to after [ and parse link text with bounded loop
         tokenStream.setPosition(afterBracketPosition)
 
-        var linkText: [ASTNode] = []
+        var linkText: [any ASTNode] = []
 
         while !tokenStream.isAtEnd && tokenStream.currentPosition < rbPos {
             let posBeforeInline = tokenStream.currentPosition
@@ -571,7 +571,7 @@ final class InlineParser {
         )
     }
 
-    private func parseImage() throws -> ASTNode? {
+    private func parseImage() throws -> (any ASTNode)? {
         let startPosition = tokenStream.currentPosition
         let startLocation = tokenStream.current.location
         guard tokenStream.match(.exclamation) else { return parseText() }
@@ -582,7 +582,7 @@ final class InlineParser {
         return image
     }
 
-    private func parseInlineLink(linkText: [ASTNode], isImage: Bool, startLocation: SourceLocation) throws -> ASTNode? {
+    private func parseInlineLink(linkText: [any ASTNode], isImage: Bool, startLocation: SourceLocation) throws -> (any ASTNode)? {
         guard tokenStream.match(.leftParen) else { return nil }
 
         // Skip whitespace
@@ -655,7 +655,7 @@ final class InlineParser {
         }
     }
 
-    private func parseReferenceLink(linkText: [ASTNode], isImage: Bool, startLocation: SourceLocation) throws -> ASTNode? {
+    private func parseReferenceLink(linkText: [any ASTNode], isImage: Bool, startLocation: SourceLocation) throws -> (any ASTNode)? {
         guard tokenStream.match(.leftBracket) else { return nil }
 
         var refLabel = ""
@@ -708,7 +708,7 @@ final class InlineParser {
 
     // MARK: - Other Inline Elements
 
-    private func parseEscapedCharacter() -> ASTNode? {
+    private func parseEscapedCharacter() -> (any ASTNode)? {
         let token = tokenStream.consume()
 
         // Remove the backslash and return the escaped character
@@ -731,7 +731,7 @@ final class InlineParser {
         return AST.AutolinkNode(url: url, text: displayText, sourceLocation: token.location)
     }
 
-    private func parseStrikethrough() throws -> ASTNode? {
+    private func parseStrikethrough() throws -> (any ASTNode)? {
         let startPosition = tokenStream.currentPosition
         let startLocation = tokenStream.current.location
 
@@ -746,7 +746,7 @@ final class InlineParser {
         // Consume the opening ~~
         tokenStream.advance()
 
-        var content: [ASTNode] = []
+        var content: [any ASTNode] = []
         var foundClosing = false
 
         // Look for closing ~~

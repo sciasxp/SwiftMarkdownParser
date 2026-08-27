@@ -36,7 +36,7 @@ public struct SwiftUIRenderer {
     }
 
     /// Render any AST node to SwiftUI view
-    private func render(node: ASTNode) async throws -> AnyView {
+    private func render(node: any ASTNode) async throws -> AnyView {
         switch node {
         case let textNode as AST.TextNode:
             return renderText(textNode)
@@ -198,7 +198,7 @@ extension SwiftUIRenderer {
     }
 
     /// Check if nodes can be combined into a single Text view
-    private func canUseTextCombination(for nodes: [ASTNode]) -> Bool {
+    private func canUseTextCombination(for nodes: [any ASTNode]) -> Bool {
         for node in nodes {
             if !isTextCompatible(node) {
                 return false
@@ -208,7 +208,7 @@ extension SwiftUIRenderer {
     }
 
     /// Check if a node is compatible with Text combination
-    private func isTextCompatible(_ node: ASTNode) -> Bool {
+    private func isTextCompatible(_ node: any ASTNode) -> Bool {
         switch node {
         case _ as AST.TextNode,
              _ as AST.CodeSpanNode,
@@ -248,7 +248,7 @@ extension SwiftUIRenderer {
     }
 
     /// Create a combined Text view from child nodes that supports proper text wrapping
-    private func createCombinedText(from nodes: [ASTNode]) async throws -> Text {
+    private func createCombinedText(from nodes: [any ASTNode]) async throws -> Text {
         var combinedText = Text("")
 
         for node in nodes {
@@ -262,7 +262,7 @@ extension SwiftUIRenderer {
     }
 
     /// Create a Text component from an AST node
-    private func createTextComponent(from node: ASTNode) async throws -> Text {
+    private func createTextComponent(from node: any ASTNode) async throws -> Text {
         switch node {
         case let textNode as AST.TextNode:
             return Text(textNode.content)

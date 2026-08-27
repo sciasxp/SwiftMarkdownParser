@@ -12,7 +12,7 @@ import SwiftMarkdownParser
 struct MarkdownView: View {
     let source: String
     @State private var rendered: AnyView?
-    @State private var error: Error?
+    @State private var error: (any Error)?
 
     var body: some View {
         ScrollView {

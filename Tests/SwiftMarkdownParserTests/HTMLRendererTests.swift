@@ -48,7 +48,7 @@ import Foundation
     }
 
     @Test func renderParagraphNode_multipleChildren() async throws {
-        let children: [ASTNode] = [
+        let children: [any ASTNode] = [
             AST.TextNode(content: "Hello "),
             AST.EmphasisNode(children: [AST.TextNode(content: "world")]),
             AST.TextNode(content: "!")
@@ -74,7 +74,7 @@ import Foundation
     }
 
     @Test func renderHeadingNode_withInlineElements() async throws {
-        let children: [ASTNode] = [
+        let children: [any ASTNode] = [
             AST.TextNode(content: "Bold "),
             AST.StrongEmphasisNode(children: [AST.TextNode(content: "heading")]),
             AST.TextNode(content: " with "),
@@ -95,7 +95,7 @@ import Foundation
     }
 
     @Test func renderEmphasisNode_nestedElements() async throws {
-        let children: [ASTNode] = [
+        let children: [any ASTNode] = [
             AST.TextNode(content: "italic with "),
             AST.StrongEmphasisNode(children: [AST.TextNode(content: "bold")])
         ]
@@ -112,7 +112,7 @@ import Foundation
     }
 
     @Test func renderStrongEmphasisNode_nestedElements() async throws {
-        let children: [ASTNode] = [
+        let children: [any ASTNode] = [
             AST.TextNode(content: "bold with "),
             AST.EmphasisNode(children: [AST.TextNode(content: "italic")])
         ]
@@ -138,7 +138,7 @@ import Foundation
     }
 
     @Test func renderLinkNode_complexContent() async throws {
-        let children: [ASTNode] = [
+        let children: [any ASTNode] = [
             AST.TextNode(content: "Visit "),
             AST.StrongEmphasisNode(children: [AST.TextNode(content: "Swift.org")])
         ]
@@ -391,7 +391,7 @@ import Foundation
     }
 
     @Test func renderStrikethroughNode_nestedElements() async throws {
-        let children: [ASTNode] = [
+        let children: [any ASTNode] = [
             AST.TextNode(content: "deleted "),
             AST.EmphasisNode(children: [AST.TextNode(content: "italic")])
         ]
@@ -647,7 +647,7 @@ import Foundation
 
     @Test func renderLargeDocument() async throws {
         // Create a large document with many elements
-        var children: [ASTNode] = []
+        var children: [any ASTNode] = []
 
         for i in 1...1000 {
             let heading = AST.HeadingNode(level: 2, children: [AST.TextNode(content: "Section \(i)")])

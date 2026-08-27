@@ -20,7 +20,7 @@ import Testing
     // MARK: - Edge Case Tests
 
     @Test func engines_handleEmptyStrings() async throws {
-        let engines: [(SyntaxHighlightingEngine, String)] = [
+        let engines: [(any SyntaxHighlightingEngine, String)] = [
             (SwiftSyntaxEngine(), "swift"),
             (PythonSyntaxEngine(), "python"),
             (JavaScriptSyntaxEngine(), "javascript"),
@@ -38,7 +38,7 @@ import Testing
     @Test func engines_handleUnclosedBlockComments() async throws {
         // Test for the specific bug where unclosed block comments extending to end of input
         // were incorrectly truncated by one character
-        let testCases: [(SyntaxHighlightingEngine, String, String)] = [
+        let testCases: [(any SyntaxHighlightingEngine, String, String)] = [
             (KotlinSyntaxEngine(), "kotlin", "/* unclosed comment"),
             (KotlinSyntaxEngine(), "kotlin", "/* unclosed comment with more text"),
             (KotlinSyntaxEngine(), "kotlin", "/*a"),

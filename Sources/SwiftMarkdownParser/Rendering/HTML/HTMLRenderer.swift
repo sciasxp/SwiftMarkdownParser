@@ -88,7 +88,7 @@ public struct HTMLRenderer: Sendable {
     }
 
     func render(
-        node: ASTNode,
+        node: any ASTNode,
         requirements: inout BrowserRequirements
     ) async throws -> String {
         switch node {

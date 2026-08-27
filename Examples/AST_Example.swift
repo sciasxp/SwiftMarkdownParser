@@ -79,7 +79,7 @@ struct ASTExample {
     }
 
     /// Print AST structure in stable depth-first order.
-    static func printAST(_ root: ASTNode, indent: Int) {
+    static func printAST(_ root: any ASTNode, indent: Int) {
         for visit in root.depthFirst() {
             let node = visit.node
             let indentString = String(repeating: "  ", count: indent + visit.depth)

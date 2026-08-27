@@ -105,17 +105,17 @@ public struct MarkdownWebView: View {
     public let metadata: HTMLDocumentMetadata
 
     /// Optional callback when content is rendered
-    public let onRender: ((Result<Void, Error>) -> Void)?
+    public let onRender: ((Result<Void, any Error>) -> Void)?
 
     /// State for the WebView
     @State private var isLoading = true
-    @State private var error: Error?
+    @State private var error: (any Error)?
 
     public init(
         document: AST.DocumentNode,
         options: HTMLRenderOptions = .init(),
         metadata: HTMLDocumentMetadata = .init(),
-        onRender: ((Result<Void, Error>) -> Void)? = nil
+        onRender: ((Result<Void, any Error>) -> Void)? = nil
     ) {
         self.document = document
         self.options = options
@@ -174,16 +174,16 @@ struct MermaidWebView: View {
     let configuration: MermaidConfiguration
 
     /// Optional callback when diagram is rendered
-    let onRender: ((Result<Void, Error>) -> Void)?
+    let onRender: ((Result<Void, any Error>) -> Void)?
 
     /// State for the WebView
     @State private var isLoading = true
-    @State private var error: Error?
+    @State private var error: (any Error)?
 
     init(
         diagramNode: AST.MermaidDiagramNode,
         configuration: MermaidConfiguration = .default,
-        onRender: ((Result<Void, Error>) -> Void)? = nil
+        onRender: ((Result<Void, any Error>) -> Void)? = nil
     ) {
         self.diagramNode = diagramNode
         self.configuration = configuration
@@ -236,8 +236,8 @@ struct MarkdownWebViewRepresentable: NSViewRepresentable {
     let options: HTMLRenderOptions
     let metadata: HTMLDocumentMetadata
     @Binding var isLoading: Bool
-    @Binding var error: Error?
-    let onRender: ((Result<Void, Error>) -> Void)?
+    @Binding var error: (any Error)?
+    let onRender: ((Result<Void, any Error>) -> Void)?
 
     @MainActor
     func makeNSView(context: Context) -> WKWebView {
@@ -292,14 +292,14 @@ struct MarkdownWebViewRepresentable: NSViewRepresentable {
             self.parent = parent
         }
 
-        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) {
             finish(with: .failure(error))
         }
 
         func webView(
             _ webView: WKWebView,
             didFailProvisionalNavigation navigation: WKNavigation!,
-            withError error: Error
+            withError error: any Error
         ) {
             finish(with: .failure(error))
         }
@@ -319,7 +319,7 @@ struct MarkdownWebViewRepresentable: NSViewRepresentable {
             }
         }
 
-        private func finish(with result: Result<Void, Error>) {
+        private func finish(with result: Result<Void, any Error>) {
             parent.isLoading = false
             if case .failure(let error) = result {
                 parent.error = error
@@ -334,8 +334,8 @@ struct MermaidWebViewRepresentable: NSViewRepresentable {
     let diagramNode: AST.MermaidDiagramNode
     let configuration: MermaidConfiguration
     @Binding var isLoading: Bool
-    @Binding var error: Error?
-    let onRender: ((Result<Void, Error>) -> Void)?
+    @Binding var error: (any Error)?
+    let onRender: ((Result<Void, any Error>) -> Void)?
 
     @MainActor
     func makeNSView(context: Context) -> WKWebView {
@@ -390,14 +390,14 @@ struct MermaidWebViewRepresentable: NSViewRepresentable {
             self.parent = parent
         }
 
-        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) {
             finish(with: .failure(error))
         }
 
         func webView(
             _ webView: WKWebView,
             didFailProvisionalNavigation navigation: WKNavigation!,
-            withError error: Error
+            withError error: any Error
         ) {
             finish(with: .failure(error))
         }
@@ -417,7 +417,7 @@ struct MermaidWebViewRepresentable: NSViewRepresentable {
             }
         }
 
-        private func finish(with result: Result<Void, Error>) {
+        private func finish(with result: Result<Void, any Error>) {
             parent.isLoading = false
             if case .failure(let error) = result {
                 parent.error = error

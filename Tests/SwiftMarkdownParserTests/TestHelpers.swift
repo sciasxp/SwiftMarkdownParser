@@ -6,29 +6,29 @@
 /// SwiftMarkdownParser.SourceLocation.
 struct UnsupportedTestNode: ASTNode {
     let nodeType: ASTNodeType = .text
-    let children: [ASTNode] = []
+    let children: [any ASTNode] = []
     let sourceLocation: SourceLocation? = nil
 }
 
 struct UnsupportedSwiftUITestNode: ASTNode {
     let nodeType = ASTNodeType(rawValue: "unsupported-swiftui")
-    let children: [ASTNode] = []
+    let children: [any ASTNode] = []
     let sourceLocation: SourceLocation? = nil
 }
 
 struct RewritableTestContainer: ASTRewritableNode {
     let nodeType = ASTNodeType(rawValue: "rewritableTestContainer")
-    let children: [ASTNode]
+    let children: [any ASTNode]
     let sourceLocation: SourceLocation? = nil
 
-    func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+    func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode {
         RewritableTestContainer(children: children)
     }
 }
 
 struct ReadOnlyTestContainer: ASTNode {
     let nodeType = ASTNodeType(rawValue: "readOnlyTestContainer")
-    let children: [ASTNode]
+    let children: [any ASTNode]
     let sourceLocation: SourceLocation? = nil
 }
 

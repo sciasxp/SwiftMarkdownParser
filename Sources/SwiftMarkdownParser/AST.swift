@@ -14,7 +14,7 @@ public protocol ASTNode: Sendable {
     var nodeType: ASTNodeType { get }
 
     /// Child nodes (if any). Custom nodes must form a finite, acyclic tree.
-    var children: [ASTNode] { get }
+    var children: [any ASTNode] { get }
 
     /// Source location information
     var sourceLocation: SourceLocation? { get }
@@ -163,10 +163,10 @@ public enum AST {
     /// Root document node
     public struct DocumentNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .document
-        public let children: [ASTNode]
+        public let children: [any ASTNode]
         public let sourceLocation: SourceLocation?
 
-        public init(children: [ASTNode], sourceLocation: SourceLocation? = nil) {
+        public init(children: [any ASTNode], sourceLocation: SourceLocation? = nil) {
             self.children = children
             self.sourceLocation = sourceLocation
         }
@@ -177,10 +177,10 @@ public enum AST {
     /// Paragraph node
     public struct ParagraphNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .paragraph
-        public let children: [ASTNode]
+        public let children: [any ASTNode]
         public let sourceLocation: SourceLocation?
 
-        public init(children: [ASTNode], sourceLocation: SourceLocation? = nil) {
+        public init(children: [any ASTNode], sourceLocation: SourceLocation? = nil) {
             self.children = children
             self.sourceLocation = sourceLocation
         }
@@ -189,13 +189,13 @@ public enum AST {
     /// Heading node (ATX or Setext)
     public struct HeadingNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .heading
-        public let children: [ASTNode]
+        public let children: [any ASTNode]
         public let sourceLocation: SourceLocation?
 
         /// Heading level (1-6)
         public let level: Int
 
-        public init(level: Int, children: [ASTNode], sourceLocation: SourceLocation? = nil) {
+        public init(level: Int, children: [any ASTNode], sourceLocation: SourceLocation? = nil) {
             self.level = level
             self.children = children
             self.sourceLocation = sourceLocation
@@ -205,10 +205,10 @@ public enum AST {
     /// Block quote node
     public struct BlockQuoteNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .blockQuote
-        public let children: [ASTNode]
+        public let children: [any ASTNode]
         public let sourceLocation: SourceLocation?
 
-        public init(children: [ASTNode], sourceLocation: SourceLocation? = nil) {
+        public init(children: [any ASTNode], sourceLocation: SourceLocation? = nil) {
             self.children = children
             self.sourceLocation = sourceLocation
         }
@@ -217,7 +217,7 @@ public enum AST {
     /// List container node
     public struct ListNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .list
-        public let children: [ASTNode]
+        public let children: [any ASTNode]
         public let sourceLocation: SourceLocation?
 
         /// Whether this is an ordered list
@@ -227,9 +227,9 @@ public enum AST {
         public let startNumber: Int?
 
         /// List items
-        public let items: [ASTNode]
+        public let items: [any ASTNode]
 
-        public init(isOrdered: Bool, startNumber: Int? = nil, items: [ASTNode], sourceLocation: SourceLocation? = nil) {
+        public init(isOrdered: Bool, startNumber: Int? = nil, items: [any ASTNode], sourceLocation: SourceLocation? = nil) {
             self.isOrdered = isOrdered
             self.startNumber = startNumber
             self.items = items
@@ -241,10 +241,10 @@ public enum AST {
     /// List item node
     public struct ListItemNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .listItem
-        public let children: [ASTNode]
+        public let children: [any ASTNode]
         public let sourceLocation: SourceLocation?
 
-        public init(children: [ASTNode], sourceLocation: SourceLocation? = nil) {
+        public init(children: [any ASTNode], sourceLocation: SourceLocation? = nil) {
             self.children = children
             self.sourceLocation = sourceLocation
         }
@@ -253,7 +253,7 @@ public enum AST {
     /// Code block node (fenced or indented)
     public struct CodeBlockNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .codeBlock
-        public let children: [ASTNode] = []
+        public let children: [any ASTNode] = []
         public let sourceLocation: SourceLocation?
 
         /// Code content
@@ -280,7 +280,7 @@ public enum AST {
     /// Thematic break node (horizontal rule)
     public struct ThematicBreakNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .thematicBreak
-        public let children: [ASTNode] = []
+        public let children: [any ASTNode] = []
         public let sourceLocation: SourceLocation?
 
         /// Character used for the break (-, *, _)
@@ -297,7 +297,7 @@ public enum AST {
     /// Plain text node
     public struct TextNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .text
-        public let children: [ASTNode] = []
+        public let children: [any ASTNode] = []
         public let sourceLocation: SourceLocation?
 
         /// Text content
@@ -312,10 +312,10 @@ public enum AST {
     /// Emphasis node (italic)
     public struct EmphasisNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .emphasis
-        public let children: [ASTNode]
+        public let children: [any ASTNode]
         public let sourceLocation: SourceLocation?
 
-        public init(children: [ASTNode], sourceLocation: SourceLocation? = nil) {
+        public init(children: [any ASTNode], sourceLocation: SourceLocation? = nil) {
             self.children = children
             self.sourceLocation = sourceLocation
         }
@@ -324,10 +324,10 @@ public enum AST {
     /// Strong emphasis node (bold)
     public struct StrongEmphasisNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .strongEmphasis
-        public let children: [ASTNode]
+        public let children: [any ASTNode]
         public let sourceLocation: SourceLocation?
 
-        public init(children: [ASTNode], sourceLocation: SourceLocation? = nil) {
+        public init(children: [any ASTNode], sourceLocation: SourceLocation? = nil) {
             self.children = children
             self.sourceLocation = sourceLocation
         }
@@ -336,7 +336,7 @@ public enum AST {
     /// Link node
     public struct LinkNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .link
-        public let children: [ASTNode]
+        public let children: [any ASTNode]
         public let sourceLocation: SourceLocation?
 
         /// Link URL
@@ -345,7 +345,7 @@ public enum AST {
         /// Link title (optional)
         public let title: String?
 
-        public init(url: String, title: String? = nil, children: [ASTNode], sourceLocation: SourceLocation? = nil) {
+        public init(url: String, title: String? = nil, children: [any ASTNode], sourceLocation: SourceLocation? = nil) {
             self.url = url
             self.title = title
             self.children = children
@@ -356,7 +356,7 @@ public enum AST {
     /// Image node
     public struct ImageNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .image
-        public let children: [ASTNode] = []
+        public let children: [any ASTNode] = []
         public let sourceLocation: SourceLocation?
 
         /// Image URL
@@ -379,7 +379,7 @@ public enum AST {
     /// Inline code span node
     public struct CodeSpanNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .codeSpan
-        public let children: [ASTNode] = []
+        public let children: [any ASTNode] = []
         public let sourceLocation: SourceLocation?
 
         /// Code content
@@ -394,7 +394,7 @@ public enum AST {
     /// Line break node
     public struct LineBreakNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .lineBreak
-        public let children: [ASTNode] = []
+        public let children: [any ASTNode] = []
         public let sourceLocation: SourceLocation?
 
         /// Whether this is a hard break (two spaces + newline)
@@ -409,13 +409,13 @@ public enum AST {
     /// Strikethrough node (GFM extension)
     public struct StrikethroughNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .strikethrough
-        public let children: [ASTNode]
+        public let children: [any ASTNode]
         public let sourceLocation: SourceLocation?
 
         /// Content to be struck through
-        public let content: [ASTNode]
+        public let content: [any ASTNode]
 
-        public init(content: [ASTNode], sourceLocation: SourceLocation? = nil) {
+        public init(content: [any ASTNode], sourceLocation: SourceLocation? = nil) {
             self.content = content
             self.children = content
             self.sourceLocation = sourceLocation
@@ -425,7 +425,7 @@ public enum AST {
     /// Autolink node (GFM extension)
     public struct AutolinkNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .autolink
-        public let children: [ASTNode] = []
+        public let children: [any ASTNode] = []
         public let sourceLocation: SourceLocation?
 
         /// The URL
@@ -444,7 +444,7 @@ public enum AST {
     /// HTML block node
     public struct HTMLBlockNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .htmlBlock
-        public let children: [ASTNode] = []
+        public let children: [any ASTNode] = []
         public let sourceLocation: SourceLocation?
 
         /// HTML content
@@ -459,7 +459,7 @@ public enum AST {
     /// Inline HTML node
     public struct HTMLInlineNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .htmlInline
-        public let children: [ASTNode] = []
+        public let children: [any ASTNode] = []
         public let sourceLocation: SourceLocation?
 
         /// HTML content
@@ -474,7 +474,7 @@ public enum AST {
     /// Soft line break node
     public struct SoftBreakNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .lineBreak
-        public let children: [ASTNode] = []
+        public let children: [any ASTNode] = []
         public let sourceLocation: SourceLocation?
 
         public init(sourceLocation: SourceLocation? = nil) {
@@ -487,13 +487,13 @@ public enum AST {
     /// Task list item node (GFM extension)
     public struct GFMTaskListItemNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .taskListItem
-        public let children: [ASTNode]
+        public let children: [any ASTNode]
         public let sourceLocation: SourceLocation?
 
         /// Whether the task is checked
         public let isChecked: Bool
 
-        public init(isChecked: Bool, children: [ASTNode], sourceLocation: SourceLocation? = nil) {
+        public init(isChecked: Bool, children: [any ASTNode], sourceLocation: SourceLocation? = nil) {
             self.isChecked = isChecked
             self.children = children
             self.sourceLocation = sourceLocation
@@ -503,7 +503,7 @@ public enum AST {
     /// GFM Table node
     public struct GFMTableNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .table
-        public let children: [ASTNode]
+        public let children: [any ASTNode]
         public let sourceLocation: SourceLocation?
 
         /// Table rows
@@ -515,7 +515,7 @@ public enum AST {
         public init(rows: [GFMTableRowNode], alignments: [GFMTableAlignment], sourceLocation: SourceLocation? = nil) {
             self.rows = rows
             self.alignments = alignments
-            self.children = rows.map { $0 as ASTNode }
+            self.children = rows.map { $0 as any ASTNode }
             self.sourceLocation = sourceLocation
         }
     }
@@ -523,7 +523,7 @@ public enum AST {
     /// GFM Table row node
     public struct GFMTableRowNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .tableRow
-        public let children: [ASTNode]
+        public let children: [any ASTNode]
         public let sourceLocation: SourceLocation?
 
         /// Table cells
@@ -535,7 +535,7 @@ public enum AST {
         public init(cells: [GFMTableCellNode], isHeader: Bool, sourceLocation: SourceLocation? = nil) {
             self.cells = cells
             self.isHeader = isHeader
-            self.children = cells.map { $0 as ASTNode }
+            self.children = cells.map { $0 as any ASTNode }
             self.sourceLocation = sourceLocation
         }
     }
@@ -543,7 +543,7 @@ public enum AST {
     /// GFM Table cell node
     public struct GFMTableCellNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .tableCell
-        public let children: [ASTNode]
+        public let children: [any ASTNode]
         public let sourceLocation: SourceLocation?
 
         /// Cell content (plain text for backwards compatibility)
@@ -564,7 +564,7 @@ public enum AST {
         }
 
         /// Initialize with inline content nodes
-        public init(children: [ASTNode], isHeader: Bool, alignment: GFMTableAlignment = .none, sourceLocation: SourceLocation? = nil) {
+        public init(children: [any ASTNode], isHeader: Bool, alignment: GFMTableAlignment = .none, sourceLocation: SourceLocation? = nil) {
             self.children = children
             self.isHeader = isHeader
             self.alignment = alignment
@@ -574,7 +574,7 @@ public enum AST {
         }
 
         /// Extracts plain text content from AST nodes in document order.
-        public static func extractPlainText(from nodes: [ASTNode]) -> String {
+        public static func extractPlainText(from nodes: [any ASTNode]) -> String {
             nodes.flatMap { root in
                 root.depthFirst().compactMap { visit in
                     switch visit.node {
@@ -602,10 +602,10 @@ public enum AST {
     /// This should be flattened and removed from the final AST.
     public struct FragmentNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .text // Behaves like text for most purposes
-        public let children: [ASTNode]
+        public let children: [any ASTNode]
         public let sourceLocation: SourceLocation?
 
-        public init(children: [ASTNode], sourceLocation: SourceLocation? = nil) {
+        public init(children: [any ASTNode], sourceLocation: SourceLocation? = nil) {
             self.children = children
             self.sourceLocation = sourceLocation
         }
@@ -616,7 +616,7 @@ public enum AST {
     /// Footnote reference node ([^1])
     public struct FootnoteReferenceNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .footnoteReference
-        public let children: [ASTNode] = []
+        public let children: [any ASTNode] = []
         public let sourceLocation: SourceLocation?
 
         /// The footnote identifier
@@ -631,13 +631,13 @@ public enum AST {
     /// Footnote definition node ([^1]: content)
     public struct FootnoteDefinitionNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .footnoteDefinition
-        public let children: [ASTNode]
+        public let children: [any ASTNode]
         public let sourceLocation: SourceLocation?
 
         /// The footnote identifier
         public let identifier: String
 
-        public init(identifier: String, children: [ASTNode], sourceLocation: SourceLocation? = nil) {
+        public init(identifier: String, children: [any ASTNode], sourceLocation: SourceLocation? = nil) {
             self.identifier = identifier
             self.children = children
             self.sourceLocation = sourceLocation
@@ -649,7 +649,7 @@ public enum AST {
     /// Mermaid diagram node for rendering charts and diagrams
     public struct MermaidDiagramNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .mermaidDiagram
-        public let children: [ASTNode] = []
+        public let children: [any ASTNode] = []
         public let sourceLocation: SourceLocation?
 
         /// Mermaid diagram definition content
@@ -710,7 +710,7 @@ public enum AST {
     /// Math block node for display math ($$...$$)
     public struct MathBlockNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .mathBlock
-        public let children: [ASTNode] = []
+        public let children: [any ASTNode] = []
         public let sourceLocation: SourceLocation?
 
         /// Math content
@@ -725,7 +725,7 @@ public enum AST {
     /// Inline math node for inline math ($...$)
     public struct InlineMathNode: ASTNode, Sendable {
         public let nodeType: ASTNodeType = .inlineMath
-        public let children: [ASTNode] = []
+        public let children: [any ASTNode] = []
         public let sourceLocation: SourceLocation?
 
         /// Math content

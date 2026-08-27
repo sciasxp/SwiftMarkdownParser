@@ -8,7 +8,7 @@ public protocol ASTRewritableNode: ASTNode {
     /// Reconstructs the same logical container with a new ordered child list.
     /// Implementations preserve their non-child metadata or throw when the
     /// supplied children violate a typed structural invariant.
-    func replacingChildren(with children: [ASTNode]) throws -> ASTNode
+    func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode
 }
 
 /// The one-shot action applied to a visited node during rewriting.
@@ -20,10 +20,10 @@ public enum ASTRewrite: Sendable {
     case remove
 
     /// Replace the node with one node. The replacement is not revisited.
-    case replace(ASTNode)
+    case replace(any ASTNode)
 
     /// Replace the node with zero or more sibling nodes. Replacements are not revisited.
-    case replaceMany([ASTNode])
+    case replaceMany([any ASTNode])
 }
 
 /// Structural errors produced by AST rewriting.
@@ -71,17 +71,17 @@ public extension AST.DocumentNode {
 
 private enum ASTRewriter {
     struct Result {
-        let nodes: [ASTNode]
+        let nodes: [any ASTNode]
         let changed: Bool
     }
 
     static func rewrite(
-        node: ASTNode,
-        ancestors: [ASTNode],
+        node: any ASTNode,
+        ancestors: [any ASTNode],
         path: [Int],
         transform: (ASTTraversal.Element) throws -> ASTRewrite
     ) throws -> Result {
-        var rewrittenChildren: [ASTNode] = []
+        var rewrittenChildren: [any ASTNode] = []
         var descendantsChanged = false
 
         for (index, child) in node.children.enumerated() {
@@ -95,9 +95,9 @@ private enum ASTRewriter {
             descendantsChanged = descendantsChanged || result.changed
         }
 
-        let currentNode: ASTNode
+        let currentNode: any ASTNode
         if descendantsChanged {
-            guard let container = node as? ASTRewritableNode else {
+            guard let container = node as? any ASTRewritableNode else {
                 throw ASTRewriteError.nonRewritableContainer(node.nodeType)
             }
             currentNode = try container.replacingChildren(with: rewrittenChildren)
@@ -127,31 +127,31 @@ private enum ASTRewriter {
 // MARK: - Built-in container reconstruction
 
 extension AST.DocumentNode: ASTRewritableNode {
-    public func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+    public func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode {
         AST.DocumentNode(children: children, sourceLocation: sourceLocation)
     }
 }
 
 extension AST.ParagraphNode: ASTRewritableNode {
-    public func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+    public func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode {
         AST.ParagraphNode(children: children, sourceLocation: sourceLocation)
     }
 }
 
 extension AST.HeadingNode: ASTRewritableNode {
-    public func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+    public func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode {
         AST.HeadingNode(level: level, children: children, sourceLocation: sourceLocation)
     }
 }
 
 extension AST.BlockQuoteNode: ASTRewritableNode {
-    public func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+    public func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode {
         AST.BlockQuoteNode(children: children, sourceLocation: sourceLocation)
     }
 }
 
 extension AST.ListNode: ASTRewritableNode {
-    public func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+    public func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode {
         AST.ListNode(
             isOrdered: isOrdered,
             startNumber: startNumber,
@@ -162,25 +162,25 @@ extension AST.ListNode: ASTRewritableNode {
 }
 
 extension AST.ListItemNode: ASTRewritableNode {
-    public func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+    public func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode {
         AST.ListItemNode(children: children, sourceLocation: sourceLocation)
     }
 }
 
 extension AST.EmphasisNode: ASTRewritableNode {
-    public func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+    public func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode {
         AST.EmphasisNode(children: children, sourceLocation: sourceLocation)
     }
 }
 
 extension AST.StrongEmphasisNode: ASTRewritableNode {
-    public func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+    public func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode {
         AST.StrongEmphasisNode(children: children, sourceLocation: sourceLocation)
     }
 }
 
 extension AST.LinkNode: ASTRewritableNode {
-    public func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+    public func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode {
         AST.LinkNode(
             url: url,
             title: title,
@@ -191,13 +191,13 @@ extension AST.LinkNode: ASTRewritableNode {
 }
 
 extension AST.StrikethroughNode: ASTRewritableNode {
-    public func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+    public func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode {
         AST.StrikethroughNode(content: children, sourceLocation: sourceLocation)
     }
 }
 
 extension AST.GFMTaskListItemNode: ASTRewritableNode {
-    public func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+    public func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode {
         AST.GFMTaskListItemNode(
             isChecked: isChecked,
             children: children,
@@ -207,7 +207,7 @@ extension AST.GFMTaskListItemNode: ASTRewritableNode {
 }
 
 extension AST.GFMTableNode: ASTRewritableNode {
-    public func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+    public func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode {
         let rows: [AST.GFMTableRowNode] = try requireChildren(
             children,
             parent: .table,
@@ -222,7 +222,7 @@ extension AST.GFMTableNode: ASTRewritableNode {
 }
 
 extension AST.GFMTableRowNode: ASTRewritableNode {
-    public func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+    public func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode {
         let cells: [AST.GFMTableCellNode] = try requireChildren(
             children,
             parent: .tableRow,
@@ -237,7 +237,7 @@ extension AST.GFMTableRowNode: ASTRewritableNode {
 }
 
 extension AST.GFMTableCellNode: ASTRewritableNode {
-    public func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+    public func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode {
         AST.GFMTableCellNode(
             children: children,
             isHeader: isHeader,
@@ -248,13 +248,13 @@ extension AST.GFMTableCellNode: ASTRewritableNode {
 }
 
 extension AST.FragmentNode: ASTRewritableNode {
-    public func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+    public func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode {
         AST.FragmentNode(children: children, sourceLocation: sourceLocation)
     }
 }
 
 extension AST.FootnoteDefinitionNode: ASTRewritableNode {
-    public func replacingChildren(with children: [ASTNode]) throws -> ASTNode {
+    public func replacingChildren(with children: [any ASTNode]) throws -> any ASTNode {
         AST.FootnoteDefinitionNode(
             identifier: identifier,
             children: children,
@@ -264,7 +264,7 @@ extension AST.FootnoteDefinitionNode: ASTRewritableNode {
 }
 
 private func requireChildren<T: ASTNode>(
-    _ children: [ASTNode],
+    _ children: [any ASTNode],
     parent: ASTNodeType,
     expected: ASTNodeType
 ) throws -> [T] {

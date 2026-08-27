@@ -207,7 +207,7 @@ import Testing
         }
     }
 
-    private func assertValidRanges(in node: ASTNode, sourceLength: Int) {
+    private func assertValidRanges(in node: any ASTNode, sourceLength: Int) {
         for visit in node.depthFirst() {
             guard let range = visit.node.sourceLocation else {
                 Issue.record("Missing source range for \(visit.node.nodeType.rawValue)")
@@ -224,11 +224,11 @@ import Testing
         }
     }
 
-    private func containsNode<T: ASTNode>(ofType type: T.Type, in node: ASTNode) -> Bool {
+    private func containsNode<T: ASTNode>(ofType type: T.Type, in node: any ASTNode) -> Bool {
         node.depthFirst().contains { $0.node is T }
     }
 
-    private func plainText(in node: ASTNode) -> String {
+    private func plainText(in node: any ASTNode) -> String {
         node.depthFirst().compactMap { ($0.node as? AST.TextNode)?.content }.joined()
     }
 }

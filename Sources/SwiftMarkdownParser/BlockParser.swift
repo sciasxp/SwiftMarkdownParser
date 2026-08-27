@@ -32,7 +32,7 @@ final class BlockParser {
 
     /// Parse the entire document into an AST
     func parseDocument() throws -> AST.DocumentNode {
-        var children: [ASTNode] = []
+        var children: [any ASTNode] = []
 
         while !tokenStream.isAtEnd {
             let startingPosition = tokenStream.currentPosition
@@ -54,7 +54,7 @@ final class BlockParser {
     }
 
     /// Parse a single block element
-    private func parseBlock() throws -> ASTNode? {
+    private func parseBlock() throws -> (any ASTNode)? {
         // Skip whitespace at start of line
         skipWhitespace()
 
@@ -197,7 +197,7 @@ final class BlockParser {
 
     private func parseBlockQuote() throws -> AST.BlockQuoteNode {
         let startLocation = tokenStream.current.location
-        var children: [ASTNode] = []
+        var children: [any ASTNode] = []
 
         while !tokenStream.isAtEnd && tokenStream.check(.blockQuoteMarker) {
             tokenStream.advance() // consume >
@@ -229,7 +229,7 @@ final class BlockParser {
         let delimiter = isOrdered ? firstMarker.last : nil
         let bulletChar = isOrdered ? nil : firstMarker.first
 
-        var items: [ASTNode] = []
+        var items: [any ASTNode] = []
 
         while !tokenStream.isAtEnd && tokenStream.check(.listMarker) {
             let marker = tokenStream.current.content
@@ -265,14 +265,14 @@ final class BlockParser {
         )
     }
 
-    private func parseListItem() throws -> ASTNode {
+    private func parseListItem() throws -> any ASTNode {
         let startLocation = tokenStream.current.location
 
         // Consume list marker
         tokenStream.advance()
         skipWhitespace()
 
-        var children: [ASTNode] = []
+        var children: [any ASTNode] = []
 
         // Parse inline content for the first line
         let taskMarker = tokenStream.check(.taskListMarker) ? tokenStream.consume() : nil
@@ -417,7 +417,7 @@ final class BlockParser {
 
     // MARK: - Code Block Parsers
 
-    private func parseFencedCodeBlock() throws -> ASTNode {
+    private func parseFencedCodeBlock() throws -> any ASTNode {
         let startLocation = tokenStream.current.location
         let fenceToken = tokenStream.consume()
         let fenceChar = fenceToken.content.first!
@@ -476,7 +476,7 @@ final class BlockParser {
         )
     }
 
-    private func parseMathBlock() throws -> ASTNode {
+    private func parseMathBlock() throws -> any ASTNode {
         let startPosition = tokenStream.currentPosition
         let startLocation = tokenStream.current.location
 
@@ -692,7 +692,7 @@ final class BlockParser {
                 offset: line.location.offset + startDelta
             )
             let cellRange = cellStart.extending(over: trimmed)
-            let children: [ASTNode]
+            let children: [any ASTNode]
             if trimmed.isEmpty {
                 children = []
             } else if needsInlineParsing(trimmed) {
@@ -775,7 +775,7 @@ final class BlockParser {
         )
     }
 
-    private func parseNestedBlock() throws -> ASTNode? {
+    private func parseNestedBlock() throws -> (any ASTNode)? {
         nestingDepth += 1
         defer { nestingDepth -= 1 }
 
@@ -789,4 +789,3 @@ final class BlockParser {
         return try parseBlock()
     }
 }
-

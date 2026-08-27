@@ -205,11 +205,11 @@ struct ComprehensiveParsingTests {
         #expect(code.content == "let answer = 42\n")
     }
 
-    private func nodes<Node: ASTNode>(of type: Node.Type, in root: ASTNode) -> [Node] {
+    private func nodes<Node: ASTNode>(of type: Node.Type, in root: any ASTNode) -> [Node] {
         root.depthFirst().compactMap { $0.node as? Node }
     }
 
-    private func plainText(in root: ASTNode) -> String {
+    private func plainText(in root: any ASTNode) -> String {
         root.depthFirst().compactMap { visit in
             switch visit.node {
             case let text as AST.TextNode:

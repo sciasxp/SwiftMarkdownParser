@@ -6,17 +6,17 @@
 public struct ASTTraversal: Sequence, Sendable {
     /// One node and its stable position in the traversed tree.
     public struct Element: Sendable {
-        public let node: ASTNode
-        public let ancestors: [ASTNode]
+        public let node: any ASTNode
+        public let ancestors: [any ASTNode]
         public let path: [Int]
 
         /// The immediate parent, or `nil` for the root.
-        public var parent: ASTNode? { ancestors.last }
+        public var parent: (any ASTNode)? { ancestors.last }
 
         /// The node depth, where the root has depth zero.
         public var depth: Int { path.count }
 
-        init(node: ASTNode, ancestors: [ASTNode], path: [Int]) {
+        init(node: any ASTNode, ancestors: [any ASTNode], path: [Int]) {
             self.node = node
             self.ancestors = ancestors
             self.path = path
@@ -26,7 +26,7 @@ public struct ASTTraversal: Sequence, Sendable {
     public struct Iterator: IteratorProtocol {
         private var pending: [Element]
 
-        init(root: ASTNode) {
+        init(root: any ASTNode) {
             self.pending = [Element(node: root, ancestors: [], path: [])]
         }
 
@@ -46,9 +46,9 @@ public struct ASTTraversal: Sequence, Sendable {
         }
     }
 
-    private let root: ASTNode
+    private let root: any ASTNode
 
-    init(root: ASTNode) {
+    init(root: any ASTNode) {
         self.root = root
     }
 
