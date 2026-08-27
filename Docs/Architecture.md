@@ -85,7 +85,11 @@ adapter registry or cache representation.
 `NativeDocumentProjection` first interprets and validates the complete document
 into a typed, one-shot plan in deterministic depth-first order. The plan embeds
 `NativeInlinePlan` values and rich-content requests, but contains no views,
-identity, adapter results, or syntax-highlighting work.
+identity, adapter results, or syntax-highlighting work. Its table projection
+normalizes the first row into optional column headers, resolves alignment from
+the table's column schema once, and preserves every remaining row and cell in
+order. Cell-level header and alignment fields remain AST compatibility data;
+presentation modules never reconcile them.
 `NativePresentationSemantics` maps typed roles to deferred package-localized
 meaning and owns pure ordered-marker and code-token continuity decisions.
 `NativeViewMaterializer` assigns stable unary view identity and centralizes
@@ -111,13 +115,15 @@ render.
 
 The adaptive presentation module owns document laziness, decoration budgets,
 accessible footnotes, task rows, Mermaid fallback composition, and the choice
-between a dense table grid and labeled rows. The adaptive label/content module
-owns the repeated pair policy without interpreting accessibility copy or
-Markdown meaning. Neither inspects device models, screen bounds, or host window
-state. The rich-content module resolves and validates image destinations before
-they cross the host seam, invokes the adapter at most once per request, and
-treats `nil` as a decision to preserve the native fallback. Alternative layouts
-reuse the already projected content instead of reinvoking the adapter.
+between a dense table grid and labeled rows. It consumes canonical columns and
+data rows; it does not search for a header, partition rows, or choose between
+table-level and cell-level alignment. The adaptive label/content module owns
+the repeated pair policy without interpreting accessibility copy or Markdown
+meaning. Neither inspects device models, screen bounds, or host window state.
+The rich-content module resolves and validates image destinations before they
+cross the host seam, invokes the adapter at most once per request, and treats
+`nil` as a decision to preserve the native fallback. Alternative layouts reuse
+the already projected content instead of reinvoking the adapter.
 
 The semantic module is an in-process dependency shared by the renderer and both
 presentation modules. Its localization resources live in the package bundle,
@@ -152,6 +158,9 @@ rich-content adapter seam.
   its inline meaning in the typed plan. Never interleave document validation
   with view materialization, identity allocation, adapter effects, or syntax
   highlighting.
+- Extend native table meaning inside `NativeDocumentProjection.Table`. Keep
+  column headers and alignment canonical there; adaptive presentation must not
+  inspect AST header flags or reconstruct the table schema.
 - Add native user-facing meaning as a typed
   `NativePresentationSemantics.Message` and translate it in the package string
   catalog. Do not assemble localized sentences in a view.

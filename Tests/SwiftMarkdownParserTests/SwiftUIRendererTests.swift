@@ -206,6 +206,82 @@ struct SwiftUIRendererTests {
         #expect(semantics.orderedListMarker(startNumber: nil, index: 1) == "2.")
     }
 
+    @Test("Normalizes table columns, headers, and rows during document projection")
+    func normalizesNativeTableMeaning() throws {
+        let table = try projectedTable(AST.GFMTableNode(
+            rows: [
+                AST.GFMTableRowNode(
+                    cells: [
+                        AST.GFMTableCellNode(content: "Name", isHeader: false, alignment: .right),
+                        AST.GFMTableCellNode(content: "State", isHeader: false, alignment: .left),
+                    ],
+                    isHeader: true
+                ),
+                AST.GFMTableRowNode(
+                    cells: [
+                        AST.GFMTableCellNode(content: "Parser", isHeader: true, alignment: .right),
+                        AST.GFMTableCellNode(content: "Ready", isHeader: true, alignment: .left),
+                        AST.GFMTableCellNode(content: "Extra", isHeader: true, alignment: .center),
+                    ],
+                    isHeader: false
+                ),
+                AST.GFMTableRowNode(
+                    cells: [AST.GFMTableCellNode(content: "Later", isHeader: true)],
+                    isHeader: true
+                ),
+            ],
+            alignments: [.center]
+        ))
+
+        #expect(table.columns.map(\.index) == [0, 1, 2])
+        #expect(table.columns.map(\.alignment) == [.center, .none, .none])
+        #expect(table.columns.map { $0.header?.accessibilityText } == ["Name", "State", nil])
+        #expect(table.rows.count == 2)
+        #expect(table.rows[0].cells.map(\.columnIndex) == [0, 1, 2])
+        #expect(table.rows[0].cells.map(\.content.accessibilityText) == ["Parser", "Ready", "Extra"])
+        #expect(table.rows[1].cells.map(\.content.accessibilityText) == ["Later"])
+    }
+
+    @Test("Keeps headerless and header-only table plans explicit")
+    func normalizesNativeTableEdgeShapes() throws {
+        let headerless = try projectedTable(AST.GFMTableNode(
+            rows: [
+                AST.GFMTableRowNode(
+                    cells: [AST.GFMTableCellNode(
+                        content: "Value",
+                        isHeader: true,
+                        alignment: .right
+                    )],
+                    isHeader: false
+                ),
+                AST.GFMTableRowNode(
+                    cells: [AST.GFMTableCellNode(content: "Not a header", isHeader: true)],
+                    isHeader: true
+                ),
+            ],
+            alignments: []
+        ))
+        let headerOnly = try projectedTable(AST.GFMTableNode(
+            rows: [AST.GFMTableRowNode(
+                cells: [AST.GFMTableCellNode(content: "Heading", isHeader: false)],
+                isHeader: true
+            )],
+            alignments: [.right]
+        ))
+
+        #expect(headerless.columns.count == 1)
+        #expect(headerless.columns[0].header == nil)
+        #expect(headerless.columns[0].alignment == .none)
+        #expect(headerless.rows.count == 2)
+        #expect(headerless.rows[0].cells[0].content.accessibilityText == "Value")
+        #expect(headerless.rows[1].cells[0].content.accessibilityText == "Not a header")
+
+        #expect(headerOnly.columns.count == 1)
+        #expect(headerOnly.columns[0].header?.accessibilityText == "Heading")
+        #expect(headerOnly.columns[0].alignment == .right)
+        #expect(headerOnly.rows.isEmpty)
+    }
+
     @Test("Owns Dynamic Type policy for every adaptive label/content role")
     func adaptiveLabelContentRolePolicy() {
         let style = SwiftUIStyleConfiguration.github
@@ -641,6 +717,13 @@ struct SwiftUIRendererTests {
         #expect(narrow.height > wide.height)
         #expect(accessibility.height > wide.height)
 
+        if let output = ProcessInfo.processInfo.environment[
+            "SWIFTMARKDOWNPARSER_ADAPTIVE_WIDE_RENDER_OUTPUT"
+        ] {
+            let representation = NSBitmapImageRep(cgImage: wide)
+            let data = try #require(representation.representation(using: .png, properties: [:]))
+            try data.write(to: URL(fileURLWithPath: output), options: .atomic)
+        }
         if let output = ProcessInfo.processInfo.environment["SWIFTMARKDOWNPARSER_ADAPTIVE_RENDER_OUTPUT"] {
             let representation = NSBitmapImageRep(cgImage: accessibility)
             let data = try #require(representation.representation(using: .png, properties: [:]))
@@ -679,6 +762,56 @@ struct SwiftUIRendererTests {
         _ = try #require(narrow.cgImage)
         _ = try #require(accessibility.cgImage)
         #expect(recorder.values.count == 1)
+    }
+
+    @Test("Materializes a reusable rich table header exactly once")
+    func tableHeaderMaterializationIsSingleShot() async throws {
+        let recorder = RichContentRecorder()
+        let document = AST.DocumentNode(children: [
+            AST.GFMTableNode(
+                rows: [
+                    AST.GFMTableRowNode(
+                        cells: [AST.GFMTableCellNode(
+                            children: [AST.InlineMathNode(content: "Capability")],
+                            isHeader: true
+                        )],
+                        isHeader: true
+                    ),
+                    AST.GFMTableRowNode(
+                        cells: [AST.GFMTableCellNode(content: "Native", isHeader: false)],
+                        isHeader: false
+                    ),
+                    AST.GFMTableRowNode(
+                        cells: [AST.GFMTableCellNode(content: "Adaptive", isHeader: false)],
+                        isHeader: false
+                    ),
+                ],
+                alignments: [.left]
+            )
+        ])
+        let content = try await SwiftUIRenderer(options: SwiftUIRenderOptions(
+            richContentAdapter: SwiftUIRichContentAdapter { request in
+                guard case let .inlineMath(node) = request else { return nil }
+                recorder.record(node.content)
+                return AnyView(Text(node.content))
+            }
+        )).render(document)
+
+        #expect(recorder.values == ["Capability"])
+
+        _ = try #require(ImageRenderer(content:
+            content.frame(width: 480, alignment: .leading)
+        ).cgImage)
+        _ = try #require(ImageRenderer(content:
+            content.frame(width: 120, alignment: .leading)
+        ).cgImage)
+        _ = try #require(ImageRenderer(content:
+            content
+                .environment(\.dynamicTypeSize, .accessibility3)
+                .frame(width: 320, alignment: .leading)
+        ).cgImage)
+
+        #expect(recorder.values == ["Capability"])
     }
 
     @Test("Materializes package-localized native fallback text")
@@ -864,4 +997,21 @@ struct SwiftUIRendererTests {
         let document = try SwiftMarkdownParser().parse(markdown)
         _ = try await SwiftUIRenderer().render(document)
     }
+
+    private func projectedTable(
+        _ table: AST.GFMTableNode
+    ) throws -> NativeDocumentProjection.Table {
+        let plan = try NativeDocumentProjection(options: .init()).project(
+            AST.DocumentNode(children: [table])
+        )
+        guard let first = plan.blocks.first,
+              case let .table(projected) = first else {
+            throw ProjectedTableTestError.missingTable
+        }
+        return projected
+    }
+}
+
+private enum ProjectedTableTestError: Error {
+    case missingTable
 }

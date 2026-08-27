@@ -103,6 +103,13 @@ The plan uses temporary memory proportional to the document. It is consumed by
 one render and then discarded; the public renderer interface and the returned
 view remain unchanged.
 
+GFM tables are normalized during this phase. The first row is the only possible
+column-header source, table-level alignments define the column schema, and all
+remaining rows preserve their cell order. Missing headers and alignments remain
+explicit instead of being inferred later. Cell-level header and alignment
+fields are retained by the public AST for compatibility but are not competing
+renderer inputs.
+
 ## Adaptive native presentation
 
 The returned view is container-aware. It does not assume a device class or read
@@ -111,9 +118,12 @@ and Mermaid fallbacks adapt to the width proposed by their host and to
 accessibility Dynamic Type categories.
 
 Tables use a dense aligned grid while it fits. In narrow containers, or at an
-accessibility text size, the same projected cells become labeled rows that keep
-column headers beside their values. Rich inline adapters are materialized once;
-choosing a presentation does not reinvoke host adapters.
+accessibility text size, the same projected columns and data cells become
+labeled rows that keep optional column headers beside their values. A table with
+only headers remains a grid, while a table without headers stacks values without
+inventing labels. Rich inline adapters, including header content reused by many
+rows, are materialized once; choosing a presentation does not reinvoke host
+adapters.
 
 List markers, task states, footnote identifiers, Mermaid titles, and stacked
 table fields share one role-aware label/content module. Each role owns its

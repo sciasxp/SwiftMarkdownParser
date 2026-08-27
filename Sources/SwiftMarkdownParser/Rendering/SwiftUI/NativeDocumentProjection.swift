@@ -34,18 +34,24 @@ struct NativeDocumentProjection {
         let items: [Item]
     }
 
+    /// One canonical native interpretation of table columns, headers, and data rows.
     struct Table {
+        struct Column {
+            let index: Int
+            let alignment: GFMTableAlignment
+            let header: NativeInlinePlan?
+        }
+
         struct Row {
-            let isHeader: Bool
             let cells: [Cell]
         }
 
         struct Cell {
             let content: NativeInlinePlan
-            let alignment: GFMTableAlignment
             let columnIndex: Int
         }
 
+        let columns: [Column]
         let rows: [Row]
     }
 
@@ -124,19 +130,41 @@ struct NativeDocumentProjection {
     }
 
     private func tablePlan(_ table: AST.GFMTableNode) throws -> Table {
-        let rows = try table.rows.map { row in
+        // GFM gives semantic authority to the first row and the table's column schema.
+        // Cell-level flags remain public AST compatibility data, not renderer policy.
+        let headerRow = table.rows.first.flatMap { $0.isHeader ? $0 : nil }
+        let dataRows = headerRow == nil ? table.rows[...] : table.rows.dropFirst()
+        let columnCount = max(
+            table.alignments.count,
+            table.rows.map(\.cells.count).max() ?? 0
+        )
+
+        let columns = try (0..<columnCount).map { index in
+            Table.Column(
+                index: index,
+                alignment: index < table.alignments.count ? table.alignments[index] : .none,
+                header: try headerRow.flatMap { row in
+                    guard index < row.cells.count else { return nil }
+                    return try inlinePlan(for: row.cells[index])
+                }
+            )
+        }
+        let rows = try dataRows.map { row in
             let cells = try row.cells.enumerated().map { index, cell in
-                let nodes: [any ASTNode] = cell.children.isEmpty
-                    ? [AST.TextNode(content: cell.content)]
-                    : cell.children
                 return Table.Cell(
-                    content: try inlinePlan(nodes),
-                    alignment: index < table.alignments.count ? table.alignments[index] : .none,
+                    content: try inlinePlan(for: cell),
                     columnIndex: index
                 )
             }
-            return Table.Row(isHeader: row.isHeader, cells: cells)
+            return Table.Row(cells: cells)
         }
-        return Table(rows: rows)
+        return Table(columns: columns, rows: rows)
+    }
+
+    private func inlinePlan(for cell: AST.GFMTableCellNode) throws -> NativeInlinePlan {
+        let nodes: [any ASTNode] = cell.children.isEmpty
+            ? [AST.TextNode(content: cell.content)]
+            : cell.children
+        return try inlinePlan(nodes)
     }
 }

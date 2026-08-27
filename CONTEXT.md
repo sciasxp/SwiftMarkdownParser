@@ -36,6 +36,10 @@ _Avoid_: Inline rendering pipeline, text flattening
 The complete depth-first interpretation and validation of one Markdown Document before native identity, view materialization, rich-content adaptation, or other output work begins.
 _Avoid_: Incremental node rendering, partial native output
 
+**Native Table Projection**:
+The one-time SwiftUI-output normalization of a GFM table into canonical columns with optional headers and alignment plus ordered data rows, completed inside Atomic Native Document Projection before materialization or adaptive presentation.
+_Avoid_: Layout-time header discovery, cell-owned column alignment
+
 **Native Presentation Semantics**:
 The package-owned interpretation of native-output roles into deferred localized messages and pure presentation values, keeping VoiceOver meaning, visible fallback labels, errors, ordered markers, and code-token continuity consistent across SwiftUI modules.
 _Avoid_: Hardcoded accessibility copy, localization helper bag

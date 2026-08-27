@@ -278,22 +278,27 @@ extension SwiftUIRenderer {
     private func renderTable(
         _ table: NativeDocumentProjection.Table
     ) -> NativeMaterializedView {
+        let columns = table.columns.map { column in
+            NativeAdaptivePresentation.Table.Column(
+                id: nativeMaterializer.identity(),
+                alignment: column.alignment,
+                header: column.header.map(nativeInlineProjection.materialize)
+            )
+        }
         let rows = table.rows.map { row in
             let cells = row.cells.map { cell in
                 return NativeAdaptivePresentation.Table.Cell(
                     content: nativeInlineProjection.materialize(cell.content),
-                    alignment: cell.alignment,
                     columnIndex: cell.columnIndex
                 )
             }
             return NativeAdaptivePresentation.Table.Row(
                 id: nativeMaterializer.identity(),
-                isHeader: row.isHeader,
                 cells: cells
             )
         }
 
-        return nativeAdaptivePresentation.present(.table(.init(rows: rows)))
+        return nativeAdaptivePresentation.present(.table(.init(columns: columns, rows: rows)))
     }
 }
 

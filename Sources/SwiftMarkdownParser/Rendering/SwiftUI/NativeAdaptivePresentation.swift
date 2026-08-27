@@ -89,17 +89,22 @@ extension NativeAdaptivePresentation {
     }
 
     struct Table {
+        let columns: [Column]
         let rows: [Row]
+
+        struct Column: Identifiable {
+            let id: NativeViewIdentity
+            let alignment: GFMTableAlignment
+            let header: NativeInlineContent?
+        }
 
         struct Row: Identifiable {
             let id: NativeViewIdentity
-            let isHeader: Bool
             let cells: [Cell]
         }
 
         struct Cell: Identifiable {
             let content: NativeInlineContent
-            let alignment: GFMTableAlignment
             let columnIndex: Int
 
             var id: NativeViewIdentity { content.id }
@@ -306,7 +311,9 @@ private struct NativeAdaptiveTable: View {
 
     var body: some View {
         Group {
-            if dynamicTypeSize.isAccessibilitySize, hasBodyRows {
+            if table.rows.isEmpty {
+                grid
+            } else if dynamicTypeSize.isAccessibilitySize {
                 stackedRows
             } else {
                 ViewThatFits(in: .horizontal) {
@@ -322,10 +329,26 @@ private struct NativeAdaptiveTable: View {
 
     private var grid: some View {
         Grid(alignment: .topLeading, horizontalSpacing: 0, verticalSpacing: 0) {
+            if hasHeader {
+                GridRow(alignment: .top) {
+                    ForEach(table.columns) { column in
+                        NativeAdaptiveTableHeaderCell(
+                            column: column,
+                            style: style,
+                            semantics: semantics
+                        )
+                    }
+                }
+            }
+
             ForEach(table.rows) { row in
                 GridRow(alignment: .top) {
                     ForEach(row.cells) { cell in
-                        tableCell(cell, isHeader: row.isHeader)
+                        NativeAdaptiveTableValueCell(
+                            cell: cell,
+                            column: column(for: cell),
+                            style: style
+                        )
                     }
                 }
             }
@@ -341,22 +364,15 @@ private struct NativeAdaptiveTable: View {
 
     private var stackedRows: some View {
         VStack(alignment: .leading, spacing: style.listItemSpacing) {
-            ForEach(rowsForStackedPresentation) { row in
+            ForEach(table.rows) { row in
                 VStack(alignment: .leading, spacing: style.tableCellPadding) {
                     ForEach(row.cells) { cell in
-                        if let header = headerContent(at: cell.columnIndex) {
-                            NativeAdaptiveLabelContent(role: .tableField, style: style) {
-                                header
-                                    .font(style.tableHeaderFont)
-                                    .foregroundStyle(style.tableHeaderTextColor)
-                                    .fontWeight(.semibold)
-                                    .accessibilityAddTraits(.isHeader)
-                            } content: {
-                                stackedValue(cell)
-                            }
-                        } else {
-                            stackedValue(cell)
-                        }
+                        NativeAdaptiveTableField(
+                            cell: cell,
+                            column: column(for: cell),
+                            style: style,
+                            semantics: semantics
+                        )
                     }
                 }
                 .padding(style.tableCellPadding)
@@ -369,66 +385,116 @@ private struct NativeAdaptiveTable: View {
         }
     }
 
-    private func stackedValue(
-        _ cell: NativeAdaptivePresentation.Table.Cell
-    ) -> some View {
+    private var hasHeader: Bool {
+        table.columns.contains { $0.header != nil }
+    }
+
+    private func column(
+        for cell: NativeAdaptivePresentation.Table.Cell
+    ) -> NativeAdaptivePresentation.Table.Column {
+        precondition(cell.columnIndex < table.columns.count, "Projected table cell has no column")
+        return table.columns[cell.columnIndex]
+    }
+}
+
+@available(iOS 17.0, macOS 14.0, *)
+private struct NativeAdaptiveTableHeaderCell: View {
+    let column: NativeAdaptivePresentation.Table.Column
+    let style: SwiftUIStyleConfiguration
+    let semantics: NativePresentationSemantics
+
+    var body: some View {
+        Group {
+            if let header = column.header {
+                header
+                    .accessibilityLabel(Text(semantics.localized(.tableHeader(
+                        content: header.accessibilityText
+                    ))))
+                    .accessibilityAddTraits(.isHeader)
+            } else {
+                Color.clear.accessibilityHidden(true)
+            }
+        }
+        .font(style.tableHeaderFont)
+        .foregroundStyle(style.tableHeaderTextColor)
+        .fontWeight(.bold)
+        .frame(maxWidth: .infinity, alignment: nativeTableAlignment(column.alignment))
+        .padding(style.tableCellPadding)
+        .background(style.tableHeaderBackgroundColor)
+        .overlay(
+            Rectangle()
+                .stroke(style.tableBorderColor, lineWidth: style.tableBorderWidth)
+        )
+    }
+}
+
+@available(iOS 17.0, macOS 14.0, *)
+private struct NativeAdaptiveTableValueCell: View {
+    let cell: NativeAdaptivePresentation.Table.Cell
+    let column: NativeAdaptivePresentation.Table.Column
+    let style: SwiftUIStyleConfiguration
+
+    var body: some View {
         cell.content
             .font(style.tableBodyFont)
             .foregroundStyle(style.tableBodyTextColor)
-            .frame(maxWidth: .infinity, alignment: alignment(for: cell.alignment))
-            .accessibilityLabel(cell.content.accessibilityText)
-    }
-
-    private func tableCell(
-        _ cell: NativeAdaptivePresentation.Table.Cell,
-        isHeader: Bool
-    ) -> some View {
-        cell.content
-            .font(isHeader ? style.tableHeaderFont : style.tableBodyFont)
-            .foregroundStyle(isHeader ? style.tableHeaderTextColor : style.tableBodyTextColor)
-            .fontWeight(isHeader ? .bold : .regular)
-            .frame(maxWidth: .infinity, alignment: alignment(for: cell.alignment))
+            .frame(maxWidth: .infinity, alignment: nativeTableAlignment(column.alignment))
             .padding(style.tableCellPadding)
-            .background(isHeader ? style.tableHeaderBackgroundColor : style.tableCellBackgroundColor)
+            .background(style.tableCellBackgroundColor)
             .overlay(
                 Rectangle()
                     .stroke(style.tableBorderColor, lineWidth: style.tableBorderWidth)
             )
-            .accessibilityLabel(
-                isHeader
-                    ? Text(semantics.localized(.tableHeader(content: cell.content.accessibilityText)))
-                    : Text(cell.content.accessibilityText)
-            )
-            .accessibilityAddTraits(isHeader ? .isHeader : .isStaticText)
+            .accessibilityLabel(cell.content.accessibilityText)
+            .accessibilityAddTraits(.isStaticText)
     }
+}
 
-    private func headerContent(at index: Int) -> NativeInlineContent? {
-        guard let headerRow, index < headerRow.cells.count else { return nil }
-        return headerRow.cells[index].content
-    }
+@available(iOS 17.0, macOS 14.0, *)
+private struct NativeAdaptiveTableField: View {
+    let cell: NativeAdaptivePresentation.Table.Cell
+    let column: NativeAdaptivePresentation.Table.Column
+    let style: SwiftUIStyleConfiguration
+    let semantics: NativePresentationSemantics
 
-    private func alignment(for alignment: GFMTableAlignment) -> Alignment {
-        switch alignment {
-        case .left, .none:
-            .leading
-        case .center:
-            .center
-        case .right:
-            .trailing
+    var body: some View {
+        Group {
+            if let header = column.header {
+                NativeAdaptiveLabelContent(role: .tableField, style: style) {
+                    header
+                        .font(style.tableHeaderFont)
+                        .foregroundStyle(style.tableHeaderTextColor)
+                        .fontWeight(.semibold)
+                        .accessibilityLabel(Text(semantics.localized(.tableHeader(
+                            content: header.accessibilityText
+                        ))))
+                        .accessibilityAddTraits(.isHeader)
+                } content: {
+                    value
+                }
+            } else {
+                value
+            }
         }
     }
 
-    private var headerRow: NativeAdaptivePresentation.Table.Row? {
-        table.rows.first(where: \.isHeader)
+    private var value: some View {
+        cell.content
+            .font(style.tableBodyFont)
+            .foregroundStyle(style.tableBodyTextColor)
+            .frame(maxWidth: .infinity, alignment: nativeTableAlignment(column.alignment))
+            .accessibilityLabel(cell.content.accessibilityText)
     }
+}
 
-    private var rowsForStackedPresentation: [NativeAdaptivePresentation.Table.Row] {
-        let bodyRows = table.rows.filter { !$0.isHeader }
-        return bodyRows.isEmpty ? table.rows : bodyRows
-    }
-
-    private var hasBodyRows: Bool {
-        table.rows.contains { !$0.isHeader }
+private func nativeTableAlignment(_ alignment: GFMTableAlignment) -> Alignment {
+    switch alignment {
+    case .left, .none:
+        .leading
+    case .center:
+        .center
+    case .right:
+        .trailing
     }
 }
 
