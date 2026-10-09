@@ -55,6 +55,10 @@ The parser generates a hierarchical AST with these main node types:
 - `AST.ListNode` - Ordered/unordered lists
 - `AST.ListItemNode` - List items
 - `AST.BlockQuoteNode` - > blockquotes
+- `AST.ThematicBreakNode` - `---` horizontal rules
+- `AST.LineBreakNode` / `AST.SoftBreakNode` - hard and soft line breaks
+- `AST.AutolinkNode` - `<https://example.com>` and bare-URL autolinks
+- `AST.HTMLBlockNode` / `AST.HTMLInlineNode` - raw HTML
 
 ### GFM Extension Nodes
 - `AST.GFMTableNode` - Pipe-separated tables
@@ -62,6 +66,11 @@ The parser generates a hierarchical AST with these main node types:
 - `AST.GFMTableCellNode` - Table cells
 - `AST.GFMTaskListItemNode` - [x] task lists
 - `AST.StrikethroughNode` - ~~strikethrough~~
+- `AST.FootnoteReferenceNode` / `AST.FootnoteDefinitionNode` - `[^1]` footnotes
+
+### Rich Content Nodes
+- `AST.InlineMathNode` / `AST.MathBlockNode` - `$...$` and `$$...$$` math
+- `AST.MermaidDiagramNode` - ```` ```mermaid ```` diagram blocks
 
 ## Working with AST
 
@@ -87,6 +96,19 @@ for visit in document.depthFirst() {
 
 Traversal is lazy, includes the root, and preserves child order. Every visit
 also provides `ancestors`, `parent`, `path`, and `depth`.
+
+To flatten inline content to text (text, code spans, autolinks, image alt
+text, and raw HTML, in document order), use
+`AST.GFMTableCellNode.extractPlainText(from:)`:
+
+```swift
+let title = AST.GFMTableCellNode.extractPlainText(from: heading.children)
+```
+
+Nodes carry an optional `SourceLocation` (1-based line/column, 0-based offset,
+exclusive end). `location.extending(over: text)` returns a range that starts at
+`location` and covers `text`; `start.spanning(to: end)` returns the range from
+`start` through the end of `end`.
 
 ## Rewriting a Document
 
@@ -126,6 +148,9 @@ do {
     print("Source has \(actual) characters; limit is \(limit)")
 } catch MarkdownParsingError.resourceLimitExceeded(let resource, let limit, let actual) {
     print("Exceeded \(resource.rawValue): \(actual) > \(limit)")
+} catch MarkdownParsingError.internalInvariant(let message, let location) {
+    // Parser bug, not a malformed input; please report it.
+    print("Internal parser error: \(message) at \(String(describing: location))")
 } catch {
     print("Parsing failed: \(error)")
 }

@@ -45,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Performance testing with real-world documents (README.md as test case)
   - Validation of protection mechanisms under various conditions
   - Concurrent parsing tests to ensure thread safety
+- **Localized Native Semantics**: SwiftUI fallback titles, renderer errors, and VoiceOver labels ship in English and Brazilian Portuguese (pt-BR) ([ADR 0008](Docs/adr/0008-concentrate-native-semantics-and-localization.md))
 
 ### Changed
 - **Source-Breaking Parser Interface**: Replaced async `parseToAST(_:)` and mode-based `Configuration` with synchronous `parse(_:)` and `ResourceLimits`
@@ -65,16 +66,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Built-in adapter selection, aliases, validation, fallback, and caching have one owner
   - Unsupported languages and adapter failures preserve plain code output
   - `HTMLSyntaxHighlightingOptions` now controls only enablement and CSS prefix
+- **Native SwiftUI Rendering Internals**: Deepened the internal native presentation modules; the public `SwiftUIRenderer` interface is unchanged
+  - Adaptive, Dynamic Type-aware block layout in one module ([ADR 0006](Docs/adr/0006-deepen-native-adaptive-presentation.md))
+  - One closed `SwiftUIRichContentRequest` / `SwiftUIRichContentAdapter` seam with native fallbacks ([ADR 0007](Docs/adr/0007-deepen-native-rich-content-seam.md))
+  - Main-actor view identity and materialization ([ADR 0009](Docs/adr/0009-own-native-identity-and-materialization.md))
+  - Atomic document projection: a complete typed plan is built before any view is materialized ([ADR 0010](Docs/adr/0010-plan-native-documents-before-materialization.md))
+  - Shared adaptive label/content presentation for list markers, tasks, footnotes, Mermaid titles, and table fields ([ADR 0011](Docs/adr/0011-deepen-adaptive-label-content-presentation.md))
+  - Table meaning (columns, alignment, headers) normalized once in the projection ([ADR 0012](Docs/adr/0012-normalize-native-table-meaning-once.md))
+  - `NativePresentationStyle` normalizes `SwiftUIStyleConfiguration` metrics once and shares role values across modules ([ADR 0013](Docs/adr/0013-deepen-native-presentation-style.md))
 - **Removed Artificial Block Limits**: Eliminated the hardcoded 100-block limit that was preventing large documents from being fully parsed
   - Parser can now handle documents of any reasonable size
   - Replaced with intelligent protection mechanisms that detect actual problems
   - Improved performance for large technical documentation
-- **Updated Documentation**: Comprehensive documentation updates across all guides
-  - Added resource-limit examples for different trust boundaries
-  - Performance considerations for various scenarios
-  - Deterministic resource recommendations for user-generated content
+- **Updated Documentation**: Guides realigned with the current public API
+  - Fixed non-compiling examples and the Swift Package Manager install snippet
+  - Documented `NativePresentationStyle`, renderer error types, Mermaid layout configuration, and style variants
+  - Completed the AST node list and syntax-highlighting token table; corrected theme color values and source-tree layouts
 
 ### Fixed
+- **Unicode Newlines**: The tokenizer and reference-definition resolver now treat every Unicode newline, including CRLF, consistently, so blocks separate and source ranges stay correct
 - **Large Document Parsing**: Fixed issue where parser would stop at 100 blocks, preventing full document parsing
 - **Infinite Loop Protection**: Improved detection and prevention of parser infinite loops
 - **Performance**: Better handling of complex documents with many elements
@@ -85,7 +95,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Previous Releases]
 
-### [1.0.0] - Previous Release
+### [1.0.0]
 - Initial release with CommonMark and GFM support
 - HTML and SwiftUI renderers
 - Basic parser configuration options

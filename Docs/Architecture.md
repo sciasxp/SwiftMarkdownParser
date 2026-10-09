@@ -186,14 +186,27 @@ rich-content adapter seam.
 
 ```text
 Sources/SwiftMarkdownParser/
-├── Parsing/                 public document-construction seam
-├── AST.swift                semantic document node types
-├── ASTTraversal.swift       shared traversal
-├── ASTRewriter.swift        immutable rewriting
-├── Rendering/HTML/          HTML, browser enrichment, and WebKit adapter
-├── Rendering/SwiftUI/       native SwiftUI output
-├── SyntaxHighlighter.swift  public highlighting orchestration
-└── *SyntaxEngine.swift      internal built-in language adapters
+├── Parsing/
+│   ├── SwiftMarkdownParser.swift      public document-construction seam
+│   └── LinkReference.swift            link reference definitions
+├── Tokenizer.swift                    internal tokenizer
+├── BlockParser.swift                  internal block parser
+├── InlineParser.swift                 internal inline parser
+├── ReferenceDefinitionResolver.swift  reference-definition resolution
+├── ParsingBudget.swift                deterministic resource limits
+├── MarkdownDocumentValidator.swift    document validation
+├── GFMExtensions.swift                GFM table utilities
+├── AST.swift                          semantic document node types
+├── ASTTraversal.swift                 shared traversal
+├── ASTRewriter.swift                  immutable rewriting
+├── Rendering/HTML/                    HTML, browser enrichment, and WebKit adapter
+├── Rendering/SwiftUI/                 native SwiftUI output
+├── SyntaxHighlighter.swift            public highlighting orchestration
+├── SyntaxHighlighting.swift           public token, theme, and language types
+├── *SyntaxEngine.swift                internal built-in language adapters
+└── Resources/
+    ├── Browser/                       bundled KaTeX/Mermaid assets and licenses
+    └── Localizable.xcstrings          native SwiftUI string catalog
 ```
 
 ## Decision records

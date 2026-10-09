@@ -44,12 +44,13 @@ Markdown Source
 ## Key Source Directories
 
 - `Sources/SwiftMarkdownParser/` — all library code
-  - Construction: `Parsing/SwiftMarkdownParser.swift`, `Tokenizer.swift`, `BlockParser.swift`, `InlineParser.swift`
+  - Construction: `Parsing/SwiftMarkdownParser.swift` and `Parsing/LinkReference.swift`; at the root, `Tokenizer.swift`, `BlockParser.swift`, `InlineParser.swift`, `ReferenceDefinitionResolver.swift`, `ParsingBudget.swift`, `MarkdownDocumentValidator.swift`
   - AST: `AST.swift`, `ASTTraversal.swift`, `ASTRewriter.swift`
   - HTML output: `Rendering/HTML/`
   - Native SwiftUI output: `Rendering/SwiftUI/`
   - GFM table utilities: `GFMExtensions.swift`
   - Syntax highlighting: `SyntaxHighlighter.swift`, public semantic types in `SyntaxHighlighting.swift`, and one internal `*SyntaxEngine.swift` adapter per language
+  - Resources: `Resources/Browser/` (bundled KaTeX/Mermaid assets, fonts, `licenses/`) and `Resources/Localizable.xcstrings`
 - `Tests/SwiftMarkdownParserTests/` — Swift Testing suites and repository-owned fixtures
 - `Examples/` — `WebViewTest.swift`, `AST_Example.swift`
 - `Docs/` — usage guides for HTML rendering, SwiftUI rendering, syntax highlighting, Mermaid, KaTeX
@@ -62,7 +63,7 @@ Markdown Source
 - **Tests use Swift Testing** — use `@Test` with `#expect`/`#require`; add `async` only when the test performs asynchronous work.
 - **Syntax support has one source of truth** — ask `await SyntaxHighlighter.supportedLanguages`; HTML options only enable highlighting and choose the CSS prefix.
 - **SwiftUI output requires `@MainActor`** — create and call `SwiftUIRenderer` and (on macOS) `MarkdownWebView` on the main actor.
-- **Bundled browser assets are real package resources** — `.bundled` inlines pinned Mermaid 10.9.1 or KaTeX 0.16.21 assets; `.cdn` keeps documents small, and `.custom` accepts validated HTTPS or file URLs.
+- **Bundled browser assets are real package resources** — `.bundled` inlines pinned Mermaid 10.9.1 or KaTeX 0.16.21 assets (both `katex.min.js` and `katex.min.css` report 0.16.21; upstream licenses live in `Resources/Browser/licenses/`); `.cdn` keeps documents small, and `.custom` accepts validated HTTPS or file URLs.
 - **Browser readiness is semantic** — on macOS, `MarkdownWebView.onRender` succeeds after required runtimes initialize, not merely after WebKit navigation finishes.
 - **HTML entity decoding is not implemented** — entities like `&amp;` pass through as-is.
 

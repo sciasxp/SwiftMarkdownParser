@@ -223,7 +223,7 @@ let nativeOptions = SwiftUIRenderOptions(
         guard case let .mermaid(node, configuration) = request else {
             return nil
         }
-        return AnyView(MyMermaidView(
+        return AnyView(MyMermaidView(   // your view
             source: node.content,
             configuration: configuration
         ))
@@ -316,7 +316,7 @@ output in your own web view or use `SwiftUIRenderer`.
 - [Parser Usage Guide](Docs/ParserUsage.md) — AST generation and custom processing
 - [Mermaid Diagrams Guide](Docs/MermaidUsage.md) — interactive chart and diagram support
 - [KaTeX Math Guide](Docs/KaTeXUsage.md) — math expression rendering
-- See [`Examples/`](Examples/) directory for complete working examples
+- See [`Examples/`](Examples/) for sample code: `WebViewTest.swift` builds as the `WebViewTest` target; `AST_Example.swift` is illustrative and excluded from the build
 - Check [`Tests/`](Tests/) directory for comprehensive usage patterns
 - Review [`CONTRIBUTING.md`](CONTRIBUTING.md) for development guidelines
 

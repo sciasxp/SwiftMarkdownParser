@@ -365,20 +365,25 @@ The syntax highlighting system supports 25+ token types:
 | `.identifier` | Variable names | `userName`, `count` |
 | `.operator` | Operators | `+`, `-`, `==`, `&&` |
 | `.punctuation` | Punctuation | `(`, `)`, `{`, `}`, `;` |
+| `.plain` | Default, unclassified text | whitespace, plain text |
 | `.type` | Type names | `String`, `Int`, `User` |
 | `.function` | Function names | `print`, `map`, `filter` |
+| `.variable` | Variables | `let total`, `$HOME` |
 | `.builtin` | Built-in functions | `console.log`, `len`, `echo` |
 | `.constant` | Constants | `true`, `false`, `null` |
 | `.attribute` | Attributes/decorators | `@State`, `@Component` |
 | `.generic` | Generic parameters | `<T>`, `<K, V>` |
+| `.namespace` | Modules, packages, imports | `import Foundation`, `package app` |
 | `.method` | Method calls | `user.getName()` |
 | `.property` | Object properties | `user.name` |
 | `.parameter` | Function parameters | `$0`, `$1` |
+| `.label` | Swift argument labels | `for:` in `index(for: key)` |
 | `.modifier` | Access modifiers | `public`, `private` |
 | `.template` | Template literals | `` `Hello ${name}` `` |
 | `.interpolation` | String interpolation | `${name}`, `\(value)` |
 | `.regex` | Regular expressions | `/pattern/flags` |
 | `.escape` | Escape sequences | `\n`, `\t`, `\"` |
+| `.annotation` | TypeScript/Java annotations | `@Override`, `@Injectable` |
 
 ## ⚡ Performance
 
@@ -440,9 +445,9 @@ adapter plus module and HTML integration tests.
 ```swift
 let highlighter = SyntaxHighlighter()
 if let tokens = await highlighter.highlight(code, language: "swift") {
-    consume(tokens)
+    consume(tokens)          // your token handler
 } else {
-    consumePlainText(code)
+    consumePlainText(code)   // your plain-text fallback
 }
 ```
 

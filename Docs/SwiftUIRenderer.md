@@ -58,10 +58,10 @@ let options = SwiftUIRenderOptions(
     richContentAdapter: SwiftUIRichContentAdapter { request in
         switch request {
         case let .mermaid(node, configuration):
-            AnyView(MyMermaidView(source: node.content, configuration: configuration))
+            AnyView(MyMermaidView(source: node.content, configuration: configuration))  // your view
 
         case let .mathBlock(node):
-            AnyView(MyMathView(source: node.content, displayMode: true))
+            AnyView(MyMathView(source: node.content, displayMode: true))  // your view
 
         case let .image(_, source):
             AnyView(AsyncImage(url: source))
@@ -80,7 +80,10 @@ let view = try await SwiftUIRenderer(options: options).render(document)
 
 Built-in styles include `.github`, `.minimal`, and `.academic`. A custom
 `SwiftUIStyleConfiguration` can control typography, colors, spacing, tables,
-task lists, code blocks, and images. Semantic code highlighting is opt-in via
+task lists, code blocks, and images. Any style derives variants with
+`darkMode()` (dark palette) and `compact()` (spacing scaled to 75%), e.g.
+`.github.darkMode().compact()`. `linkHandler` receives every activated link
+URL; when it is `nil`, links use the system default. Semantic code highlighting is opt-in via
 `syntaxHighlightingTheme`; `.github`, `.xcode`, and `.vsCodeDark` are included.
 Unsupported and unlabelled languages retain the plain code style without losing
 source text.
@@ -209,3 +212,6 @@ public struct SwiftUIRenderer {
     public func render(_ document: AST.DocumentNode) async throws -> AnyView
 }
 ```
+
+`render(_:)` throws `SwiftUIRenderingError.unsupportedNodeType(ASTNodeType)`
+for a node it cannot project; the error description is localized.

@@ -93,26 +93,26 @@ public extension SyntaxHighlightingTheme {
         backgroundColor: Color(red: 0.97, green: 0.97, blue: 0.98),
         textColor: Color(red: 0.15, green: 0.15, blue: 0.15),
         tokenColors: [
-            .keyword: Color(red: 0.82, green: 0.10, blue: 0.26),           // #d73a49
-            .string: Color(red: 0.03, green: 0.52, blue: 0.11),            // #032f62
-            .comment: Color(red: 0.40, green: 0.40, blue: 0.40),           // #6a737d
-            .number: Color(red: 0.00, green: 0.31, blue: 0.69),            // #005cc5
-            .function: Color(red: 0.39, green: 0.18, blue: 0.64),          // #6f42c1
-            .builtin: Color(red: 0.00, green: 0.31, blue: 0.69),           // #005cc5
-            .type: Color(red: 0.39, green: 0.18, blue: 0.64),              // #6f42c1
-            .variable: Color(red: 0.15, green: 0.15, blue: 0.15),          // #24292e
-            .operator: Color(red: 0.82, green: 0.10, blue: 0.26),          // #d73a49
-            .constant: Color(red: 0.00, green: 0.31, blue: 0.69),          // #005cc5
-            .attribute: Color(red: 0.00, green: 0.31, blue: 0.69),         // #005cc5
-            .generic: Color(red: 0.39, green: 0.18, blue: 0.64),           // #6f42c1
-            .method: Color(red: 0.39, green: 0.18, blue: 0.64),            // #6f42c1
-            .property: Color(red: 0.00, green: 0.31, blue: 0.69),          // #005cc5
-            .parameter: Color(red: 0.15, green: 0.15, blue: 0.15),         // #24292e
-            .modifier: Color(red: 0.82, green: 0.10, blue: 0.26),          // #d73a49
-            .template: Color(red: 0.03, green: 0.52, blue: 0.11),          // #032f62
-            .interpolation: Color(red: 0.82, green: 0.10, blue: 0.26),     // #d73a49
-            .regex: Color(red: 0.03, green: 0.52, blue: 0.11),             // #032f62
-            .escape: Color(red: 0.82, green: 0.10, blue: 0.26)             // #d73a49
+            .keyword: Color(red: 0.82, green: 0.10, blue: 0.26),           // #d11a42
+            .string: Color(red: 0.03, green: 0.52, blue: 0.11),            // #08851c
+            .comment: Color(red: 0.40, green: 0.40, blue: 0.40),           // #666666
+            .number: Color(red: 0.00, green: 0.31, blue: 0.69),            // #004fb0
+            .function: Color(red: 0.39, green: 0.18, blue: 0.64),          // #632ea3
+            .builtin: Color(red: 0.00, green: 0.31, blue: 0.69),           // #004fb0
+            .type: Color(red: 0.39, green: 0.18, blue: 0.64),              // #632ea3
+            .variable: Color(red: 0.15, green: 0.15, blue: 0.15),          // #262626
+            .operator: Color(red: 0.82, green: 0.10, blue: 0.26),          // #d11a42
+            .constant: Color(red: 0.00, green: 0.31, blue: 0.69),          // #004fb0
+            .attribute: Color(red: 0.00, green: 0.31, blue: 0.69),         // #004fb0
+            .generic: Color(red: 0.39, green: 0.18, blue: 0.64),           // #632ea3
+            .method: Color(red: 0.39, green: 0.18, blue: 0.64),            // #632ea3
+            .property: Color(red: 0.00, green: 0.31, blue: 0.69),          // #004fb0
+            .parameter: Color(red: 0.15, green: 0.15, blue: 0.15),         // #262626
+            .modifier: Color(red: 0.82, green: 0.10, blue: 0.26),          // #d11a42
+            .template: Color(red: 0.03, green: 0.52, blue: 0.11),          // #08851c
+            .interpolation: Color(red: 0.82, green: 0.10, blue: 0.26),     // #d11a42
+            .regex: Color(red: 0.03, green: 0.52, blue: 0.11),             // #08851c
+            .escape: Color(red: 0.82, green: 0.10, blue: 0.26)             // #d11a42
         ]
     )
 
@@ -122,26 +122,26 @@ public extension SyntaxHighlightingTheme {
         backgroundColor: Color(red: 1.0, green: 1.0, blue: 1.0),
         textColor: Color(red: 0.0, green: 0.0, blue: 0.0),
         tokenColors: [
-            .keyword: Color(red: 0.67, green: 0.18, blue: 0.55),           // #aa0d91
-            .string: Color(red: 0.77, green: 0.10, blue: 0.09),            // #c41a16
-            .comment: Color(red: 0.00, green: 0.52, blue: 0.00),           // #008400
-            .number: Color(red: 0.15, green: 0.00, blue: 0.81),            // #2600d0
-            .function: Color(red: 0.24, green: 0.40, blue: 0.72),          // #3d65cc
-            .builtin: Color(red: 0.24, green: 0.40, blue: 0.72),           // #3d65cc
-            .type: Color(red: 0.24, green: 0.40, blue: 0.72),              // #3d65cc
+            .keyword: Color(red: 0.67, green: 0.18, blue: 0.55),           // #ab2e8c
+            .string: Color(red: 0.77, green: 0.10, blue: 0.09),            // #c41a17
+            .comment: Color(red: 0.00, green: 0.52, blue: 0.00),           // #008500
+            .number: Color(red: 0.15, green: 0.00, blue: 0.81),            // #2600cf
+            .function: Color(red: 0.24, green: 0.40, blue: 0.72),          // #3d66b8
+            .builtin: Color(red: 0.24, green: 0.40, blue: 0.72),           // #3d66b8
+            .type: Color(red: 0.24, green: 0.40, blue: 0.72),              // #3d66b8
             .variable: Color(red: 0.00, green: 0.00, blue: 0.00),          // #000000
-            .operator: Color(red: 0.67, green: 0.18, blue: 0.55),          // #aa0d91
-            .constant: Color(red: 0.67, green: 0.18, blue: 0.55),          // #aa0d91
+            .operator: Color(red: 0.67, green: 0.18, blue: 0.55),          // #ab2e8c
+            .constant: Color(red: 0.67, green: 0.18, blue: 0.55),          // #ab2e8c
             .attribute: Color(red: 0.40, green: 0.40, blue: 0.40),         // #666666
-            .generic: Color(red: 0.24, green: 0.40, blue: 0.72),           // #3d65cc
-            .method: Color(red: 0.24, green: 0.40, blue: 0.72),            // #3d65cc
-            .property: Color(red: 0.24, green: 0.40, blue: 0.72),          // #3d65cc
+            .generic: Color(red: 0.24, green: 0.40, blue: 0.72),           // #3d66b8
+            .method: Color(red: 0.24, green: 0.40, blue: 0.72),            // #3d66b8
+            .property: Color(red: 0.24, green: 0.40, blue: 0.72),          // #3d66b8
             .parameter: Color(red: 0.00, green: 0.00, blue: 0.00),         // #000000
-            .modifier: Color(red: 0.67, green: 0.18, blue: 0.55),          // #aa0d91
-            .template: Color(red: 0.77, green: 0.10, blue: 0.09),          // #c41a16
-            .interpolation: Color(red: 0.67, green: 0.18, blue: 0.55),     // #aa0d91
-            .regex: Color(red: 0.77, green: 0.10, blue: 0.09),             // #c41a16
-            .escape: Color(red: 0.67, green: 0.18, blue: 0.55)             // #aa0d91
+            .modifier: Color(red: 0.67, green: 0.18, blue: 0.55),          // #ab2e8c
+            .template: Color(red: 0.77, green: 0.10, blue: 0.09),          // #c41a17
+            .interpolation: Color(red: 0.67, green: 0.18, blue: 0.55),     // #ab2e8c
+            .regex: Color(red: 0.77, green: 0.10, blue: 0.09),             // #c41a17
+            .escape: Color(red: 0.67, green: 0.18, blue: 0.55)             // #ab2e8c
         ]
     )
 
@@ -151,26 +151,26 @@ public extension SyntaxHighlightingTheme {
         backgroundColor: Color(red: 0.12, green: 0.12, blue: 0.12),
         textColor: Color(red: 0.86, green: 0.86, blue: 0.86),
         tokenColors: [
-            .keyword: Color(red: 0.31, green: 0.59, blue: 0.84),           // #4fc3f7
-            .string: Color(red: 0.81, green: 0.56, blue: 0.45),            // #ce9178
-            .comment: Color(red: 0.38, green: 0.67, blue: 0.38),           // #6a9955
-            .number: Color(red: 0.71, green: 0.82, blue: 0.65),            // #b5cea8
-            .function: Color(red: 0.86, green: 0.86, blue: 0.44),          // #dcdcaa
-            .builtin: Color(red: 0.31, green: 0.59, blue: 0.84),           // #4fc3f7
-            .type: Color(red: 0.29, green: 0.78, blue: 0.64),              // #4ac7a8
-            .variable: Color(red: 0.60, green: 0.73, blue: 0.85),          // #9cdcfe
-            .operator: Color(red: 0.86, green: 0.86, blue: 0.86),          // #d4d4d4
-            .constant: Color(red: 0.31, green: 0.59, blue: 0.84),          // #4fc3f7
-            .attribute: Color(red: 0.92, green: 0.79, blue: 0.55),         // #ebc774
-            .generic: Color(red: 0.29, green: 0.78, blue: 0.64),           // #4ac7a8
-            .method: Color(red: 0.86, green: 0.86, blue: 0.44),            // #dcdcaa
-            .property: Color(red: 0.60, green: 0.73, blue: 0.85),          // #9cdcfe
-            .parameter: Color(red: 0.60, green: 0.73, blue: 0.85),         // #9cdcfe
-            .modifier: Color(red: 0.31, green: 0.59, blue: 0.84),          // #4fc3f7
-            .template: Color(red: 0.81, green: 0.56, blue: 0.45),          // #ce9178
-            .interpolation: Color(red: 0.86, green: 0.86, blue: 0.44),     // #dcdcaa
-            .regex: Color(red: 0.81, green: 0.56, blue: 0.45),             // #ce9178
-            .escape: Color(red: 0.86, green: 0.86, blue: 0.44)             // #dcdcaa
+            .keyword: Color(red: 0.31, green: 0.59, blue: 0.84),           // #4f96d6
+            .string: Color(red: 0.81, green: 0.56, blue: 0.45),            // #cf8f73
+            .comment: Color(red: 0.38, green: 0.67, blue: 0.38),           // #61ab61
+            .number: Color(red: 0.71, green: 0.82, blue: 0.65),            // #b5d1a6
+            .function: Color(red: 0.86, green: 0.86, blue: 0.44),          // #dbdb70
+            .builtin: Color(red: 0.31, green: 0.59, blue: 0.84),           // #4f96d6
+            .type: Color(red: 0.29, green: 0.78, blue: 0.64),              // #4ac7a3
+            .variable: Color(red: 0.60, green: 0.73, blue: 0.85),          // #99bad9
+            .operator: Color(red: 0.86, green: 0.86, blue: 0.86),          // #dbdbdb
+            .constant: Color(red: 0.31, green: 0.59, blue: 0.84),          // #4f96d6
+            .attribute: Color(red: 0.92, green: 0.79, blue: 0.55),         // #ebc98c
+            .generic: Color(red: 0.29, green: 0.78, blue: 0.64),           // #4ac7a3
+            .method: Color(red: 0.86, green: 0.86, blue: 0.44),            // #dbdb70
+            .property: Color(red: 0.60, green: 0.73, blue: 0.85),          // #99bad9
+            .parameter: Color(red: 0.60, green: 0.73, blue: 0.85),         // #99bad9
+            .modifier: Color(red: 0.31, green: 0.59, blue: 0.84),          // #4f96d6
+            .template: Color(red: 0.81, green: 0.56, blue: 0.45),          // #cf8f73
+            .interpolation: Color(red: 0.86, green: 0.86, blue: 0.44),     // #dbdb70
+            .regex: Color(red: 0.81, green: 0.56, blue: 0.45),             // #cf8f73
+            .escape: Color(red: 0.86, green: 0.86, blue: 0.44)             // #dbdb70
         ]
     )
 }

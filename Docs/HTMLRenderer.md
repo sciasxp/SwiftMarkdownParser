@@ -30,8 +30,8 @@ regions uses the same renderer with one structured assembly value:
 ```swift
 let assembly = HTMLDocumentAssembly(
     metadata: HTMLDocumentMetadata(title: "Preview", language: "pt-BR"),
-    styles: [presentationCSS],
-    scripts: [presentationJavaScript],
+    styles: [presentationCSS],           // your CSS string
+    scripts: [presentationJavaScript],   // your JavaScript string
     regions: [
         HTMLDocumentRegion(
             id: "section-1",
@@ -93,6 +93,11 @@ let options = HTMLRenderOptions(
 let html = try await HTMLRenderer(options: options).renderFragment(document)
 ```
 
+`HTMLStyleConfiguration` also accepts `customAttributes`
+(`[ASTNodeType: [String: String]]`), added to every element of that node type,
+and `includeSourcePositions`, which emits `data-source-line` and
+`data-source-column` attributes for editor or diagnostics mapping. Both default to off.
+
 Set `includeDefaultStyles` to `false` when a host presentation supplies the
 complete visual stylesheet. The renderer still owns document composition,
 feature assets, and browser readiness.
@@ -123,6 +128,16 @@ Syntax highlighting does not require a browser runtime. `HTMLRenderer` reuses
 one `SyntaxHighlighter` across code blocks and render calls, while its internal
 code-block renderer owns escaping and semantic `<span>` assembly. Unsupported
 languages or highlighting failures fall back to the original escaped code.
+
+## Errors
+
+`HTMLRenderer` throws `HTMLRenderingError`:
+
+- `unsupportedNodeType(ASTNodeType)` - a node the renderer cannot emit.
+- `bundledAssetUnavailable(String)` - a `.bundled` KaTeX/Mermaid resource is missing.
+- `invalidAssetURL(feature:value:)` - a custom asset URL is not valid.
+- `browserConfigurationEncodingFailed` - runtime configuration could not be encoded.
+- `invalidDocumentRegion(String)` - an `HTMLDocumentRegion` could not be assembled.
 
 ## WebView presentation
 

@@ -87,8 +87,7 @@ swift run WebViewTest
 - **Access control**: Explicit access levels (`public`, `internal`, `private`)
 - **Naming**:
   - `PascalCase` for types and protocols
-  - `camelCase` for functions and variables
-  - `UPPER_CASE` for constants
+  - `lowerCamelCase` for functions, variables, and constants (including `static let`)
 
 Example:
 ```swift
@@ -210,10 +209,8 @@ Any other relevant information.
 import Testing
 @testable import SwiftMarkdownParser
 
-@Suite("Markdown document construction")
 struct MarkdownDocumentTests {
-    @Test("Constructs one heading from Markdown source")
-    func parseHeadingConstructsSemanticNode() throws {
+    @Test func parse_atxHeading_producesHeadingNode() throws {
         let document = try SwiftMarkdownParser().parse("# Heading")
 
         #expect(document.children.count == 1)
@@ -221,6 +218,9 @@ struct MarkdownDocumentTests {
     }
 }
 ```
+
+Name tests `featureName_condition_expectedResult` without a `test` prefix; the
+`@Test` attribute handles discovery.
 
 ### Test Categories
 - **Module tests**: Exercise behavior through the module's interface

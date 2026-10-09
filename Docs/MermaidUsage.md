@@ -95,7 +95,7 @@ struct ContentView: View {
                     guard case let .mermaid(node, configuration) = request else {
                         return nil
                     }
-                    return AnyView(MyMermaidView(
+                    return AnyView(MyMermaidView(   // your view
                         source: node.content,
                         configuration: configuration
                     ))
@@ -129,6 +129,19 @@ let document = try parser.parse(markdown)
 let options = HTMLRenderOptions(mermaidConfiguration: config)
 let html = try await HTMLRenderer(options: options).renderFragment(document)
 ```
+
+`MermaidConfiguration.dark` and `.darkHighContrast` are ready-made dark
+presets. Diagram-specific layout is set through `flowchart` and `sequence`:
+
+```swift
+let config = MermaidConfiguration(
+    flowchart: FlowchartConfig(curve: .linear, nodeSpacing: 40, rankSpacing: 60),
+    sequence: SequenceConfig(showNumbers: true, mirrorActors: false)
+)
+```
+
+`FlowchartConfig.Curve` is `.basis` (default), `.linear`, `.cardinal`,
+`.stepBefore`, or `.stepAfter`.
 
 `assetSource` accepts `.bundled`, `.cdn(version:)`, or
 `.custom(scriptURL:)`. Bundled mode inlines the pinned Mermaid runtime and
