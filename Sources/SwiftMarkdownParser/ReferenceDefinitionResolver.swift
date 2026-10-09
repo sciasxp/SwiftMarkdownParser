@@ -13,9 +13,12 @@ enum ReferenceDefinitionResolver {
         var line = 1
         var offset = 0
         var openFence: Fence?
+        var lineStart = source.startIndex
 
-        for segment in source.split(separator: "\n", omittingEmptySubsequences: false) {
-            let rawLine = String(segment)
+        while true {
+            let newlineIndex = source[lineStart...].firstIndex(where: \.isNewline)
+            let lineEnd = newlineIndex ?? source.endIndex
+            let rawLine = String(source[lineStart..<lineEnd])
             let location = SourceLocation(line: line, column: 1, offset: offset)
 
             if let fence = fence(in: rawLine) {
@@ -59,14 +62,14 @@ enum ReferenceDefinitionResolver {
                 }
             }
 
-            offset += rawLine.count
-            if offset < sourceLength {
-                if isRewritingSource {
-                    output.append("\n")
-                }
-                offset += 1
-                line += 1
+            guard let newlineIndex else { break }
+
+            if isRewritingSource {
+                output.append(source[newlineIndex])
             }
+            offset += rawLine.count + 1
+            line += 1
+            lineStart = source.index(after: newlineIndex)
         }
 
         return ReferenceDefinitionResolution(

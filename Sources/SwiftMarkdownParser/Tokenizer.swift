@@ -160,17 +160,13 @@ final class MarkdownTokenizer {
         let char = currentChar
 
         // Handle newlines first
-        if char == "\n" {
+        if char.isNewline {
             advance()
-            return Token(type: .newline, content: "\n", location: startLocation)
-        }
-        
-        if char == "\r" {
-            advance()
-            if currentChar == "\n" {
-                advance()
-            }
-            return Token(type: .newline, content: "\r\n", location: startLocation)
+            return Token(
+                type: .newline,
+                content: String(char),
+                location: startLocation
+            )
         }
         
         // Check for fenced code block state first
@@ -209,7 +205,7 @@ final class MarkdownTokenizer {
         }
         
         // Handle whitespace
-        if char.isWhitespace && char != "\n" && char != "\r" {
+        if char.isWhitespace && !char.isNewline {
             return tokenizeWhitespace()
         }
         
@@ -282,7 +278,7 @@ final class MarkdownTokenizer {
         budget.consumeWork()
         guard position < characters.count else { return }
         
-        if characters[position] == "\n" {
+        if characters[position].isNewline {
             line += 1
             column = 1
         } else {
@@ -363,7 +359,7 @@ final class MarkdownTokenizer {
         let startLocation = currentLocation
         var content = ""
         
-        while !isAtEnd && currentChar.isWhitespace && currentChar != "\n" && currentChar != "\r" {
+        while !isAtEnd && currentChar.isWhitespace && !currentChar.isNewline {
             content.append(currentChar)
             advance()
         }
@@ -375,7 +371,7 @@ final class MarkdownTokenizer {
         let startLocation = currentLocation
         var content = ""
         
-        while !isAtEnd && !isSpecialCharacter(currentChar) && currentChar != "\n" && currentChar != "\r" {
+        while !isAtEnd && !isSpecialCharacter(currentChar) && !currentChar.isNewline {
             content.append(currentChar)
             advance()
         }
@@ -523,7 +519,7 @@ final class MarkdownTokenizer {
         guard pos >= 0 && characters[pos] == " " else { return false }
         
         // Skip whitespace backwards (but we need at least one space)
-        while pos >= 0 && characters[pos].isWhitespace && characters[pos] != "\n" && characters[pos] != "\r" {
+        while pos >= 0 && characters[pos].isWhitespace && !characters[pos].isNewline {
             pos -= 1
         }
         
@@ -830,7 +826,7 @@ final class MarkdownTokenizer {
         var spaceCount = 0
         var pos = position - 1
         
-        while pos >= 0 && characters[pos] != "\n" && characters[pos] != "\r" {
+        while pos >= 0 && !characters[pos].isNewline {
             if characters[pos] == " " {
                 spaceCount += 1
             } else if characters[pos] == "\t" {
@@ -862,7 +858,7 @@ final class MarkdownTokenizer {
                 count += 1
             } else if c == " " || c == "\t" {
                 // Spaces are allowed
-            } else if c == "\n" || c == "\r" {
+            } else if c.isNewline {
                 break
             } else {
                 // Other characters break the pattern
@@ -876,7 +872,7 @@ final class MarkdownTokenizer {
         
         // Consume the entire line
         var content = ""
-        while !isAtEnd && currentChar != "\n" && currentChar != "\r" {
+        while !isAtEnd && !currentChar.isNewline {
             content.append(currentChar)
             advance()
         }
@@ -907,7 +903,7 @@ final class MarkdownTokenizer {
         // Reference definitions are replaced with spaces before tokenization to
         // preserve source offsets, so this distinction also prevents those
         // placeholders from leaking into the semantic document.
-        if isAtEnd || currentChar == "\n" || currentChar == "\r" {
+        if isAtEnd || currentChar.isNewline {
             return Token(
                 type: .whitespace,
                 content: String(repeating: " ", count: spaceCount),
@@ -977,7 +973,7 @@ final class MarkdownTokenizer {
         // This ensures we don't close on fence characters that are part of content
         var tempPos = position
         
-        while tempPos < characters.count && characters[tempPos] != "\n" && characters[tempPos] != "\r" {
+        while tempPos < characters.count && !characters[tempPos].isNewline {
             if !characters[tempPos].isWhitespace {
                 // There's non-whitespace content after the fence, so this is not a closing fence
                 position = startLocation.offset - baseOffset
@@ -1000,7 +996,7 @@ final class MarkdownTokenizer {
         // Therefore, any character that is not a newline should be consumed as
         // part of the code block's content. This includes ` and ~ characters
         // that do not form a valid closing fence.
-        while !isAtEnd && currentChar != "\n" && currentChar != "\r" {
+        while !isAtEnd && !currentChar.isNewline {
             content.append(currentChar)
             advance()
         }
@@ -1055,7 +1051,7 @@ final class MarkdownTokenizer {
 
         // Check that $$ is followed by only whitespace or end of line
         var tempPos = position + 2
-        while tempPos < characters.count && characters[tempPos] != "\n" && characters[tempPos] != "\r" {
+        while tempPos < characters.count && !characters[tempPos].isNewline {
             if !characters[tempPos].isWhitespace {
                 return nil
             }
@@ -1128,7 +1124,7 @@ final class MarkdownTokenizer {
         
         // Check if all characters before this on the current line are whitespace
         var pos = position - 1
-        while pos >= 0 && characters[pos] != "\n" && characters[pos] != "\r" {
+        while pos >= 0 && !characters[pos].isNewline {
             if !characters[pos].isWhitespace {
                 return false
             }

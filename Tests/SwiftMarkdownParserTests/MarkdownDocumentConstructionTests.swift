@@ -2,6 +2,31 @@ import Testing
 @testable import SwiftMarkdownParser
 
 @Suite struct MarkdownDocumentConstructionTests {
+    @Test func crlfBlankLinesSeparateTopLevelBlocks() throws {
+        let markdown = "First\r\n\r\nSecond"
+
+        let document = try SwiftMarkdownParser().parse(markdown)
+
+        #expect(document.children.count == 2)
+        #expect(document.children[0].sourceLocation?.offset == 0)
+        #expect(document.children[0].sourceLocation?.endOffset == 5)
+        #expect(document.children[1].sourceLocation?.offset == 7)
+        #expect(document.children[1].sourceLocation?.endOffset == markdown.count)
+    }
+
+    @Test func crlfReferenceDefinitionsResolveWithoutShiftingSourceRanges() throws {
+        let markdown = "[Swift][language]\r\n\r\n[language]: https://swift.org \"Swift\""
+
+        let document = try SwiftMarkdownParser().parse(markdown)
+        let paragraph = try #require(document.children.first as? AST.ParagraphNode)
+        let link = try #require(paragraph.children.first as? AST.LinkNode)
+
+        #expect(document.children.count == 1)
+        #expect(link.url == "https://swift.org")
+        #expect(link.title == "Swift")
+        assertValidRanges(in: document, sourceLength: markdown.count)
+    }
+
     @Test func synchronousInterfaceBuildsACompleteSemanticDocument() throws {
         let markdown = """
         [Swift][language]
