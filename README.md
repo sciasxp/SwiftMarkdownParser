@@ -11,7 +11,7 @@ A Swift-native Markdown parser with AST generation, HTML rendering, and SwiftUI 
 
 ## Features
 
-- **CommonMark 0.30** compliant with **GitHub Flavored Markdown** extensions
+- **CommonMark 0.30** syntax with **GitHub Flavored Markdown** extensions (see [Known Limitations](#known-limitations))
 - **HTML rendering** with cached syntax highlighting for 6 built-in programming languages
 - **SwiftUI rendering** for native iOS/macOS apps (requires iOS 17.0+/macOS 14.0+)
 - **AST generation** for custom processing and analysis
@@ -246,6 +246,8 @@ Markdown Source -> SwiftMarkdownParser.parse(_:) -> AST.DocumentNode
                                                     |-> depthFirst() / rewriting(_:)
                                                     |-> HTMLRenderer
                                                     `-> SwiftUIRenderer
+
+HTMLRenderer output -> MarkdownWebView (macOS only)
 ```
 
 Parsing constructs one complete semantic document. Traversal and rewriting
@@ -266,6 +268,7 @@ extension rules, source layout, and decision records.
 - `HTMLRenderer` - Renders AST to HTML with syntax highlighting
 - `SwiftUIRenderer` - Renders AST to SwiftUI views (iOS 17.0+/macOS 14.0+)
 - `SyntaxHighlighter` - Produces validated semantic code tokens with built-in aliases and caching
+- `MarkdownWebView` - Presents a document as HTML in WebKit (macOS 14.0+ only; not available on iOS)
 
 ### Main Methods
 
@@ -290,6 +293,19 @@ let highlighter = SyntaxHighlighter()
 let supportedLanguages = await highlighter.supportedLanguages
 let tokens = await highlighter.highlight(code, language: "swift")
 ```
+
+## Known Limitations
+
+The parser targets CommonMark 0.30 and GFM syntax but is not fully conformant
+with the CommonMark specification:
+
+- **HTML entity and numeric character references are not decoded.** Sequences
+  such as `&amp;`, `&copy;`, or `&#35;` are recognized but kept as literal text
+  in the AST and in rendered output instead of being replaced by the characters
+  they represent.
+
+`MarkdownWebView` is available on macOS only; on iOS, present `HTMLRenderer`
+output in your own web view or use `SwiftUIRenderer`.
 
 ## Documentation
 

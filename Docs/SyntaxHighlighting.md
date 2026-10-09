@@ -257,26 +257,29 @@ palettes for caller-owned presentation. `HTMLRenderer` emits semantic CSS
 classes and does not select one of these palettes automatically. Supply CSS for
 the configured prefix when a particular visual theme is required.
 
+Hex values below are the nearest 8-bit equivalents of the `Color(red:green:blue:)`
+components defined in `SyntaxHighlighting.swift`.
+
 ### GitHub Theme
-Clean, professional styling matching GitHub's code blocks:
-- **Background**: Light gray (#f6f8fa)
-- **Keywords**: Deep red (#d73a49)
-- **Strings**: Dark blue (#032f62)
-- **Comments**: Gray (#6a737d)
+Light styling inspired by GitHub's code blocks:
+- **Background**: Light gray (#f7f7fa)
+- **Keywords**: Red (#d11a42)
+- **Strings**: Green (#08851c)
+- **Comments**: Gray (#666666)
 
 ### Xcode Theme
 Apple's development environment colors:
-- **Background**: White
-- **Keywords**: Purple (#aa0d91)
-- **Strings**: Red (#c41a16)
-- **Comments**: Green (#008400)
+- **Background**: White (#ffffff)
+- **Keywords**: Purple (#ab2e8c)
+- **Strings**: Red (#c41a17)
+- **Comments**: Green (#008500)
 
 ### VS Code Dark Theme
 Popular dark theme for developers:
-- **Background**: Dark gray (#1e1e1e)
-- **Keywords**: Light blue (#4fc3f7)
-- **Strings**: Orange (#ce9178)
-- **Comments**: Green (#6a9955)
+- **Background**: Dark gray (#1f1f1f)
+- **Keywords**: Blue (#4f96d6)
+- **Strings**: Orange (#cf8f73)
+- **Comments**: Green (#61ab61)
 
 ## 🛠️ Configuration
 

@@ -17,7 +17,7 @@ open Package.swift                             # Open in Xcode
 
 SwiftMarkdownParser is a pure Swift markdown parser with zero external dependencies. It supports CommonMark 0.30 and GitHub Flavored Markdown (GFM), with renderers for both HTML and native SwiftUI output.
 
-- **Swift 6.2+**, platforms: macOS 14.0+ / iOS 17.0+
+- **Swift 6.4+**, platforms: macOS 14.0+ / iOS 17.0+
 - SPM package producing the `SwiftMarkdownParser` library and a `WebViewTest` example executable
 
 ## Architecture: Markdown Document Construction
@@ -39,7 +39,7 @@ Markdown Source
 
 **Syntax-highlighting seam:** `SyntaxHighlighter` accepts code plus a language identifier and returns optional semantic tokens. It owns built-in adapter selection, aliases, support discovery, token validation, best-effort fallback, and bounded LRU caching. The six `*SyntaxEngine` adapters and cache representation are internal; `HTMLCodeBlockRenderer` owns only safe token-to-HTML presentation.
 
-**SwiftUI output seam:** `SwiftUIRenderer` is `@MainActor`, accepts `SwiftUIRenderOptions`, and produces `AnyView` from a complete `DocumentNode`. `MarkdownWebView` is an HTML presentation adapter and also accepts a document rather than Markdown source.
+**SwiftUI output seam:** `SwiftUIRenderer` is `@MainActor`, accepts `SwiftUIRenderOptions`, and produces `AnyView` from a complete `DocumentNode`. `MarkdownWebView` is a macOS-only (`#if os(macOS)`) HTML presentation adapter and also accepts a document rather than Markdown source; it does not exist on iOS despite its `@available(iOS 17.0, …)` annotation.
 
 ## Key Source Directories
 
@@ -61,9 +61,9 @@ Markdown Source
 - **Test at document-level seams** — construction tests use Source → Document; output tests use Document → HTML/AnyView. Direct token or node-render tests are reserved for internal invariants.
 - **Tests use Swift Testing** — use `@Test` with `#expect`/`#require`; add `async` only when the test performs asynchronous work.
 - **Syntax support has one source of truth** — ask `await SyntaxHighlighter.supportedLanguages`; HTML options only enable highlighting and choose the CSS prefix.
-- **SwiftUI output requires `@MainActor`** — create and call `SwiftUIRenderer` and `MarkdownWebView` on the main actor.
+- **SwiftUI output requires `@MainActor`** — create and call `SwiftUIRenderer` and (on macOS) `MarkdownWebView` on the main actor.
 - **Bundled browser assets are real package resources** — `.bundled` inlines pinned Mermaid 10.9.1 or KaTeX 0.16.21 assets; `.cdn` keeps documents small, and `.custom` accepts validated HTTPS or file URLs.
-- **Browser readiness is semantic** — `MarkdownWebView.onRender` succeeds after required runtimes initialize, not merely after WebKit navigation finishes.
+- **Browser readiness is semantic** — on macOS, `MarkdownWebView.onRender` succeeds after required runtimes initialize, not merely after WebKit navigation finishes.
 - **HTML entity decoding is not implemented** — entities like `&amp;` pass through as-is.
 
 ## Code Style

@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Accepted. Amended by [ADR 0013](0013-deepen-native-presentation-style.md): the
+typed role and its policy moved into `NativePresentationStyle`, which now
+supplies a `NativeAdaptiveLabelContentMetrics` value to this module.
 
 ## Context
 

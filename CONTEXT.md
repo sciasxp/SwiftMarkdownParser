@@ -56,8 +56,12 @@ _Avoid_: Rich-content handler bag, per-node closure bundle
 The SwiftUI-output interpretation of projected block content into container-aware native forms, choosing layout from available space and accessibility text size while preserving document order, labels, alignment, and host-provided content.
 _Avoid_: Device-specific layout, screen-size branching
 
+**Native Presentation Style**:
+The immutable, role-oriented interpretation of the public SwiftUI style configuration, materialized once per renderer with normalized metrics, so every native module receives the fonts, colors, spacing, and label/content geometry contracts of the role it presents.
+_Avoid_: Passing the public configuration through views, per-view metric arithmetic
+
 **Native Adaptive Label/Content**:
-The native presentation relationship between one role-bearing label and its content, choosing axis, spacing, alignment, and content reservation from available space and accessibility text size while preserving semantic ownership and reading order.
+The native presentation relationship between one label and its content, applying the axis preference, spacing, alignment, and content reservation supplied by Native Presentation Style to the available space and accessibility text size while preserving semantic ownership and reading order.
 _Avoid_: Per-caller label thresholds, visual label as accessibility meaning
 
 **HTML Output**:

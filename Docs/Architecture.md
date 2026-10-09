@@ -81,7 +81,13 @@ adapter registry or cache representation.
 
 ## Native SwiftUI presentation
 
-`SwiftUIRenderer` delegates seven independent forms of native output policy.
+`SwiftUIRenderer` delegates eight independent forms of native output policy.
+`NativePresentationStyle` materializes the public `SwiftUIStyleConfiguration`
+once per renderer into immutable, role-oriented values (document, inline,
+paragraph, heading, code block, quote, list, task, table, image, and thematic
+break). It normalizes non-finite or negative metrics and owns every
+label/content geometry contract, so native modules receive only the role value
+they present and never read the public configuration directly.
 `NativeDocumentProjection` first interprets and validates the complete document
 into a typed, one-shot plan in deterministic depth-first order. The plan embeds
 `NativeInlinePlan` values and rich-content requests, but contains no views,
@@ -100,10 +106,13 @@ projects image, Mermaid, math, and HTML requests through one optional host
 adapter, and owns their readable native fallbacks. `NativeAdaptivePresentation`
 then presents materialized blocks according to the container proposal and
 Dynamic Type category. Inside that presentation seam,
-`NativeAdaptiveLabelContent` owns the typed relationship between one label and
-its content for list markers, tasks, footnotes, Mermaid fallbacks, and stacked
-table fields. It hides axis selection, finite geometry, baseline fallback,
-right-to-left placement, and role-specific Dynamic Type policy.
+`NativeAdaptiveLabelContent` owns the relationship between one label and its
+content for list markers, tasks, footnotes, Mermaid fallbacks, and stacked
+table fields. It applies the `NativeAdaptiveLabelContentMetrics` supplied by the
+owning `NativePresentationStyle` role and hides axis selection, finite
+geometry, baseline fallback, and right-to-left placement. The style, not the
+layout, decides each relationship's spacing, content reservation, alignment,
+and Dynamic Type axis preference.
 
 Only after document projection succeeds does the renderer materialize blocks,
 invoke host adapters, assign identity, or request syntax highlighting.
@@ -118,8 +127,8 @@ accessible footnotes, task rows, Mermaid fallback composition, and the choice
 between a dense table grid and labeled rows. It consumes canonical columns and
 data rows; it does not search for a header, partition rows, or choose between
 table-level and cell-level alignment. The adaptive label/content module owns
-the repeated pair policy without interpreting accessibility copy or Markdown
-meaning. Neither inspects device models, screen bounds, or host window state.
+the repeated pair geometry without interpreting accessibility copy, Markdown
+meaning, or style policy. Neither inspects device models, screen bounds, or host window state.
 The rich-content module resolves and validates image destinations before they
 cross the host seam, invokes the adapter at most once per request, and treats
 `nil` as a decision to preserve the native fallback. Alternative layouts reuse
@@ -200,3 +209,5 @@ Sources/SwiftMarkdownParser/
 - [ADR 0009: Own native identity and materialization](adr/0009-own-native-identity-and-materialization.md)
 - [ADR 0010: Plan native documents before materialization](adr/0010-plan-native-documents-before-materialization.md)
 - [ADR 0011: Deepen adaptive label/content presentation](adr/0011-deepen-adaptive-label-content-presentation.md)
+- [ADR 0012: Normalize native table meaning once](adr/0012-normalize-native-table-meaning-once.md)
+- [ADR 0013: Deepen native presentation style](adr/0013-deepen-native-presentation-style.md)

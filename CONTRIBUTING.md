@@ -20,7 +20,7 @@ Thank you for your interest in contributing to SwiftMarkdownParser! We welcome c
 ### 2. Set Up Development Environment
 
 1. **Requirements**:
-   - A Swift 6.2+ toolchain
+   - A Swift 6.4+ toolchain
    - An SDK capable of targeting iOS 17.0+ or macOS 14.0+
 
 2. **Verify setup**:
@@ -57,7 +57,7 @@ git checkout -b docs/documentation-update
 
 #### Code Guidelines
 
-- **Follow Swift conventions**: Use SwiftLint rules and Swift API Design Guidelines
+- **Follow Swift conventions**: Follow the Swift API Design Guidelines and match the style of the surrounding code (the project has no linter configuration)
 - **Write tests**: All new features should include comprehensive tests
 - **Document your code**: Add inline documentation for public interfaces
 - **Keep commits atomic**: One logical change per commit
@@ -136,7 +136,7 @@ Fixes #123"
 2. **Create Pull Request** on GitHub:
    - Go to your fork on GitHub
    - Click "Compare & pull request"
-   - Fill out the PR template with details
+   - Describe the change, its motivation, and how you tested it
 
 3. **PR Guidelines**:
    - **Clear title**: Describe what the PR does
@@ -261,7 +261,7 @@ struct MarkdownDocumentTests {
 ## 🔄 Review Process
 
 ### What to Expect
-1. **Automated checks**: Tests, linting, and build verification
+1. **Automated checks**: CI builds the package and runs the test suite
 2. **Code review**: Maintainer review for code quality and design
 3. **Feedback**: Constructive feedback and suggestions
 4. **Iteration**: You may need to make changes based on feedback
@@ -286,8 +286,7 @@ We follow [Semantic Versioning](https://semver.org/):
 - [ ] All tests passing
 - [ ] Documentation updated
 - [ ] CHANGELOG.md updated
-- [ ] Version bumped in Package.swift
-- [ ] Git tag created
+- [ ] Git tag created (Swift Package Manager versions come from tags, not from Package.swift)
 - [ ] GitHub release created
 
 ## 🙋 Getting Help
@@ -305,7 +304,7 @@ We follow [Semantic Versioning](https://semver.org/):
 ## 🎉 Recognition
 
 Contributors will be:
-- **Listed in CONTRIBUTORS.md**: All contributors are recognized
+- **Credited in Git history**: Your commits carry your authorship
 - **Mentioned in release notes**: Significant contributions highlighted
 - **Invited as collaborators**: Regular contributors may be invited as maintainers
 

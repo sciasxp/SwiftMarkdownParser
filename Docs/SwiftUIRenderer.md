@@ -126,9 +126,11 @@ rows, are materialized once; choosing a presentation does not reinvoke host
 adapters.
 
 List markers, task states, footnote identifiers, Mermaid titles, and stacked
-table fields share one role-aware label/content module. Each role owns its
-horizontal-to-vertical policy without exposing thresholds to callers. The
-module keeps measurement and placement on one finite geometry plan, aligns
+table fields share one label/content module. The renderer materializes your
+`SwiftUIStyleConfiguration` once into an internal presentation style, which
+derives each relationship's spacing, minimum content width, alignment, and
+horizontal-to-vertical policy from your metrics without exposing thresholds to
+callers. The module keeps measurement and placement on one finite geometry plan, aligns
 textual pairs by first baseline when available, mirrors placement for
 right-to-left layouts, and constrains oversized labels to their container.
 VoiceOver copy and grouping remain owned by native semantics and the presenting
