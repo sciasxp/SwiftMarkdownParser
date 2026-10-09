@@ -317,13 +317,13 @@ let context = SwiftUIRenderOptions(
 // Custom CSS classes for HTML output
 let context = HTMLRenderOptions(
     styleConfiguration: HTMLStyleConfiguration(
+        cssClasses: [
+            .codeBlock: "my-code-block"
+        ],
         syntaxHighlighting: HTMLSyntaxHighlightingOptions(
             enabled: true,
             cssPrefix: "custom-"
-        ),
-        cssClasses: [
-            .codeBlock: "my-code-block"
-        ]
+        )
     )
 )
 
@@ -514,20 +514,20 @@ struct App {
 ```
 """
 
-async func generateHighlightedHTML() throws -> String {
+func generateHighlightedHTML() async throws -> String {
     let parser = SwiftMarkdownParser()
     let ast = try parser.parse(multiLanguageMarkdown)
 
     let context = HTMLRenderOptions(
         styleConfiguration: HTMLStyleConfiguration(
-            syntaxHighlighting: HTMLSyntaxHighlightingOptions(
-                enabled: true,
-                cssPrefix: "hljs-"
-            ),
             cssClasses: [
                 .codeBlock: "code-block highlighted",
                 .heading: "section-heading"
-            ]
+            ],
+            syntaxHighlighting: HTMLSyntaxHighlightingOptions(
+                enabled: true,
+                cssPrefix: "hljs-"
+            )
         )
     )
 

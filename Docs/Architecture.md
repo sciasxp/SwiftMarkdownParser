@@ -164,9 +164,12 @@ rich-content adapter seam.
 - Add native user-facing meaning as a typed
   `NativePresentationSemantics.Message` and translate it in the package string
   catalog. Do not assemble localized sentences in a view.
-- Add a native label/content relationship by extending
-  `NativeAdaptiveLabelContentRole`. Do not expose per-caller thresholds, create
-  new view identity, or reinterpret its accessibility meaning inside layout.
+- Add a native label/content relationship by giving the owning role in
+  `NativePresentationStyle` a `NativeAdaptiveLabelContentMetrics` value
+  (spacing, minimum content width, standard/accessibility axis preference, and
+  alignment) and passing it to `NativeAdaptiveLabelContent`. Do not choose
+  thresholds or axes in presentation callers, create new view identity, or
+  reinterpret its accessibility meaning inside layout.
 - Materialize native views through `NativeViewMaterializer`. Do not allocate
   collection identity or perform ad hoc type erasure in presentation callers.
 
