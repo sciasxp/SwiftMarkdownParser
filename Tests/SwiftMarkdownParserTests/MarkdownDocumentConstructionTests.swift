@@ -70,6 +70,22 @@ import Testing
         assertValidRanges(in: document, sourceLength: markdown.count)
     }
 
+    @Test func tableRow_followedByLineEnding_rangeEndsAtTheLineEnding() throws {
+        let markdown = "| a | b |\n| - | - |\n| c \\| d | e |\nNext"
+
+        let document = try SwiftMarkdownParser().parse(markdown)
+        let table = try #require(document.children.first as? AST.GFMTableNode)
+        let lastRow = try #require(table.rows.last?.sourceLocation)
+        let lastCell = try #require(table.rows.last?.cells.last?.sourceLocation)
+
+        #expect([lastRow.line, lastRow.column, lastRow.offset] == [3, 1, 20])
+        #expect([lastRow.endLine, lastRow.endColumn, lastRow.endOffset] == [3, 15, 34])
+        #expect([lastCell.line, lastCell.column, lastCell.offset] == [3, 12, 31])
+        #expect([lastCell.endLine, lastCell.endColumn, lastCell.endOffset] == [3, 13, 32])
+        #expect(table.sourceLocation?.endOffset == 34)
+        assertValidRanges(in: document, sourceLength: markdown.count)
+    }
+
     @Test func synchronousInterfaceBuildsACompleteSemanticDocument() throws {
         let markdown = """
         [Swift][language]

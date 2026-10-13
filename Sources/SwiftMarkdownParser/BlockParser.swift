@@ -594,7 +594,7 @@ final class BlockParser {
         let startPosition = tokenStream.currentPosition
 
         // Simple approach: collect a few lines and check if they form a table
-        var lines: [(content: String, location: SourceLocation)] = []
+        var lines: [TableLine] = []
 
         // Collect table-shaped lines. Deterministic work accounting replaces
         // an arbitrary row-count limit.
@@ -641,7 +641,7 @@ final class BlockParser {
                 alignments: alignments
             ),
             isHeader: true,
-            sourceLocation: sourceRange(of: lines[0])
+            sourceLocation: lines[0].range
         )
         rows.append(headerRow)
 
@@ -656,7 +656,7 @@ final class BlockParser {
                 let row = AST.GFMTableRowNode(
                     cells: cells,
                     isHeader: false,
-                    sourceLocation: sourceRange(of: lines[i])
+                    sourceLocation: lines[i].range
                 )
                 rows.append(row)
             }
@@ -665,25 +665,19 @@ final class BlockParser {
         return AST.GFMTableNode(
             rows: rows,
             alignments: alignments,
-            sourceLocation: sourceRange(of: lines[0]).spanning(to: sourceRange(of: lines[lines.count - 1]))
+            sourceLocation: lines[0].range.spanning(to: lines[lines.count - 1].range)
         )
     }
 
-    /// The document range of one collected single-line table row.
-    private func sourceRange(of line: (content: String, location: SourceLocation)) -> SourceLocation {
-        sourceRange(offset: line.location.offset, length: line.content.count)
-    }
-
-    /// The document range of `length` characters at `offset`, clamped to the
-    /// source so token-derived text can never produce an out-of-range location.
-    private func sourceRange(offset: Int, length: Int) -> SourceLocation {
-        let start = min(max(offset, 0), sourceText.count)
-        let end = min(max(start, offset + length), sourceText.count)
-        return sourceText.range(start..<end)
+    /// One collected table line: its text and its document range, which
+    /// ends where the line's newline or EOF token starts.
+    private struct TableLine {
+        let content: String
+        let range: SourceLocation
     }
 
     private func parseTableCells(
-        in line: (content: String, location: SourceLocation),
+        in line: TableLine,
         isHeader: Bool,
         alignments: [GFMTableAlignment]
     ) throws -> [AST.GFMTableCellNode] {
@@ -697,7 +691,9 @@ final class BlockParser {
             let startDelta = contentRange.map {
                 line.content.distance(from: line.content.startIndex, to: $0.lowerBound)
             } ?? 0
-            let cellRange = sourceRange(offset: line.location.offset + startDelta, length: trimmed.count)
+            let cellOffset = line.range.offset + startDelta
+            assert(cellOffset + trimmed.count <= line.range.endOffset, "Table cell extends past its line")
+            let cellRange = sourceText.range(cellOffset..<cellOffset + trimmed.count)
             let cellStart = SourceLocation(line: cellRange.line, column: cellRange.column, offset: cellRange.offset)
             let children: [any ASTNode]
             if trimmed.isEmpty {
@@ -730,7 +726,7 @@ final class BlockParser {
             source.contains("@")
     }
 
-    private func collectCurrentLine() -> (content: String, location: SourceLocation)? {
+    private func collectCurrentLine() -> TableLine? {
         guard !tokenStream.isAtEnd && !tokenStream.check(.newline) else {
             return nil
         }
@@ -743,7 +739,8 @@ final class BlockParser {
             lineContent += tokenStream.consume().content
         }
 
-        return (content: lineContent, location: startLocation)
+        let endOffset = tokenStream.current.location.offset
+        return TableLine(content: lineContent, range: sourceText.range(startLocation.offset..<endOffset))
     }
 
     private func parseParagraph() throws -> AST.ParagraphNode {
