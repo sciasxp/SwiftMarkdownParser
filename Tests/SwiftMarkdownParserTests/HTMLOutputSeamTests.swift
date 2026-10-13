@@ -305,6 +305,30 @@ struct HTMLOutputSeamTests {
         #expect(html.contains("image"))
         #expect(html.contains("autolink"))
     }
+
+    @Test(
+        "Renders the fallback when a combining or joiner character follows the scheme's colon, with any base",
+        arguments: [
+            "javascript:\u{301}alert(1)",
+            "data:\u{200D}text/html,x",
+            "file:\u{301}///etc/passwd"
+        ],
+        [
+            URL(string: "https://example.com/docs/guide.html")!,
+            URL(fileURLWithPath: "/Users/reader/docs/", isDirectory: true)
+        ]
+    )
+    func referenceDestination_markAfterSchemeColon_rendersFallback(destination: String, baseURL: URL) async throws {
+        let markdown = "[link] ![image][link] <\(destination)>\n\n[link]: <\(destination)>"
+        let document = try SwiftMarkdownParser().parse(markdown)
+
+        let html = try await HTMLRenderer(options: HTMLRenderOptions(baseURL: baseURL)).renderFragment(document)
+
+        #expect(!html.contains("href"))
+        #expect(!html.contains("src"))
+        #expect(html.contains("link"))
+        #expect(html.contains("image"))
+    }
 }
 
 private struct MissingBrowserAssetLoader: BrowserAssetLoading {

@@ -98,6 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - **Destination Scheme Bypass**: A TAB, LF, or CR inside a destination's scheme (for example `java<TAB>script:alert(1)` in a reference definition) no longer reaches `href` or `src`; destinations are normalized the way browsers parse URLs before the scheme is checked
+- **Destination Scheme Bypass Through Combining Characters**: A combining mark, ZWJ, ZWNJ, or variation selector right after the scheme's colon (for example `javascript:\u{301}alert(1)` in a reference definition with a `baseURL`) no longer reaches `href` or `src`; the scheme is read by Unicode scalar and the resolved URL's scheme is checked against the allowlist again
 - **Resource Management**: Added deterministic source, nesting, and work protection for large or hostile documents
 - **User Content Safety**: Resource failures are atomic and never expose a partial document
 

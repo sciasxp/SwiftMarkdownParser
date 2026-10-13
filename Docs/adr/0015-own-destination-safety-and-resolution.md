@@ -45,10 +45,18 @@ The policy is a fixed list with no new public interface:
 - **Refuse** every other explicit scheme, including `javascript:`, `vbscript:`,
   `data:`, and `file:`, and refuse a destination that is empty after
   normalization or that Foundation cannot represent.
+- **Read the scheme by Unicode scalar.** A combining mark, joiner, or
+  variation selector right after the colon (`javascript:\u{301}alert(1)`)
+  fuses with it into one `Character`, which hid the scheme from a
+  `Character`-based check; the destination was then treated as relative and
+  Foundation kept its scheme while resolving it.
 - **Resolve** relative references with one algorithm, Foundation's
-  `URL(string:relativeTo:)`, against the renderer's `baseURL`. A `file:` URL
-  that results from resolving against a host-chosen `file:` base is accepted;
-  the host decided that base, the Markdown did not.
+  `URL(string:relativeTo:)`, against the renderer's `baseURL`.
+- **Check the resolved URL again.** The scheme of the URL that will be
+  followed must be in the allowlist, and Foundation's `scheme` must agree with
+  the scheme a browser reads from its serialization. The only exception is a
+  `file:` URL that results from resolving a relative reference against a
+  host-chosen `file:` base; the host decided that base, the Markdown did not.
 
 `HTMLRenderer` serializes the resolved URL's `absoluteString` and escapes it as
 an attribute; it no longer applies the `contains("://")` heuristic. Native Inline
@@ -76,6 +84,8 @@ belongs to `MarkdownDestination`.
 
 - Splitting a scheme with TAB, LF, or CR no longer bypasses the check in any
   output.
+- A combining mark, ZWJ, ZWNJ, or variation selector after the scheme's colon
+  no longer bypasses the check, with or without a base URL.
 - Behavior change: destinations with schemes outside the allowlist, such as
   `vbscript:`, `ftp:`, `irc:`, or explicit `file:`, now render as their
   fallback text in HTML and native output. An empty destination, such as

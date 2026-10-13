@@ -9,8 +9,10 @@ import Foundation
 /// from both ends, and TAB, LF, and CR are removed everywhere, so a scheme
 /// split by them is still recognized. Only `http`, `https`, and `mailto` may be
 /// named explicitly; relative references and fragments are resolved against
-/// the host's base URL with Foundation, and any scheme that resolution yields,
-/// including `file`, is accepted because the host chose the base.
+/// the host's base URL with Foundation. The scheme is read by Unicode scalar,
+/// and the resolved URL's own scheme is checked against the allowlist again;
+/// `file` is accepted there only when a relative reference was resolved
+/// against a host-chosen `file` base.
 enum MarkdownDestination {
     private static let allowedSchemes: Set<String> = ["http", "https", "mailto"]
 
@@ -20,16 +22,29 @@ enum MarkdownDestination {
         let normalized = normalize(destination)
         guard !normalized.isEmpty else { return nil }
 
-        if let scheme = explicitScheme(of: normalized) {
-            guard allowedSchemes.contains(scheme) else { return nil }
-            return URL(string: normalized)
-        }
+        let scheme = explicitScheme(of: normalized)
+        if let scheme, !allowedSchemes.contains(scheme) { return nil }
 
-        guard let baseURL else {
-            guard let url = URL(string: normalized), url.scheme == nil else { return nil }
-            return url
+        let url = if scheme == nil, let baseURL {
+            URL(string: normalized, relativeTo: baseURL)?.absoluteURL
+        } else {
+            URL(string: normalized)
         }
-        return URL(string: normalized, relativeTo: baseURL)?.absoluteURL
+        guard let url, isAllowed(url, resolvedAgainst: scheme == nil ? baseURL : nil) else { return nil }
+        return url
+    }
+
+    /// Checks the scheme of the URL that will actually be followed, so that
+    /// nothing Foundation reads differently from the destination text can slip
+    /// past the allowlist. A `file` URL is allowed only when a relative
+    /// reference was resolved against a host-chosen `file` base.
+    private static func isAllowed(_ url: URL, resolvedAgainst baseURL: URL?) -> Bool {
+        let scheme = explicitScheme(of: url.absoluteString)
+        guard url.scheme?.lowercased() == scheme else { return false }
+        guard let scheme else { return true }
+
+        if allowedSchemes.contains(scheme) { return true }
+        return scheme == "file" && baseURL?.isFileURL == true
     }
 
     private static func normalize(_ destination: String) -> String {
@@ -53,13 +68,22 @@ enum MarkdownDestination {
 
     /// The lowercased scheme, when `destination` starts with one: an ASCII
     /// letter followed by letters, digits, `+`, `-`, or `.`, then `:`.
+    ///
+    /// Read by Unicode scalar, so a combining mark or joiner after the colon,
+    /// which would fuse with it into one `Character`, cannot hide the scheme.
     private static func explicitScheme(of destination: String) -> String? {
-        guard let colon = destination.firstIndex(of: ":") else { return nil }
-        let candidate = destination[..<colon]
-        guard let first = candidate.first, first.isASCII, first.isLetter,
-              candidate.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || "+-.".contains($0)) }) else {
+        let scalars = destination.unicodeScalars
+        guard let colon = scalars.firstIndex(of: ":") else { return nil }
+        let candidate = scalars[..<colon]
+        guard let first = candidate.first, isASCIILetter(first),
+              candidate.allSatisfy({ isASCIILetter($0) || ("0"..."9").contains($0) || "+-.".contains(Character($0)) })
+        else {
             return nil
         }
-        return candidate.lowercased()
+        return String(String.UnicodeScalarView(candidate)).lowercased()
+    }
+
+    private static func isASCIILetter(_ scalar: Unicode.Scalar) -> Bool {
+        ("a"..."z").contains(scalar) || ("A"..."Z").contains(scalar)
     }
 }

@@ -54,6 +54,26 @@ import Testing
         #expect(MarkdownDestination.resolve(destination, relativeTo: webBase) == nil)
     }
 
+    @Test(arguments: [
+        "javascript:\u{301}alert(1)",
+        "data:\u{200D}text/html,x",
+        "file:\u{301}///etc/passwd",
+        "javascript:\u{200C}alert(1)",
+        "javascript:\u{FE0F}alert(1)",
+        "javascript:\u{FE00}alert(1)",
+        "javascript:\u{20E3}alert(1)",
+        "javascript:\u{338}alert(1)",
+        "javascript:\u{E0101}alert(1)",
+        "vbscript:\u{301}msgbox(1)",
+        "javascript\u{301}:alert(1)",
+        "java\u{200D}script:alert(1)"
+    ])
+    func resolve_markOrJoinerAroundSchemeColon_returnsNil(destination: String) {
+        #expect(MarkdownDestination.resolve(destination, relativeTo: nil) == nil)
+        #expect(MarkdownDestination.resolve(destination, relativeTo: webBase) == nil)
+        #expect(MarkdownDestination.resolve(destination, relativeTo: fileBase) == nil)
+    }
+
     @Test func resolve_tabsAndNewlinesInsideAllowedURL_removesThem() {
         let url = MarkdownDestination.resolve(" https://exam\tple.com/a\nb\r\nc ", relativeTo: nil)
 
