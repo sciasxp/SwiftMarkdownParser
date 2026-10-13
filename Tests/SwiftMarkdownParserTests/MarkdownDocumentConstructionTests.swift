@@ -70,6 +70,45 @@ import Testing
         assertValidRanges(in: document, sourceLength: markdown.count)
     }
 
+    @Test func crOnlyTable_documentRowsAndCells_rangeOverSourceLines() throws {
+        let markdown = "| a | b |\r| - | - |\r| c | d |\r"
+
+        let document = try SwiftMarkdownParser().parse(markdown)
+        let documentRange = try #require(document.sourceLocation)
+        let table = try #require(document.children.first as? AST.GFMTableNode)
+        let tableRange = try #require(table.sourceLocation)
+        let lastRow = try #require(table.rows.last?.sourceLocation)
+        let lastCell = try #require(table.rows.last?.cells.last?.sourceLocation)
+
+        #expect(table.rows.count == 2)
+        #expect([documentRange.endLine, documentRange.endColumn, documentRange.endOffset] == [4, 1, 30])
+        #expect([tableRange.line, tableRange.column, tableRange.offset] == [1, 1, 0])
+        #expect([tableRange.endLine, tableRange.endColumn, tableRange.endOffset] == [3, 10, 29])
+        #expect([lastRow.line, lastRow.column, lastRow.offset] == [3, 1, 20])
+        #expect([lastRow.endLine, lastRow.endColumn, lastRow.endOffset] == [3, 10, 29])
+        #expect([lastCell.line, lastCell.column, lastCell.offset] == [3, 7, 26])
+        #expect([lastCell.endLine, lastCell.endColumn, lastCell.endOffset] == [3, 8, 27])
+        assertValidRanges(in: document, sourceLength: markdown.count)
+    }
+
+    @Test func tableRow_atEndOfSourceWithoutLineEnding_rangeEndsAtTheSourceEnd() throws {
+        let markdown = "| a | b |\n| - | - |\n| c | d |"
+
+        let document = try SwiftMarkdownParser().parse(markdown)
+        let documentRange = try #require(document.sourceLocation)
+        let table = try #require(document.children.first as? AST.GFMTableNode)
+        let lastRow = try #require(table.rows.last?.sourceLocation)
+        let lastCell = try #require(table.rows.last?.cells.last?.sourceLocation)
+
+        #expect([documentRange.endLine, documentRange.endColumn, documentRange.endOffset] == [3, 10, 29])
+        #expect(table.sourceLocation?.endOffset == markdown.count)
+        #expect([lastRow.line, lastRow.column, lastRow.offset] == [3, 1, 20])
+        #expect([lastRow.endLine, lastRow.endColumn, lastRow.endOffset] == [3, 10, 29])
+        #expect([lastCell.line, lastCell.column, lastCell.offset] == [3, 7, 26])
+        #expect([lastCell.endLine, lastCell.endColumn, lastCell.endOffset] == [3, 8, 27])
+        assertValidRanges(in: document, sourceLength: markdown.count)
+    }
+
     @Test func tableRow_followedByLineEnding_rangeEndsAtTheLineEnding() throws {
         let markdown = "| a | b |\n| - | - |\n| c \\| d | e |\nNext"
 
