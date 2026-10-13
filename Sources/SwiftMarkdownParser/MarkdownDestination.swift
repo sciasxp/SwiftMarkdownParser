@@ -12,7 +12,8 @@ import Foundation
 /// the host's base URL with Foundation. The scheme is read by Unicode scalar,
 /// and the resolved URL's own scheme is checked against the allowlist again;
 /// `file` is accepted there only when a relative reference was resolved
-/// against a host-chosen `file` base.
+/// against a host-chosen `file` base, and not when a protocol-relative
+/// reference (`//host/share`) would add a host the base did not name.
 enum MarkdownDestination {
     private static let allowedSchemes: Set<String> = ["http", "https", "mailto"]
 
@@ -30,21 +31,26 @@ enum MarkdownDestination {
         } else {
             URL(string: normalized)
         }
-        guard let url, isAllowed(url, resolvedAgainst: scheme == nil ? baseURL : nil) else { return nil }
+        guard let url, isAllowed(url, from: normalized, resolvedAgainst: scheme == nil ? baseURL : nil) else {
+            return nil
+        }
         return url
     }
 
     /// Checks the scheme of the URL that will actually be followed, so that
     /// nothing Foundation reads differently from the destination text can slip
     /// past the allowlist. A `file` URL is allowed only when a relative
-    /// reference was resolved against a host-chosen `file` base.
-    private static func isAllowed(_ url: URL, resolvedAgainst baseURL: URL?) -> Bool {
+    /// reference was resolved against a host-chosen `file` base, and not
+    /// when a protocol-relative `//host/share` turns it into a network share
+    /// the host never chose.
+    private static func isAllowed(_ url: URL, from destination: String, resolvedAgainst baseURL: URL?) -> Bool {
         let scheme = explicitScheme(of: url.absoluteString)
         guard url.scheme?.lowercased() == scheme else { return false }
         guard let scheme else { return true }
 
         if allowedSchemes.contains(scheme) { return true }
-        return scheme == "file" && baseURL?.isFileURL == true
+        guard scheme == "file", baseURL?.isFileURL == true else { return false }
+        return !(destination.hasPrefix("//") && !(url.host ?? "").isEmpty)
     }
 
     private static func normalize(_ destination: String) -> String {

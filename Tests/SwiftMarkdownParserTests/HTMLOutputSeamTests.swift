@@ -329,6 +329,17 @@ struct HTMLOutputSeamTests {
         #expect(html.contains("link"))
         #expect(html.contains("image"))
     }
+
+    @Test("Renders the link text for a protocol-relative reference that would name a file host")
+    func linkDestination_protocolRelativeWithFileBase_rendersLinkText() async throws {
+        let document = try SwiftMarkdownParser().parse("[x](//evil.com/share)")
+        let options = HTMLRenderOptions(baseURL: URL(fileURLWithPath: "/docs/", isDirectory: true))
+
+        let html = try await HTMLRenderer(options: options).renderFragment(document)
+
+        #expect(!html.contains("href"))
+        #expect(html.contains("x"))
+    }
 }
 
 private struct MissingBrowserAssetLoader: BrowserAssetLoading {

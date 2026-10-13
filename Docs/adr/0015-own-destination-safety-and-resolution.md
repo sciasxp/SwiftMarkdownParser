@@ -57,6 +57,11 @@ The policy is a fixed list with no new public interface:
   the scheme a browser reads from its serialization. The only exception is a
   `file:` URL that results from resolving a relative reference against a
   host-chosen `file:` base; the host decided that base, the Markdown did not.
+  Even then, a protocol-relative reference whose `file:` result names a host
+  is refused: `//evil.com/share` against `file:///docs/` would become
+  `file://evil.com/share`, a network share the host never chose. A relative
+  path against a base that already names a host, such as
+  `file://server/share/`, keeps that host.
 
 `HTMLRenderer` serializes the resolved URL's `absoluteString` and escapes it as
 an attribute; it no longer applies the `contains("://")` heuristic. Native Inline
@@ -86,6 +91,9 @@ belongs to `MarkdownDestination`.
   output.
 - A combining mark, ZWJ, ZWNJ, or variation selector after the scheme's colon
   no longer bypasses the check, with or without a base URL.
+- Behavior change: a protocol-relative reference against a `file:` base, such
+  as `[x](//evil.com/share)`, renders as its fallback text. Against an `http`
+  or `https` base it still takes the base's scheme.
 - Behavior change: destinations with schemes outside the allowlist, such as
   `vbscript:`, `ftp:`, `irc:`, or explicit `file:`, now render as their
   fallback text in HTML and native output. An empty destination, such as

@@ -110,6 +110,27 @@ import Testing
         #expect(url?.absoluteString == "file:///Users/reader/docs/images/logo.png")
     }
 
+    @Test(arguments: ["//evil.com/share", "//evil.com", "//localhost/etc/passwd"])
+    func resolve_protocolRelativeWithFileBase_returnsNil(destination: String) {
+        #expect(MarkdownDestination.resolve(destination, relativeTo: fileBase) == nil)
+    }
+
+    @Test func resolve_relativeWithFileShareBase_keepsBaseHost() {
+        let shareBase = URL(string: "file://server/share/")!
+
+        #expect(
+            MarkdownDestination.resolve("img.png", relativeTo: shareBase)?.absoluteString
+                == "file://server/share/img.png"
+        )
+    }
+
+    @Test func resolve_protocolRelativeWithWebBase_keepsBaseScheme() {
+        #expect(
+            MarkdownDestination.resolve("//cdn.example/logo.png", relativeTo: webBase)?.absoluteString
+                == "https://cdn.example/logo.png"
+        )
+    }
+
     @Test func resolve_charactersInvalidInURL_percentEncodes() {
         #expect(MarkdownDestination.resolve("my page.html", relativeTo: nil)?.absoluteString == "my%20page.html")
     }
