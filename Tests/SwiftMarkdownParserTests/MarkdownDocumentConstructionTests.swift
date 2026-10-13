@@ -53,6 +53,23 @@ import Testing
         assertValidRanges(in: document, sourceLength: markdown.count)
     }
 
+    @Test func crlfTable_rowsAndCells_rangeOverSourceLines() throws {
+        let markdown = "| a | b |\r\n| - | - |\r\n| c | d |"
+
+        let document = try SwiftMarkdownParser().parse(markdown)
+        let table = try #require(document.children.first as? AST.GFMTableNode)
+        let lastRow = try #require(table.rows.last?.sourceLocation)
+        let lastCell = try #require(table.rows.last?.cells.last?.sourceLocation)
+
+        #expect(document.sourceLocation?.endLine == 3)
+        #expect(table.sourceLocation?.endOffset == markdown.count)
+        #expect([lastRow.line, lastRow.column, lastRow.offset] == [3, 1, 20])
+        #expect([lastRow.endLine, lastRow.endColumn, lastRow.endOffset] == [3, 10, 29])
+        #expect([lastCell.line, lastCell.column, lastCell.offset] == [3, 7, 26])
+        #expect([lastCell.endLine, lastCell.endColumn, lastCell.endOffset] == [3, 8, 27])
+        assertValidRanges(in: document, sourceLength: markdown.count)
+    }
+
     @Test func synchronousInterfaceBuildsACompleteSemanticDocument() throws {
         let markdown = """
         [Swift][language]

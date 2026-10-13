@@ -12,7 +12,7 @@ final class BlockParser {
     private let tokenStream: TokenStream
     private let limits: SwiftMarkdownParser.ResourceLimits
     private let budget: ParsingBudget
-    private let source: String
+    private let sourceText: MarkdownSourceText
     private let linkReferences: [String: LinkReference]
     private var nestingDepth = 0
 
@@ -20,13 +20,13 @@ final class BlockParser {
         tokenStream: TokenStream,
         limits: SwiftMarkdownParser.ResourceLimits,
         budget: ParsingBudget,
-        source: String,
+        sourceText: MarkdownSourceText,
         linkReferences: [String: LinkReference]
     ) {
         self.tokenStream = tokenStream
         self.limits = limits
         self.budget = budget
-        self.source = source
+        self.sourceText = sourceText
         self.linkReferences = linkReferences
     }
 
@@ -49,7 +49,7 @@ final class BlockParser {
             }
         }
 
-        let documentRange = SourceLocation(line: 1, column: 1, offset: 0).extending(over: source)
+        let documentRange = sourceText.range(0..<sourceText.count)
         return AST.DocumentNode(children: children, sourceLocation: documentRange)
     }
 
@@ -641,7 +641,7 @@ final class BlockParser {
                 alignments: alignments
             ),
             isHeader: true,
-            sourceLocation: lines[0].location.extending(over: lines[0].content)
+            sourceLocation: sourceRange(of: lines[0])
         )
         rows.append(headerRow)
 
@@ -656,7 +656,7 @@ final class BlockParser {
                 let row = AST.GFMTableRowNode(
                     cells: cells,
                     isHeader: false,
-                    sourceLocation: lines[i].location.extending(over: lines[i].content)
+                    sourceLocation: sourceRange(of: lines[i])
                 )
                 rows.append(row)
             }
@@ -665,10 +665,21 @@ final class BlockParser {
         return AST.GFMTableNode(
             rows: rows,
             alignments: alignments,
-            sourceLocation: lines[0].location.spanning(
-                to: lines.last!.location.extending(over: lines.last!.content)
-            )
+            sourceLocation: sourceRange(of: lines[0]).spanning(to: sourceRange(of: lines[lines.count - 1]))
         )
+    }
+
+    /// The document range of one collected single-line table row.
+    private func sourceRange(of line: (content: String, location: SourceLocation)) -> SourceLocation {
+        sourceRange(offset: line.location.offset, length: line.content.count)
+    }
+
+    /// The document range of `length` characters at `offset`, clamped to the
+    /// source so token-derived text can never produce an out-of-range location.
+    private func sourceRange(offset: Int, length: Int) -> SourceLocation {
+        let start = min(max(offset, 0), sourceText.count)
+        let end = min(max(start, offset + length), sourceText.count)
+        return sourceText.range(start..<end)
     }
 
     private func parseTableCells(
@@ -686,12 +697,8 @@ final class BlockParser {
             let startDelta = contentRange.map {
                 line.content.distance(from: line.content.startIndex, to: $0.lowerBound)
             } ?? 0
-            let cellStart = SourceLocation(
-                line: line.location.line,
-                column: line.location.column + startDelta,
-                offset: line.location.offset + startDelta
-            )
-            let cellRange = cellStart.extending(over: trimmed)
+            let cellRange = sourceRange(offset: line.location.offset + startDelta, length: trimmed.count)
+            let cellStart = SourceLocation(line: cellRange.line, column: cellRange.column, offset: cellRange.offset)
             let children: [any ASTNode]
             if trimmed.isEmpty {
                 children = []
