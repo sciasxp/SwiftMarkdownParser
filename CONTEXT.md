@@ -8,6 +8,10 @@ SwiftMarkdownParser interprets Markdown source as a semantic document that can b
 Text written in the Supported Dialect and submitted for interpretation.
 _Avoid_: Raw document, input blob
 
+**Source Text**:
+The characters of one Markdown Source together with its lines, the single authority on what ends a line (LF, CR, or CRLF only) and on the line, column, and character offset of every position.
+_Avoid_: Raw string scanning, newline helper
+
 **Markdown Document**:
 The complete semantic interpretation of one Markdown Source, with all recognized block, inline, and reference meaning resolved.
 _Avoid_: Partial document, staged document

@@ -189,6 +189,7 @@ Sources/SwiftMarkdownParser/
 ├── Parsing/
 │   ├── SwiftMarkdownParser.swift      public document-construction seam
 │   └── LinkReference.swift            link reference definitions
+├── MarkdownSourceText.swift           line endings, lines, and source positions
 ├── Tokenizer.swift                    internal tokenizer
 ├── BlockParser.swift                  internal block parser
 ├── InlineParser.swift                 internal inline parser
@@ -224,3 +225,4 @@ Sources/SwiftMarkdownParser/
 - [ADR 0011: Deepen adaptive label/content presentation](adr/0011-deepen-adaptive-label-content-presentation.md)
 - [ADR 0012: Normalize native table meaning once](adr/0012-normalize-native-table-meaning-once.md)
 - [ADR 0013: Deepen native presentation style](adr/0013-deepen-native-presentation-style.md)
+- [ADR 0014: Own line endings and positions in Source Text](adr/0014-own-line-endings-and-positions-in-source-text.md)

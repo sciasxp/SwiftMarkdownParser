@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Localized Native Semantics**: SwiftUI fallback titles, renderer errors, and VoiceOver labels ship in English and Brazilian Portuguese (pt-BR) ([ADR 0008](Docs/adr/0008-concentrate-native-semantics-and-localization.md))
 
 ### Changed
+- **Unicode Separators Are Whitespace**: U+2028, U+2029, NEL, VT, and FF no longer end a line; they are whitespace inside it, as CommonMark specifies (ADR 0014)
 - **Source-Breaking Parser Interface**: Replaced async `parseToAST(_:)` and mode-based `Configuration` with synchronous `parse(_:)` and `ResourceLimits`
   - The Supported Dialect is fixed to CommonMark 0.30, GFM, math, and Mermaid
   - Tokenizer, token stream, block parser, inline parser, and grammar utilities are internal
@@ -84,7 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Completed the AST node list and syntax-highlighting token table; corrected theme color values and source-tree layouts
 
 ### Fixed
-- **Unicode Newlines**: The tokenizer and reference-definition resolver now treat every Unicode newline, including CRLF, consistently, so blocks separate and source ranges stay correct
+- **Line Endings**: Construction recognizes exactly the CommonMark line endings (LF, CR, CRLF) in one place, so blocks separate and tokens, references, tables, and document ranges agree on line numbers; `SourceLocation.extending(over:)` now starts a new line at CR and CRLF
 - **Large Document Parsing**: Fixed issue where parser would stop at 100 blocks, preventing full document parsing
 - **Infinite Loop Protection**: Improved detection and prevention of parser infinite loops
 - **Performance**: Better handling of complex documents with many elements
