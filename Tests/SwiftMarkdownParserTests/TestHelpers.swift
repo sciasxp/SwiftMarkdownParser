@@ -40,3 +40,12 @@ struct ReadOnlyTestContainer: ASTNode {
 func makeTestSourceLocation(line: Int, column: Int, offset: Int) -> SourceLocation {
     SourceLocation(line: line, column: column, offset: offset)
 }
+
+/// Builds a source position without naming `SourceLocation` in files that
+/// import Testing, where the name is ambiguous.
+func sourcePosition(line: Int, column: Int, offset: Int) -> SourceLocation {
+    SourceLocation(line: line, column: column, offset: offset)
+}
+
+/// Unambiguous name for `SourceLocation` in files that import Testing.
+typealias MarkdownSourceLocation = SourceLocation
