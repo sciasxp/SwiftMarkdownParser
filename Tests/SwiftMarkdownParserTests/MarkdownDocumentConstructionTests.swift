@@ -27,6 +27,20 @@ import Testing
         assertValidRanges(in: document, sourceLength: markdown.count)
     }
 
+    @Test(arguments: ["\u{2028}", "\u{2029}", "\u{85}", "\u{0B}", "\u{0C}"])
+    func unicodeSeparator_insideHeading_doesNotEndTheLine(separator: String) throws {
+        let markdown = "# Title\(separator)More"
+
+        let document = try SwiftMarkdownParser().parse(markdown)
+        let heading = try #require(document.children.first as? AST.HeadingNode)
+
+        #expect(document.children.count == 1)
+        #expect(plainText(in: heading).hasSuffix("More"))
+        #expect(heading.sourceLocation?.endLine == 1)
+        #expect(document.sourceLocation?.endLine == 1)
+        assertValidRanges(in: document, sourceLength: markdown.count)
+    }
+
     @Test func synchronousInterfaceBuildsACompleteSemanticDocument() throws {
         let markdown = """
         [Swift][language]

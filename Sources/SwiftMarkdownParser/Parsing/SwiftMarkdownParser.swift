@@ -76,7 +76,7 @@ public final class SwiftMarkdownParser: Sendable {
             sourceLength: sourceLength
         )
         let tokenizer = MarkdownTokenizer(
-            referenceResolution.sourceForParsing,
+            MarkdownSourceText(referenceResolution.sourceForParsing, budget: budget),
             budget: budget
         )
         let tokenStream = TokenStream(tokenizer.tokenize(), budget: budget)

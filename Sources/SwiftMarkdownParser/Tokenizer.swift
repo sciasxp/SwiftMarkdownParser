@@ -101,12 +101,10 @@ enum TokenType: String, CaseIterable, Sendable, Equatable {
 /// Lexical analyzer for markdown text
 final class MarkdownTokenizer {
 
+    private let sourceText: MarkdownSourceText
     private let characters: [Character]
-    private let baseOffset: Int
     private let budget: ParsingBudget
     private var position: Int = 0
-    private var line: Int = 1
-    private var column: Int = 1
     
     // State tracking for fenced code blocks
     private var inFencedCodeBlock: Bool = false
@@ -117,17 +115,11 @@ final class MarkdownTokenizer {
     // State tracking for math blocks
     private var inMathBlock: Bool = false
     
-    /// Initialize tokenizer with markdown text
-    init(
-        _ input: String,
-        startingAt location: SourceLocation = SourceLocation(line: 1, column: 1, offset: 0),
-        budget: ParsingBudget
-    ) {
-        self.characters = Array(input)
-        self.baseOffset = location.offset
+    /// Initialize tokenizer with markdown source text
+    init(_ sourceText: MarkdownSourceText, budget: ParsingBudget) {
+        self.sourceText = sourceText
+        self.characters = sourceText.characters
         self.budget = budget
-        self.line = location.line
-        self.column = location.column
     }
     
     /// Tokenize the entire input into a sequence of tokens
@@ -160,7 +152,7 @@ final class MarkdownTokenizer {
         let char = currentChar
 
         // Handle newlines first
-        if char.isNewline {
+        if MarkdownSourceText.isLineEnding(char) {
             advance()
             return Token(
                 type: .newline,
@@ -198,14 +190,14 @@ final class MarkdownTokenizer {
         }
 
         // Check for line-start patterns (headers, lists, block quotes, etc.)
-        if column == 1 || isAfterWhitespace() {
+        if currentLocation.column == 1 || isAfterWhitespace() {
             if let lineStartToken = checkLineStartPatterns() {
                 return lineStartToken
             }
         }
         
         // Handle whitespace
-        if char.isWhitespace && !char.isNewline {
+        if char.isWhitespace && !MarkdownSourceText.isLineEnding(char) {
             return tokenizeWhitespace()
         }
         
@@ -277,19 +269,16 @@ final class MarkdownTokenizer {
     private func advance() {
         budget.consumeWork()
         guard position < characters.count else { return }
-        
-        if characters[position].isNewline {
-            line += 1
-            column = 1
-        } else {
-            column += 1
-        }
-        
         position += 1
     }
     
     private var currentLocation: SourceLocation {
-        return SourceLocation(line: line, column: column, offset: baseOffset + position)
+        sourceText.location(at: position)
+    }
+
+    /// Moves back to a location produced by `currentLocation`.
+    private func rewind(to location: SourceLocation) {
+        position = location.offset - sourceText.location(at: 0).offset
     }
     
     private func isAfterWhitespace() -> Bool {
@@ -359,7 +348,7 @@ final class MarkdownTokenizer {
         let startLocation = currentLocation
         var content = ""
         
-        while !isAtEnd && currentChar.isWhitespace && !currentChar.isNewline {
+        while !isAtEnd && currentChar.isWhitespace && !MarkdownSourceText.isLineEnding(currentChar) {
             content.append(currentChar)
             advance()
         }
@@ -371,7 +360,7 @@ final class MarkdownTokenizer {
         let startLocation = currentLocation
         var content = ""
         
-        while !isAtEnd && !isSpecialCharacter(currentChar) && !currentChar.isNewline {
+        while !isAtEnd && !isSpecialCharacter(currentChar) && !MarkdownSourceText.isLineEnding(currentChar) {
             content.append(currentChar)
             advance()
         }
@@ -421,9 +410,7 @@ final class MarkdownTokenizer {
         // Must be followed by space or end of line
         if !isAtEnd && !currentChar.isWhitespace {
             // Not a header, backtrack and return as text
-            position = startLocation.offset - baseOffset
-            line = startLocation.line
-            column = startLocation.column
+            rewind(to: startLocation)
             return tokenizeText()
         }
         
@@ -519,7 +506,7 @@ final class MarkdownTokenizer {
         guard pos >= 0 && characters[pos] == " " else { return false }
         
         // Skip whitespace backwards (but we need at least one space)
-        while pos >= 0 && characters[pos].isWhitespace && !characters[pos].isNewline {
+        while pos >= 0 && characters[pos].isWhitespace && !MarkdownSourceText.isLineEnding(characters[pos]) {
             pos -= 1
         }
         
@@ -764,9 +751,7 @@ final class MarkdownTokenizer {
         // Must be followed by whitespace
         if !isAtEnd && !currentChar.isWhitespace {
             // Not a list marker, backtrack
-            position = startLocation.offset - baseOffset
-            line = startLocation.line
-            column = startLocation.column
+            rewind(to: startLocation)
             return nil
         }
         
@@ -792,9 +777,7 @@ final class MarkdownTokenizer {
         // Must be followed by . or )
         guard !isAtEnd && (currentChar == "." || currentChar == ")") else {
             // Not a numbered list, backtrack
-            position = startLocation.offset - baseOffset
-            line = startLocation.line
-            column = startLocation.column
+            rewind(to: startLocation)
             return nil
         }
         
@@ -804,9 +787,7 @@ final class MarkdownTokenizer {
         // Must be followed by whitespace
         if !isAtEnd && !currentChar.isWhitespace {
             // Not a list marker, backtrack
-            position = startLocation.offset - baseOffset
-            line = startLocation.line
-            column = startLocation.column
+            rewind(to: startLocation)
             return nil
         }
         
@@ -816,7 +797,7 @@ final class MarkdownTokenizer {
     /// Check if we're at the actual start of a line (column 1) or after valid list indentation
     private func isAtActualLineStart() -> Bool {
         // If we're at column 1, this is definitely line start
-        if column == 1 {
+        if currentLocation.column == 1 {
             return true
         }
         
@@ -826,7 +807,7 @@ final class MarkdownTokenizer {
         var spaceCount = 0
         var pos = position - 1
         
-        while pos >= 0 && !characters[pos].isNewline {
+        while pos >= 0 && !MarkdownSourceText.isLineEnding(characters[pos]) {
             if characters[pos] == " " {
                 spaceCount += 1
             } else if characters[pos] == "\t" {
@@ -858,7 +839,7 @@ final class MarkdownTokenizer {
                 count += 1
             } else if c == " " || c == "\t" {
                 // Spaces are allowed
-            } else if c.isNewline {
+            } else if MarkdownSourceText.isLineEnding(c) {
                 break
             } else {
                 // Other characters break the pattern
@@ -872,7 +853,7 @@ final class MarkdownTokenizer {
         
         // Consume the entire line
         var content = ""
-        while !isAtEnd && !currentChar.isNewline {
+        while !isAtEnd && !MarkdownSourceText.isLineEnding(currentChar) {
             content.append(currentChar)
             advance()
         }
@@ -893,9 +874,7 @@ final class MarkdownTokenizer {
         // Must have at least 4 spaces
         guard spaceCount >= 4 else {
             // Backtrack
-            position = startLocation.offset - baseOffset
-            line = startLocation.line
-            column = startLocation.column
+            rewind(to: startLocation)
             return nil
         }
 
@@ -903,7 +882,7 @@ final class MarkdownTokenizer {
         // Reference definitions are replaced with spaces before tokenization to
         // preserve source offsets, so this distinction also prevents those
         // placeholders from leaking into the semantic document.
-        if isAtEnd || currentChar.isNewline {
+        if isAtEnd || MarkdownSourceText.isLineEnding(currentChar) {
             return Token(
                 type: .whitespace,
                 content: String(repeating: " ", count: spaceCount),
@@ -928,9 +907,7 @@ final class MarkdownTokenizer {
         // Must have at least 3 characters
         guard content.count >= 3 else {
             // Backtrack
-            position = startLocation.offset - baseOffset
-            line = startLocation.line
-            column = startLocation.column
+            rewind(to: startLocation)
             return nil
         }
         
@@ -963,9 +940,7 @@ final class MarkdownTokenizer {
         // Must have at least the same length as opening fence
         guard count >= fenceLength else {
             // Backtrack - this is not a closing fence
-            position = startLocation.offset - baseOffset
-            line = startLocation.line
-            column = startLocation.column
+            rewind(to: startLocation)
             return nil
         }
         
@@ -973,12 +948,10 @@ final class MarkdownTokenizer {
         // This ensures we don't close on fence characters that are part of content
         var tempPos = position
         
-        while tempPos < characters.count && !characters[tempPos].isNewline {
+        while tempPos < characters.count && !MarkdownSourceText.isLineEnding(characters[tempPos]) {
             if !characters[tempPos].isWhitespace {
                 // There's non-whitespace content after the fence, so this is not a closing fence
-                position = startLocation.offset - baseOffset
-                line = startLocation.line
-                column = startLocation.column
+                rewind(to: startLocation)
                 return nil
             }
             tempPos += 1
@@ -996,7 +969,7 @@ final class MarkdownTokenizer {
         // Therefore, any character that is not a newline should be consumed as
         // part of the code block's content. This includes ` and ~ characters
         // that do not form a valid closing fence.
-        while !isAtEnd && !currentChar.isNewline {
+        while !isAtEnd && !MarkdownSourceText.isLineEnding(currentChar) {
             content.append(currentChar)
             advance()
         }
@@ -1051,7 +1024,7 @@ final class MarkdownTokenizer {
 
         // Check that $$ is followed by only whitespace or end of line
         var tempPos = position + 2
-        while tempPos < characters.count && !characters[tempPos].isNewline {
+        while tempPos < characters.count && !MarkdownSourceText.isLineEnding(characters[tempPos]) {
             if !characters[tempPos].isWhitespace {
                 return nil
             }
@@ -1074,8 +1047,6 @@ final class MarkdownTokenizer {
 
         // Capture the current parser state *before* we attempt any operation that may mutate it.
         let originalPosition = position
-        let originalLine = line
-        let originalColumn = column
 
         // Fast-path: if the current character matches the opening fence character and we're at
         // the beginning of the line, defer to the standard closing-fence logic.
@@ -1110,21 +1081,19 @@ final class MarkdownTokenizer {
 
         // Not a valid closing fence – restore parser state and signal failure.
         position = originalPosition
-        line = originalLine
-        column = originalColumn
         return nil
     }
 
     private func isAtLineStart() -> Bool {
         // Check if we're at the actual start of a line (column 1)
         // or if we're after whitespace at the start of a line
-        if column == 1 {
+        if currentLocation.column == 1 {
             return true
         }
         
         // Check if all characters before this on the current line are whitespace
         var pos = position - 1
-        while pos >= 0 && !characters[pos].isNewline {
+        while pos >= 0 && !MarkdownSourceText.isLineEnding(characters[pos]) {
             if !characters[pos].isWhitespace {
                 return false
             }

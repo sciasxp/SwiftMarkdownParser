@@ -65,8 +65,7 @@ final class InlineParser {
         startingAt location: SourceLocation = SourceLocation(line: 1, column: 1, offset: 0)
     ) throws -> [any ASTNode] {
         let inlineTokenizer = MarkdownTokenizer(
-            text,
-            startingAt: location,
+            MarkdownSourceText(text, startingAt: location, budget: budget),
             budget: budget
         )
         let inlineTokenStream = TokenStream(inlineTokenizer.tokenize(), budget: budget)
