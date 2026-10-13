@@ -151,22 +151,6 @@ enum RendererUtils {
             .replacingOccurrences(of: "'", with: "&#39;")
     }
 
-    /// Normalize URL for security
-    static func normalizeURL(_ url: String, baseURL: URL? = nil) -> String? {
-        // Remove javascript: and data: URLs for security
-        let lowercased = url.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        if lowercased.hasPrefix("javascript:") || lowercased.hasPrefix("data:") {
-            return nil
-        }
-
-        // Handle relative URLs
-        if let baseURL = baseURL, !url.contains("://") {
-            return URL(string: url, relativeTo: baseURL)?.absoluteString ?? url
-        }
-
-        return url
-    }
-
     /// Generate HTML attributes from style configuration
     static func htmlAttributes(
         for nodeType: ASTNodeType,

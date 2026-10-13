@@ -265,6 +265,46 @@ struct HTMLOutputSeamTests {
             try await renderer.renderDocument(document)
         }
     }
+
+    @Test("Does not emit a script href when a tab splits the scheme in Markdown Source")
+    func linkDestination_tabInsideScheme_rendersLinkText() async throws {
+        let document = try SwiftMarkdownParser().parse("[click](<java\tscript:alert(1)>)")
+
+        let html = try await HTMLRenderer().renderFragment(document)
+
+        #expect(!html.contains("href"))
+        #expect(html.contains("click"))
+    }
+
+    @Test(
+        "Renders the fallback for destinations outside the allowlist, even when split by controls",
+        arguments: [
+            "java\tscript:alert(1)",
+            "java\nscript:alert(1)",
+            "java\rscript:alert(1)",
+            " \tjavascript:alert(1)",
+            "\u{01}javascript:alert(1)",
+            "vbscript:msgbox(1)",
+            "file:///etc/passwd"
+        ]
+    )
+    func destination_controlCharactersInsideScheme_rendersFallback(destination: String) async throws {
+        let document = AST.DocumentNode(children: [
+            AST.ParagraphNode(children: [
+                AST.LinkNode(url: destination, title: nil, children: [AST.TextNode(content: "link")]),
+                AST.ImageNode(url: destination, altText: "image", title: nil),
+                AST.AutolinkNode(url: destination, text: "autolink")
+            ])
+        ])
+
+        let html = try await HTMLRenderer().renderFragment(document)
+
+        #expect(!html.contains("href"))
+        #expect(!html.contains("src"))
+        #expect(html.contains("link"))
+        #expect(html.contains("image"))
+        #expect(html.contains("autolink"))
+    }
 }
 
 private struct MissingBrowserAssetLoader: BrowserAssetLoading {

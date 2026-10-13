@@ -1,3 +1,5 @@
+import Foundation
+
 /// Renders complete Markdown documents to HTML while owning all HTML-specific
 /// escaping, feature assets, styling, and document composition.
 public struct HTMLRenderer: Sendable {
@@ -232,7 +234,7 @@ public struct HTMLRenderer: Sendable {
                 content += try await render(node: child, requirements: &requirements)
             }
 
-            guard let normalizedURL = RendererUtils.normalizeURL(linkNode.url, baseURL: options.baseURL) else {
+            guard let destination = MarkdownDestination.resolve(linkNode.url, relativeTo: options.baseURL) else {
                 // If URL is invalid/unsafe, render as plain text
                 return content
             }
@@ -242,7 +244,7 @@ public struct HTMLRenderer: Sendable {
                 sourceLocation: linkNode.sourceLocation,
                 styleConfig: options.styleConfiguration
             )
-            attributes["href"] = normalizedURL
+            attributes["href"] = destination.absoluteString
 
             if let title = linkNode.title {
                 attributes["title"] = title
@@ -253,7 +255,7 @@ public struct HTMLRenderer: Sendable {
         case let imageNode as AST.ImageNode:
             let altText = imageNode.altText
 
-            guard let normalizedURL = RendererUtils.normalizeURL(imageNode.url, baseURL: options.baseURL) else {
+            guard let destination = MarkdownDestination.resolve(imageNode.url, relativeTo: options.baseURL) else {
                 // If URL is invalid/unsafe, render alt text
                 return RendererUtils.escapeHTML(altText)
             }
@@ -263,7 +265,7 @@ public struct HTMLRenderer: Sendable {
                 sourceLocation: imageNode.sourceLocation,
                 styleConfig: options.styleConfiguration
             )
-            attributes["src"] = normalizedURL
+            attributes["src"] = destination.absoluteString
             attributes["alt"] = altText
 
             if let title = imageNode.title {
@@ -289,7 +291,7 @@ public struct HTMLRenderer: Sendable {
         case let autolinkNode as AST.AutolinkNode:
             let url = autolinkNode.url
             let text = autolinkNode.text
-            guard let normalizedURL = RendererUtils.normalizeURL(url, baseURL: options.baseURL) else {
+            guard let destination = MarkdownDestination.resolve(url, relativeTo: options.baseURL) else {
                 return RendererUtils.escapeHTML(text)
             }
             var attributes = RendererUtils.htmlAttributes(
@@ -297,7 +299,7 @@ public struct HTMLRenderer: Sendable {
                 sourceLocation: autolinkNode.sourceLocation,
                 styleConfig: options.styleConfiguration
             )
-            attributes["href"] = normalizedURL
+            attributes["href"] = destination.absoluteString
             return "<a\(RendererUtils.formatHTMLAttributes(attributes))>\(RendererUtils.escapeHTML(text))</a>"
 
         case let htmlBlockNode as AST.HTMLBlockNode:
