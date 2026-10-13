@@ -178,7 +178,13 @@ struct SwiftUIRendererTests {
 
     @Test(
         "Does not send invalid image destinations to the host adapter",
-        arguments: ["javascript:alert(1)", "data:text/plain,unsafe", "   "]
+        arguments: [
+            "javascript:alert(1)",
+            "data:text/plain,unsafe",
+            "   ",
+            "java\tscript:alert(1)",
+            "da\nta:text/plain,unsafe"
+        ]
     )
     func rejectsInvalidImageDestination(destination: String) async throws {
         let document = AST.DocumentNode(children: [
@@ -196,6 +202,38 @@ struct SwiftUIRendererTests {
         _ = try await SwiftUIRenderer(options: options).render(document)
 
         #expect(recorder.urls.isEmpty)
+    }
+
+    @Test(
+        "Projects link and autolink text without a destination outside the allowlist",
+        arguments: [
+            "javascript:alert(1)",
+            "java\tscript:alert(1)",
+            "java\nscript:alert(1)",
+            "\u{01}javascript:alert(1)",
+            "vbscript:msgbox(1)",
+            "file:///etc/passwd"
+        ]
+    )
+    func projectLink_destinationOutsideAllowlist_dropsLink(destination: String) throws {
+        let links = try projectedLinks([
+            AST.LinkNode(url: destination, title: nil, children: [AST.TextNode(content: "link")]),
+            AST.AutolinkNode(url: destination, text: "autolink")
+        ])
+
+        #expect(links.map(\.text) == ["linkautolink"])
+        #expect(links.allSatisfy { $0.link == nil })
+    }
+
+    @Test func projectLink_relativeDestinationWithFileBase_resolvesAgainstBase() throws {
+        let base = URL(fileURLWithPath: "/Users/reader/docs/", isDirectory: true)
+
+        let links = try projectedLinks(
+            [AST.LinkNode(url: "guide.md", title: nil, children: [AST.TextNode(content: "guide")])],
+            baseURL: base
+        )
+
+        #expect(links.first?.link?.absoluteString == "file:///Users/reader/docs/guide.md")
     }
 
     @Test("Ordered-list markers honor the document start number")
@@ -1264,12 +1302,30 @@ struct SwiftUIRendererTests {
         )
         guard let first = plan.blocks.first,
               case let .table(projected) = first else {
-            throw ProjectedTableTestError.missingTable
+            throw ProjectionTestError.missingTable
         }
         return projected
     }
+
+    private func projectedLinks(
+        _ inlines: [any ASTNode],
+        baseURL: URL? = nil
+    ) throws -> [(text: String, link: URL?)] {
+        let plan = try NativeDocumentProjection(options: .init(baseURL: baseURL)).project(
+            AST.DocumentNode(children: [AST.ParagraphNode(children: inlines)])
+        )
+        guard let first = plan.blocks.first,
+              case let .paragraph(paragraph) = first else {
+            throw ProjectionTestError.missingParagraph
+        }
+        return paragraph.fragments.compactMap { fragment in
+            guard case let .text(text, _, link) = fragment else { return nil }
+            return (text, link)
+        }
+    }
 }
 
-private enum ProjectedTableTestError: Error {
+private enum ProjectionTestError: Error {
     case missingTable
+    case missingParagraph
 }

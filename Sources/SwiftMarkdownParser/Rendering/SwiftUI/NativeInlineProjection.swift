@@ -267,13 +267,13 @@ struct NativeInlinePlan {
                 try append(
                     linkNode.children,
                     styles: styles,
-                    link: Self.resolvedURL(for: linkNode.url, relativeTo: baseURL)
+                    link: MarkdownDestination.resolve(linkNode.url, relativeTo: baseURL)
                 )
             case let autolink as AST.AutolinkNode:
                 appendText(
                     autolink.text,
                     styles: styles,
-                    link: Self.resolvedURL(for: autolink.url, relativeTo: baseURL)
+                    link: MarkdownDestination.resolve(autolink.url, relativeTo: baseURL)
                 )
             case let image as AST.ImageNode:
                 fragments.append(.image(
@@ -312,21 +312,6 @@ struct NativeInlinePlan {
         } else {
             fragments.append(.text(value, styles: styles, link: link))
         }
-    }
-
-    private static func resolvedURL(for destination: String, relativeTo baseURL: URL?) -> URL? {
-        let trimmed = destination.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lowercased = trimmed.lowercased()
-        guard !trimmed.isEmpty,
-              !lowercased.hasPrefix("javascript:"),
-              !lowercased.hasPrefix("data:") else {
-            return nil
-        }
-
-        if let baseURL {
-            return URL(string: trimmed, relativeTo: baseURL)?.absoluteURL
-        }
-        return URL(string: trimmed)
     }
 }
 
