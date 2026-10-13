@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Localized Native Semantics**: SwiftUI fallback titles, renderer errors, and VoiceOver labels ship in English and Brazilian Portuguese (pt-BR) ([ADR 0008](Docs/adr/0008-concentrate-native-semantics-and-localization.md))
 
 ### Changed
+- **Inline Fragment Work**: Setext heading text and inline-parsed table cells charge one extra unit of work per character to `ResourceLimits.maximumWork`, for their fragment's line table (ADR 0014)
 - **Unicode Separators Are Whitespace**: U+2028, U+2029, NEL, VT, and FF no longer end a line; they are whitespace inside it, as CommonMark specifies (ADR 0014)
 - **Source-Breaking Parser Interface**: Replaced async `parseToAST(_:)` and mode-based `Configuration` with synchronous `parse(_:)` and `ResourceLimits`
   - The Supported Dialect is fixed to CommonMark 0.30, GFM, math, and Mermaid

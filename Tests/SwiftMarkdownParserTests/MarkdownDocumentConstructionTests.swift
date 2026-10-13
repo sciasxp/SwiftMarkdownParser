@@ -257,6 +257,25 @@ import Testing
         #expect(resource == .work)
     }
 
+    /// Each inline fragment's line table charges its characters: the two
+    /// three-character cells cost 6 units more than on `develop` (279).
+    @Test func inlineTableCells_workCost_includesFragmentTables() throws {
+        let source = "| *a* | b |\n|---|---|\n| `1` | 2 |\n"
+        func parser(maximumWork: Int) -> SwiftMarkdownParser {
+            SwiftMarkdownParser(resourceLimits: .init(maximumWork: maximumWork))
+        }
+
+        _ = try parser(maximumWork: 285).parse(source)
+        guard case let .resourceLimitExceeded(resource, _, _) = parsingError(
+            from: parser(maximumWork: 284),
+            source: source
+        ) else {
+            Issue.record("Expected a work-limit failure one unit below the cost")
+            return
+        }
+        #expect(resource == .work)
+    }
+
     @Test func nestingLimitCoversBlockAndInlineConstruction() {
         let parser = SwiftMarkdownParser(resourceLimits: .init(
             maximumSourceLength: 1_000,

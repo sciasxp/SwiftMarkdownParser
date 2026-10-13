@@ -39,7 +39,9 @@ table's lines and returns a blanked copy that keeps the same line table, so the
 tokenizer reuses it instead of rescanning. `SourceLocation.extending(over:)`
 delegates to the module, and the block parser takes document and table ranges
 from it. Inline parsing builds a small source text for each inline fragment,
-anchored at the fragment's starting location.
+anchored at the fragment's starting location; each fragment's table also
+charges its characters, so setext headings and inline-parsed table cells cost
+slightly more work.
 
 Building a table charges one unit of work per character to the parse's
 `ParsingBudget`, like the tokenizer's per-character advance. The document's
