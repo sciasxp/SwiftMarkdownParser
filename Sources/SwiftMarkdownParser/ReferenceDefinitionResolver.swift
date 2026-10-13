@@ -1,25 +1,19 @@
 import Foundation
 
 struct ReferenceDefinitionResolution {
-    let sourceForParsing: String
+    /// The source with every definition line blanked, keeping its line table.
+    let sourceForParsing: MarkdownSourceText
     let references: [String: LinkReference]
 }
 
 enum ReferenceDefinitionResolver {
-    static func resolve(in source: String, sourceLength: Int) -> ReferenceDefinitionResolution {
+    static func resolve(in sourceText: MarkdownSourceText) -> ReferenceDefinitionResolution {
         var references: [String: LinkReference] = [:]
-        var output = ""
-        var isRewritingSource = false
-        var line = 1
-        var offset = 0
+        var definitionRanges: [Range<Int>] = []
         var openFence: Fence?
-        var lineStart = source.startIndex
 
-        while true {
-            let newlineIndex = source[lineStart...].firstIndex(where: \.isNewline)
-            let lineEnd = newlineIndex ?? source.endIndex
-            let rawLine = String(source[lineStart..<lineEnd])
-            let location = SourceLocation(line: line, column: 1, offset: offset)
+        for line in sourceText.lines {
+            let rawLine = sourceText.string(in: line.contentRange)
 
             if let fence = fence(in: rawLine) {
                 if let currentFence = openFence {
@@ -31,49 +25,21 @@ enum ReferenceDefinitionResolver {
                 } else {
                     openFence = fence
                 }
-                if isRewritingSource {
-                    output.append(contentsOf: rawLine)
-                }
-            } else if openFence != nil {
-                if isRewritingSource {
-                    output.append(contentsOf: rawLine)
-                }
-            } else if let definition = parseDefinition(rawLine) {
+            } else if openFence == nil, let definition = parseDefinition(rawLine) {
                 let normalizedLabel = normalizeLabel(definition.label)
                 if references[normalizedLabel] == nil {
                     references[normalizedLabel] = LinkReference(
                         url: definition.url,
                         title: definition.title,
-                        sourceLocation: location.extending(over: rawLine)
+                        sourceLocation: sourceText.range(line.contentRange)
                     )
                 }
-                if !isRewritingSource {
-                    output.reserveCapacity(sourceLength)
-                    let prefixEnd = source.index(source.startIndex, offsetBy: offset)
-                    output.append(contentsOf: source[..<prefixEnd])
-                    isRewritingSource = true
-                }
-                for character in rawLine {
-                    output.append(character == "\t" ? "\t" : " ")
-                }
-            } else {
-                if isRewritingSource {
-                    output.append(contentsOf: rawLine)
-                }
+                definitionRanges.append(line.contentRange)
             }
-
-            guard let newlineIndex else { break }
-
-            if isRewritingSource {
-                output.append(source[newlineIndex])
-            }
-            offset += rawLine.count + 1
-            line += 1
-            lineStart = source.index(after: newlineIndex)
         }
 
         return ReferenceDefinitionResolution(
-            sourceForParsing: isRewritingSource ? output : source,
+            sourceForParsing: sourceText.blankingCharacters(in: definitionRanges),
             references: references
         )
     }

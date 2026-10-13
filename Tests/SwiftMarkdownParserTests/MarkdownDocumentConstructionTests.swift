@@ -41,6 +41,18 @@ import Testing
         assertValidRanges(in: document, sourceLength: markdown.count)
     }
 
+    @Test(arguments: ["\u{2028}", "\u{2029}", "\u{85}", "\u{0B}", "\u{0C}"])
+    func unicodeSeparator_beforeReferenceDefinition_keepsItInsideParagraph(separator: String) throws {
+        let markdown = "[Swift][x]\n\nText\(separator)[x]: https://swift.org"
+
+        let document = try SwiftMarkdownParser().parse(markdown)
+
+        #expect(document.children.count == 2)
+        #expect(!containsNode(ofType: AST.LinkNode.self, in: document))
+        #expect(plainText(in: document).contains("[x]:"))
+        assertValidRanges(in: document, sourceLength: markdown.count)
+    }
+
     @Test func synchronousInterfaceBuildsACompleteSemanticDocument() throws {
         let markdown = """
         [Swift][language]

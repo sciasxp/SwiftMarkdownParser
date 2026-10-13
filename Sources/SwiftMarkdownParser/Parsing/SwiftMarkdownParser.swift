@@ -71,12 +71,10 @@ public final class SwiftMarkdownParser: Sendable {
             maximumWork: resourceLimits.maximumWork,
             initialWork: sourceLength
         )
-        let referenceResolution = ReferenceDefinitionResolver.resolve(
-            in: markdown,
-            sourceLength: sourceLength
-        )
+        let sourceText = MarkdownSourceText(markdown, budget: budget)
+        let referenceResolution = ReferenceDefinitionResolver.resolve(in: sourceText)
         let tokenizer = MarkdownTokenizer(
-            MarkdownSourceText(referenceResolution.sourceForParsing, budget: budget),
+            referenceResolution.sourceForParsing,
             budget: budget
         )
         let tokenStream = TokenStream(tokenizer.tokenize(), budget: budget)
