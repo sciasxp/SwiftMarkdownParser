@@ -266,9 +266,9 @@ struct HTMLOutputSeamTests {
         }
     }
 
-    @Test("Does not emit a script href when a tab splits the scheme in Markdown Source")
-    func linkDestination_tabInsideScheme_rendersLinkText() async throws {
-        let document = try SwiftMarkdownParser().parse("[click](<java\tscript:alert(1)>)")
+    @Test("Does not emit a script href when a tab splits the scheme of a reference definition")
+    func referenceDestination_tabInsideScheme_rendersLinkText() async throws {
+        let document = try SwiftMarkdownParser().parse("[click]\n\n[click]: <java\tscript:alert(1)>")
 
         let html = try await HTMLRenderer().renderFragment(document)
 
