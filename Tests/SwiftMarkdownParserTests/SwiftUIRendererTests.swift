@@ -183,7 +183,9 @@ struct SwiftUIRendererTests {
             "data:text/plain,unsafe",
             "   ",
             "java\tscript:alert(1)",
-            "da\nta:text/plain,unsafe"
+            "da\nta:text/plain,unsafe",
+            "vbscript:msgbox(1)",
+            "file:///etc/passwd"
         ]
     )
     func rejectsInvalidImageDestination(destination: String) async throws {

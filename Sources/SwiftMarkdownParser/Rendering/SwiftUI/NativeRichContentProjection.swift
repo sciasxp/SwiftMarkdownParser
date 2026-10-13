@@ -78,7 +78,7 @@ struct NativeRichContentProjection {
     }
 
     private func projectImage(_ node: AST.ImageNode) -> NativeMaterializedView {
-        guard let source = resolvedImageURL(for: node.url) else {
+        guard let source = MarkdownDestination.resolve(node.url, relativeTo: baseURL) else {
             return imageFallback(node: node, source: nil)
         }
 
@@ -95,21 +95,6 @@ struct NativeRichContentProjection {
             return fallback()
         }
         return materializer.materialize(adapted)
-    }
-
-    private func resolvedImageURL(for destination: String) -> URL? {
-        let trimmed = destination.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lowercased = trimmed.lowercased()
-        guard !trimmed.isEmpty,
-              !lowercased.hasPrefix("javascript:"),
-              !lowercased.hasPrefix("data:") else {
-            return nil
-        }
-
-        if let baseURL {
-            return URL(string: trimmed, relativeTo: baseURL)?.absoluteURL
-        }
-        return URL(string: trimmed)
     }
 
     private func imageFallback(node: AST.ImageNode, source: URL?) -> NativeMaterializedView {
