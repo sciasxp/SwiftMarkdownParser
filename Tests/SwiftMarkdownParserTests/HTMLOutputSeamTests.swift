@@ -307,20 +307,14 @@ struct HTMLOutputSeamTests {
     }
 
     @Test(
-        "Renders the fallback when a combining or joiner character follows the scheme's colon, with any base",
-        arguments: [
-            "javascript:\u{301}alert(1)",
-            "data:\u{200D}text/html,x",
-            "file:\u{301}///etc/passwd"
-        ],
-        [
-            URL(string: "https://example.com/docs/guide.html")!,
-            URL(fileURLWithPath: "/Users/reader/docs/", isDirectory: true)
-        ]
+        "Renders the fallback when a combining or joiner character follows a reference's scheme colon",
+        arguments: markAfterSchemeColonDestinations, destinationBaseURLs
     )
     func referenceDestination_markAfterSchemeColon_rendersFallback(destination: String, baseURL: URL) async throws {
-        let markdown = "[link] ![image][link] <\(destination)>\n\n[link]: <\(destination)>"
-        let document = try SwiftMarkdownParser().parse(markdown)
+        let document = try SwiftMarkdownParser().parse("[link] ![image][link]\n\n[link]: <\(destination)>")
+        let nodes = document.depthFirst().map(\.node)
+        try #require(nodes.contains { $0 is AST.LinkNode })
+        try #require(nodes.contains { $0 is AST.ImageNode })
 
         let html = try await HTMLRenderer(options: HTMLRenderOptions(baseURL: baseURL)).renderFragment(document)
 
@@ -328,6 +322,21 @@ struct HTMLOutputSeamTests {
         #expect(!html.contains("src"))
         #expect(html.contains("link"))
         #expect(html.contains("image"))
+    }
+
+    @Test(
+        "Renders the autolink text when a combining or joiner character follows its scheme colon",
+        arguments: markAfterSchemeColonDestinations, destinationBaseURLs
+    )
+    func autolinkDestination_markAfterSchemeColon_rendersText(destination: String, baseURL: URL) async throws {
+        let document = AST.DocumentNode(children: [
+            AST.ParagraphNode(children: [AST.AutolinkNode(url: destination, text: "autolink")])
+        ])
+
+        let html = try await HTMLRenderer(options: HTMLRenderOptions(baseURL: baseURL)).renderFragment(document)
+
+        #expect(!html.contains("href"))
+        #expect(html.contains("autolink"))
     }
 
     @Test("Renders the link text for a protocol-relative reference that would name a file host")
@@ -341,6 +350,17 @@ struct HTMLOutputSeamTests {
         #expect(html.contains("x"))
     }
 }
+
+private let markAfterSchemeColonDestinations = [
+    "javascript:\u{301}alert(1)",
+    "data:\u{200D}text/html,x",
+    "file:\u{301}///etc/passwd"
+]
+
+private let destinationBaseURLs = [
+    URL(string: "https://example.com/docs/guide.html")!,
+    URL(fileURLWithPath: "/Users/reader/docs/", isDirectory: true)
+]
 
 private struct MissingBrowserAssetLoader: BrowserAssetLoading {
     func data(named name: String) throws -> Data {
