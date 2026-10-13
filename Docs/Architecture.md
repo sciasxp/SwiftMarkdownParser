@@ -101,8 +101,8 @@ meaning and owns pure ordered-marker and code-token continuity decisions.
 `NativeViewMaterializer` assigns stable unary view identity and centralizes
 internal type erasure. `NativeInlineProjection` materializes already-planned
 ordered inline meaning while leaving image destination policy outside its seam.
-`NativeRichContentProjection` resolves and validates image destinations,
-projects image, Mermaid, math, and HTML requests through one optional host
+`NativeRichContentProjection` sends only images whose `MarkdownDestination`
+resolves, projects image, Mermaid, math, and HTML requests through one optional host
 adapter, and owns their readable native fallbacks. `NativeAdaptivePresentation`
 then presents materialized blocks according to the container proposal and
 Dynamic Type category. Inside that presentation seam,
@@ -129,8 +129,8 @@ data rows; it does not search for a header, partition rows, or choose between
 table-level and cell-level alignment. The adaptive label/content module owns
 the repeated pair geometry without interpreting accessibility copy, Markdown
 meaning, or style policy. Neither inspects device models, screen bounds, or host window state.
-The rich-content module resolves and validates image destinations before they
-cross the host seam, invokes the adapter at most once per request, and treats
+The rich-content module asks `MarkdownDestination` to resolve image
+destinations before they cross the host seam, invokes the adapter at most once per request, and treats
 `nil` as a decision to preserve the native fallback. Alternative layouts reuse
 the already projected content instead of reinvoking the adapter.
 
@@ -163,6 +163,9 @@ rich-content adapter seam.
 - Add native rich content by extending `SwiftUIRichContentRequest` and its
   centralized fallback together. Do not add a parallel per-node handler or
   bypass destination validation.
+- Decide link, image, and autolink destinations only through
+  `MarkdownDestination` (ADR 0015). Renderers serialize or present the resolved
+  URL; they never add their own scheme checks or base-URL resolution.
 - Add native AST interpretation through `NativeDocumentProjection` and include
   its inline meaning in the typed plan. Never interleave document validation
   with view materialization, identity allocation, adapter effects, or syntax
@@ -190,6 +193,7 @@ Sources/SwiftMarkdownParser/
 │   ├── SwiftMarkdownParser.swift      public document-construction seam
 │   └── LinkReference.swift            link reference definitions
 ├── MarkdownSourceText.swift           line endings, lines, and source positions
+├── MarkdownDestination.swift          link, image, and autolink destination policy
 ├── Tokenizer.swift                    internal tokenizer
 ├── BlockParser.swift                  internal block parser
 ├── InlineParser.swift                 internal inline parser
@@ -226,3 +230,4 @@ Sources/SwiftMarkdownParser/
 - [ADR 0012: Normalize native table meaning once](adr/0012-normalize-native-table-meaning-once.md)
 - [ADR 0013: Deepen native presentation style](adr/0013-deepen-native-presentation-style.md)
 - [ADR 0014: Own line endings and positions in Source Text](adr/0014-own-line-endings-and-positions-in-source-text.md)
+- [ADR 0015: Own destination safety and resolution in MarkdownDestination](adr/0015-own-destination-safety-and-resolution.md)

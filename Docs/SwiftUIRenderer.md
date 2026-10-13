@@ -170,7 +170,8 @@ accessible source fallbacks. Applications that need visual rendering for those
 formats provide one `SwiftUIRichContentAdapter`. Its single `render(_:)`
 operation receives a typed request and may return `nil` to retain the native
 fallback. Image requests cross this seam only after their destination has been
-resolved and validated by the rich-content module. Native link destinations
+resolved by the package's single destination policy (`http`, `https`,
+`mailto`, relative references, and fragments only). Native link destinations
 remain part of inline projection and may still wrap an accessible image
 fallback. This keeps WebKit, KaTeX, Mermaid, or another rendering dependency
 under host ownership on both iOS and macOS without distributing image or

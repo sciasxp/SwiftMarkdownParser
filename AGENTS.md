@@ -45,6 +45,7 @@ Markdown Source
 
 - `Sources/SwiftMarkdownParser/` — all library code
   - Construction: `Parsing/SwiftMarkdownParser.swift` and `Parsing/LinkReference.swift`; at the root, `Tokenizer.swift`, `BlockParser.swift`, `InlineParser.swift`, `MarkdownSourceText.swift`, `ReferenceDefinitionResolver.swift`, `ParsingBudget.swift`, `MarkdownDocumentValidator.swift`
+  - Destination policy: `MarkdownDestination.swift` (link, image, and autolink safety and base-URL resolution for both outputs)
   - AST: `AST.swift`, `ASTTraversal.swift`, `ASTRewriter.swift`
   - HTML output: `Rendering/HTML/`
   - Native SwiftUI output: `Rendering/SwiftUI/`

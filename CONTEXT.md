@@ -12,6 +12,10 @@ _Avoid_: Raw document, input blob
 The characters of one Markdown Source together with its lines, the single authority on what ends a line (LF, CR, or CRLF only) and on the line, column, and character offset of every position.
 _Avoid_: Raw string scanning, newline helper
 
+**Destination**:
+The target of one link, image, or autolink, decided once for every output: safe only when, after normalizing as browsers do, it names http, https, or mailto or is a relative reference or fragment, and resolved against the host's base URL into the one URL it represents.
+_Avoid_: URL normalization, renderer-specific URL check
+
 **Markdown Document**:
 The complete semantic interpretation of one Markdown Source, with all recognized block, inline, and reference meaning resolved.
 _Avoid_: Partial document, staged document
@@ -33,7 +37,7 @@ The interpretation of a complete Markdown Document into one presentation format,
 _Avoid_: Shared rendering pipeline, render context
 
 **Native Inline Projection**:
-The SwiftUI-output interpretation of inline Markdown meaning into an ordered native presentation independent of its containing block, preserving styles, safe destinations, breaks, references, and rich-content requirements without silently discarding unsupported meaning.
+The SwiftUI-output interpretation of inline Markdown meaning into an ordered native presentation independent of its containing block, preserving styles, Destinations, breaks, references, and rich-content requirements without silently discarding unsupported meaning.
 _Avoid_: Inline rendering pipeline, text flattening
 
 **Atomic Native Document Projection**:
@@ -53,7 +57,7 @@ The one-time conversion of projected native content into unary SwiftUI views wit
 _Avoid_: UUID in body, caller-owned AnyView wrapping
 
 **Native Rich Content Seam**:
-The SwiftUI-output seam where one host adapter may materialize a validated rich-content request or decline it. Image destination resolution and rejection belong to this seam; native links remain Native Inline Projection meaning, and declined or invalid rich content retains a readable accessible fallback.
+The SwiftUI-output seam where one host adapter may materialize a validated rich-content request or decline it. Only images whose Destination is safe become requests; native links remain Native Inline Projection meaning, and declined or invalid rich content retains a readable accessible fallback.
 _Avoid_: Rich-content handler bag, per-node closure bundle
 
 **Native Adaptive Presentation**:
