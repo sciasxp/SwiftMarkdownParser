@@ -1182,6 +1182,15 @@ final class TokenStream {
         position = max(0, min(pos, tokens.count))
     }
 
+    /// Location of the current token, or of the last token once past the
+    /// end. Range bookkeeping, like `range(startingAt:)`, so it charges no work.
+    var currentLocation: SourceLocation {
+        guard let token = position < tokens.count ? tokens[position] : tokens.last else {
+            return SourceLocation(line: 1, column: 1, offset: 0)
+        }
+        return token.location
+    }
+
     func range(startingAt start: SourceLocation) -> SourceLocation {
         guard position > 0, position - 1 < tokens.count else { return start }
         return start.spanning(to: tokens[position - 1].location)

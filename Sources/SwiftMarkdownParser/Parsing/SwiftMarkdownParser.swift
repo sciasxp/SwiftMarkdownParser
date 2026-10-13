@@ -67,10 +67,9 @@ public final class SwiftMarkdownParser: Sendable {
             )
         }
 
-        let budget = ParsingBudget(
-            maximumWork: resourceLimits.maximumWork,
-            initialWork: sourceLength
-        )
+        // Building the line table charges one unit per character; that is the
+        // parse's up-front cost for the source.
+        let budget = ParsingBudget(maximumWork: resourceLimits.maximumWork)
         let sourceText = MarkdownSourceText(markdown, budget: budget)
         let referenceResolution = ReferenceDefinitionResolver.resolve(in: sourceText)
         let tokenizer = MarkdownTokenizer(

@@ -739,7 +739,7 @@ final class BlockParser {
             lineContent += tokenStream.consume().content
         }
 
-        let endOffset = tokenStream.current.location.offset
+        let endOffset = tokenStream.currentLocation.offset
         return TableLine(content: lineContent, range: sourceText.range(startLocation.offset..<endOffset))
     }
 

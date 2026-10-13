@@ -42,7 +42,9 @@ from it. Inline parsing builds a small source text for each inline fragment,
 anchored at the fragment's starting location.
 
 Building a table charges one unit of work per character to the parse's
-`ParsingBudget`, like the tokenizer's per-character advance.
+`ParsingBudget`, like the tokenizer's per-character advance. The document's
+table replaces the up-front charge of one unit per source character that the
+parse used to start with, so a document costs the same work as before.
 
 Offsets and columns still count Swift `Character` values. No public interface
 changes.
@@ -57,7 +59,8 @@ changes.
 - `extending(over:)` now starts a new line at CR and CRLF, so CRLF sources report
   correct end lines.
 - Location lookup is a binary search over line starts instead of incremental
-  state; the table costs one extra pass, charged to the work budget.
+  state. The document's table costs one pass, charged in place of the parse's
+  former up-front charge.
 
 ## Validation
 

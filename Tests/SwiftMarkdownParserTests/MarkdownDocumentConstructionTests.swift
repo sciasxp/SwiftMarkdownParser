@@ -237,6 +237,26 @@ import Testing
         #expect(actual > limit)
     }
 
+    /// The source text's line table absorbs the per-character charge the
+    /// parse used to start with, so a simple document costs exactly what it
+    /// cost before the table existed (420 units, measured on `develop`).
+    @Test func simpleDocument_workCost_matchesThePreSourceTextCost() throws {
+        let source = "# Title\n\nHello *world* and `code`.\n\n- item one\n- item two\n"
+        func parser(maximumWork: Int) -> SwiftMarkdownParser {
+            SwiftMarkdownParser(resourceLimits: .init(maximumWork: maximumWork))
+        }
+
+        _ = try parser(maximumWork: 420).parse(source)
+        guard case let .resourceLimitExceeded(resource, _, _) = parsingError(
+            from: parser(maximumWork: 419),
+            source: source
+        ) else {
+            Issue.record("Expected a work-limit failure one unit below the cost")
+            return
+        }
+        #expect(resource == .work)
+    }
+
     @Test func nestingLimitCoversBlockAndInlineConstruction() {
         let parser = SwiftMarkdownParser(resourceLimits: .init(
             maximumSourceLength: 1_000,

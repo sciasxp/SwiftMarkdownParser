@@ -3,11 +3,10 @@
 /// use concurrently.
 final class ParsingBudget {
     private let maximumWork: Int
-    private(set) var consumedWork: Int
+    private(set) var consumedWork = 0
 
-    init(maximumWork: Int, initialWork: Int = 0) {
+    init(maximumWork: Int) {
         self.maximumWork = maximumWork
-        self.consumedWork = initialWork
     }
 
     var isExhausted: Bool {
