@@ -96,6 +96,18 @@ import Testing
         #expect(budget.consumedWork == text.count)
     }
 
+    @Test func extendingOver_crlfAndCR_advancesLines() {
+        let range = sourcePosition(line: 1, column: 1, offset: 0).extending(over: "a\r\nb\rc")
+
+        #expect(endPosition(range) == Position(line: 3, column: 2, offset: 5))
+    }
+
+    @Test func extendingOver_unicodeSeparators_staysOnLine() {
+        let range = sourcePosition(line: 2, column: 4, offset: 10).extending(over: "a\u{2028}b\u{85}c")
+
+        #expect(endPosition(range) == Position(line: 2, column: 9, offset: 15))
+    }
+
     // MARK: - Helpers
 
     private struct Position: Equatable {

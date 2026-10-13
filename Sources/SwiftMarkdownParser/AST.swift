@@ -115,28 +115,17 @@ public struct SourceLocation: Sendable, Equatable {
     }
 
     /// Returns a range starting here and extending over the supplied source.
+    ///
+    /// Only CommonMark line endings (LF, CR, and CRLF) start a new line.
     public func extending(over source: String) -> SourceLocation {
-        var nextLine = line
-        var nextColumn = column
-        var nextOffset = offset
-
-        for character in source {
-            nextOffset += 1
-            if character == "\n" {
-                nextLine += 1
-                nextColumn = 1
-            } else {
-                nextColumn += 1
-            }
-        }
-
+        let end = MarkdownSourceText.position(after: source, from: self)
         return SourceLocation(
             line: line,
             column: column,
             offset: offset,
-            endLine: nextLine,
-            endColumn: nextColumn,
-            endOffset: nextOffset
+            endLine: end.line,
+            endColumn: end.column,
+            endOffset: end.offset
         )
     }
 
