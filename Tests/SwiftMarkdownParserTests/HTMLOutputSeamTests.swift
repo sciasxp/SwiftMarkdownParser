@@ -339,6 +339,25 @@ struct HTMLOutputSeamTests {
         #expect(html.contains("autolink"))
     }
 
+    @Test("Links an empty destination to the document itself, as CommonMark does")
+    func linkDestination_empty_rendersEmptyHref() async throws {
+        let document = try SwiftMarkdownParser().parse("[x]()")
+
+        let html = try await HTMLRenderer().renderFragment(document)
+
+        #expect(html.contains(#"href="""#))
+    }
+
+    @Test("Resolves an empty destination against the base URL as an empty relative reference")
+    func linkDestination_emptyWithBase_rendersBaseHref() async throws {
+        let document = try SwiftMarkdownParser().parse("[x]()")
+        let options = HTMLRenderOptions(baseURL: URL(string: "https://example.com/docs/guide.html#top"))
+
+        let html = try await HTMLRenderer(options: options).renderFragment(document)
+
+        #expect(html.contains(#"href="https://example.com/docs/guide.html""#))
+    }
+
     @Test("Renders the link text for a protocol-relative reference that would name a file host")
     func linkDestination_protocolRelativeWithFileBase_rendersLinkText() async throws {
         let document = try SwiftMarkdownParser().parse("[x](//evil.com/share)")

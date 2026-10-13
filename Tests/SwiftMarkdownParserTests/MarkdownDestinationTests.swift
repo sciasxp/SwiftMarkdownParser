@@ -81,9 +81,21 @@ import Testing
     }
 
     @Test(arguments: ["", "   ", "\t\n", "\u{00}"])
-    func resolve_emptyAfterNormalization_returnsNil(destination: String) {
-        #expect(MarkdownDestination.resolve(destination, relativeTo: nil) == nil)
-        #expect(MarkdownDestination.resolve(destination, relativeTo: webBase) == nil)
+    func resolve_emptyWithoutBase_returnsEmptyReference(destination: String) {
+        let url = MarkdownDestination.resolve(destination, relativeTo: nil)
+
+        #expect(url?.absoluteString == "")
+        #expect(url?.scheme == nil)
+    }
+
+    @Test func resolve_emptyWithBase_returnsBaseWithoutFragment() {
+        let base = URL(string: "https://example.com/docs/guide.html?x=1#frag")!
+
+        #expect(
+            MarkdownDestination.resolve("", relativeTo: base)?.absoluteString
+                == "https://example.com/docs/guide.html?x=1"
+        )
+        #expect(MarkdownDestination.resolve(" ", relativeTo: fileBase)?.absoluteString == "file:///Users/reader/docs/")
     }
 
     @Test func resolve_relativeWithBase_resolvesAgainstBase() {

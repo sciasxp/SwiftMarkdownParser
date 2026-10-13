@@ -176,12 +176,29 @@ struct SwiftUIRendererTests {
         #expect(recorder.values == ["image:Logo:logo.png"])
     }
 
+    @Test("Sends an empty image destination to the host adapter as the base without its fragment")
+    func resolvesEmptyImageDestination() async throws {
+        let document = AST.DocumentNode(children: [AST.ImageNode(url: "   ", altText: "Empty", title: nil)])
+        let recorder = URLRecorder()
+        let options = SwiftUIRenderOptions(
+            baseURL: URL(string: "https://example.com/docs/guide.html#top")!,
+            richContentAdapter: SwiftUIRichContentAdapter { request in
+                guard case let .image(_, source) = request else { return nil }
+                recorder.record(source)
+                return AnyView(EmptyView())
+            }
+        )
+
+        _ = try await SwiftUIRenderer(options: options).render(document)
+
+        #expect(recorder.urls == [URL(string: "https://example.com/docs/guide.html")!])
+    }
+
     @Test(
         "Does not send invalid image destinations to the host adapter",
         arguments: [
             "javascript:alert(1)",
             "data:text/plain,unsafe",
-            "   ",
             "java\tscript:alert(1)",
             "da\nta:text/plain,unsafe",
             "vbscript:msgbox(1)",

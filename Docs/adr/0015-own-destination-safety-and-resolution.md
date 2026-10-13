@@ -41,10 +41,15 @@ The policy is a fixed list with no new public interface:
   whitespace from both ends, and remove TAB, LF, and CR everywhere, as the
   WHATWG URL parser does.
 - **Allow** an explicit `http`, `https`, or `mailto` scheme, relative
-  references, and fragments (`#...`).
+  references, fragments (`#...`), and the empty reference.
 - **Refuse** every other explicit scheme, including `javascript:`, `vbscript:`,
-  `data:`, and `file:`, and refuse a destination that is empty after
-  normalization or that Foundation cannot represent.
+  `data:`, and `file:`, and refuse a destination that Foundation cannot
+  represent.
+- **Keep the empty reference.** A destination that is empty after
+  normalization, such as `[x]()`, refers to the current document, as in
+  CommonMark. Without a base URL it is the empty relative URL (`href=""`);
+  with one it is the base without its fragment (RFC 3986, section 5.2.2).
+  `URL?` represents both, so the module keeps one result.
 - **Read the scheme by Unicode scalar.** A combining mark, joiner, or
   variation selector right after the colon (`javascript:\u{301}alert(1)`)
   fuses with it into one `Character`, which hid the scheme from a
@@ -96,8 +101,12 @@ belongs to `MarkdownDestination`.
   or `https` base it still takes the base's scheme.
 - Behavior change: destinations with schemes outside the allowlist, such as
   `vbscript:`, `ftp:`, `irc:`, or explicit `file:`, now render as their
-  fallback text in HTML and native output. An empty destination, such as
-  `[x]()`, also renders as text instead of `href=""`.
+  fallback text in HTML and native output.
+- An empty destination keeps CommonMark's `href=""` in HTML. Native output
+  receives the same result with no special case: an empty relative URL
+  without a base, the base without its fragment with one. Native output used
+  to render an empty destination as text and kept it out of image adapter
+  requests; a host adapter that cannot load it now shows its own fallback.
 - HTML serializes Foundation's representation, so characters that are invalid
   in a URL are percent-encoded (`my page.html` becomes `my%20page.html`), as
   CommonMark's reference output does.

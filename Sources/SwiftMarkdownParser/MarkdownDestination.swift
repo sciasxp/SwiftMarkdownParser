@@ -8,7 +8,8 @@ import Foundation
 /// WHATWG URL parser in browsers reads it: C0 controls and spaces are trimmed
 /// from both ends, and TAB, LF, and CR are removed everywhere, so a scheme
 /// split by them is still recognized. Only `http`, `https`, and `mailto` may be
-/// named explicitly; relative references and fragments are resolved against
+/// named explicitly; relative references, fragments, and the empty reference
+/// to the current document are resolved against
 /// the host's base URL with Foundation. The scheme is read by Unicode scalar,
 /// and the resolved URL's own scheme is checked against the allowlist again;
 /// `file` is accepted there only when a relative reference was resolved
@@ -18,10 +19,10 @@ enum MarkdownDestination {
     private static let allowedSchemes: Set<String> = ["http", "https", "mailto"]
 
     /// Resolves `destination` against `baseURL`, or returns `nil` when the
-    /// destination is unsafe, empty, or not a URL.
+    /// destination is unsafe or not a URL.
     static func resolve(_ destination: String, relativeTo baseURL: URL?) -> URL? {
         let normalized = normalize(destination)
-        guard !normalized.isEmpty else { return nil }
+        guard !normalized.isEmpty else { return currentDocument(relativeTo: baseURL) }
 
         let scheme = explicitScheme(of: normalized)
         if let scheme, !allowedSchemes.contains(scheme) { return nil }
@@ -34,6 +35,17 @@ enum MarkdownDestination {
         guard let url, isAllowed(url, from: normalized, resolvedAgainst: scheme == nil ? baseURL : nil) else {
             return nil
         }
+        return url
+    }
+
+    /// An empty destination refers to the current document, as in CommonMark:
+    /// the base URL without its fragment (RFC 3986, section 5.2.2), or an
+    /// empty relative reference when there is no base.
+    private static func currentDocument(relativeTo baseURL: URL?) -> URL? {
+        guard let baseURL else { return URLComponents().url }
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: true) else { return nil }
+        components.fragment = nil
+        guard let url = components.url, isAllowed(url, from: "", resolvedAgainst: baseURL) else { return nil }
         return url
     }
 

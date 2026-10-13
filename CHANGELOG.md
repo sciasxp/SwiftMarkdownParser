@@ -50,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Destination Allowlist**: Link, image, and autolink destinations are decided once by `MarkdownDestination` for HTML and SwiftUI output ([ADR 0015](Docs/adr/0015-own-destination-safety-and-resolution.md))
   - Only `http`, `https`, `mailto`, relative references, and fragments are kept; `vbscript:`, `ftp:`, explicit `file:`, and every other scheme now render as the link text, image alt text, or autolink text
-  - An empty destination, such as `[x]()`, renders as text instead of `href=""`
+  - An empty destination, such as `[x]()`, keeps CommonMark's `href=""`; with a `baseURL` it resolves to the base without its fragment, in HTML and SwiftUI output
   - A `file:` URL produced by resolving a relative destination against a host `file:` base URL is still accepted, unless a protocol-relative destination (`//host/share`) adds a host
   - HTML resolves relative destinations with Foundation whenever `baseURL` is set and emits the percent-encoded result (`my page.html` becomes `my%20page.html`)
 - **Inline Fragment Work**: Setext heading text and inline-parsed table cells charge one extra unit of work per character to `ResourceLimits.maximumWork`, for their fragment's line table (ADR 0014)
