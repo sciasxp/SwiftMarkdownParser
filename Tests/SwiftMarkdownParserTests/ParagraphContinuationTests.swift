@@ -167,32 +167,27 @@ import Testing
         Case(
             name: "Unclosed fence in a list item ends before an unindented paragraph",
             markdown: "- ```\n  code\npara\n",
-            expected: "list{item{code{code}}} p{para}",
-            knownIssues: [.fenceInContainer]
+            expected: "list{item{code{code}}} p{para}"
         ),
         Case(
             name: "Unclosed fence in a list item ends before the next item",
             markdown: "- ~~~\n  code\n- next\n",
-            expected: "list{item{code{code}} item{p{next}}}",
-            knownIssues: [.fenceInContainer]
+            expected: "list{item{code{code}} item{p{next}}}"
         ),
         Case(
             name: "Unclosed fence in a list item keeps a blank line and ends before the next item",
             markdown: "- ~~~\n  a\n\n- b\n",
-            expected: "list{item{code{a}} item{p{b}}}",
-            knownIssues: [.fenceInContainer]
+            expected: "list{item{code{a}} item{p{b}}}"
         ),
         Case(
             name: "Fence in a list inside a block quote closes inside the quote",
             markdown: "> - ```\n>   x\n>   ```\n> - y\n",
-            expected: "quote{list{item{code{x}} item{p{y}}}}",
-            knownIssues: [.fenceInContainer]
+            expected: "quote{list{item{code{x}} item{p{y}}}}"
         ),
         Case(
             name: "Unclosed fence in a block quote ends before a line without a marker",
             markdown: "> ```\n> a\nb\n",
-            expected: "quote{code{a}} p{b}",
-            knownIssues: [.fenceInContainer]
+            expected: "quote{code{a}} p{b}"
         ),
         Case(
             name: "Thematic break on a continuation line of a list item",

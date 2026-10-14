@@ -76,7 +76,7 @@ public final class SwiftMarkdownParser: Sendable {
             referenceResolution.sourceForParsing,
             budget: budget
         )
-        let tokenStream = TokenStream(tokenizer.tokenize(), budget: budget)
+        let tokenStream = TokenStream(tokenizer: tokenizer, budget: budget)
         let blockParser = BlockParser(
             tokenStream: tokenStream,
             limits: resourceLimits,

@@ -222,23 +222,24 @@ final class BlockParser {
 
         var items: [ParsedBlock] = []
 
-        while !tokenStream.isAtEnd && tokenStream.check(.listMarker) {
-            let marker = tokenStream.current.content
-
+        func continuesList(_ marker: String) -> Bool {
             // Check if this marker matches the list type
             let markerIsOrdered = marker.last == "." || marker.last == ")"
             if markerIsOrdered != isOrdered {
-                break
+                return false
             }
+            return isOrdered ? marker.last == delimiter : marker.first == bulletChar
+        }
 
-            if isOrdered {
-                if marker.last != delimiter {
-                    break
+        while !tokenStream.isAtEnd {
+            // A list inside a block quote continues on the quote's marked lines
+            let lineStart = tokenStream.currentPosition
+            advancePastContainerMarkers()
+            guard tokenStream.check(.listMarker), continuesList(tokenStream.current.content) else {
+                if tokenStream.currentPosition != lineStart {
+                    tokenStream.setPosition(lineStart)
                 }
-            } else {
-                if marker.first != bulletChar {
-                    break
-                }
+                break
             }
 
             // Parse list item
@@ -309,6 +310,18 @@ final class BlockParser {
             children: children,
             range: tokenStream.range(startingAt: startLocation)
         )
+    }
+
+    /// Moves past the open containers' markers when the token stream is at a
+    /// block quote marker on a line that matches every open container.
+    private func advancePastContainerMarkers() {
+        guard !containers.isEmpty, tokenStream.check(.blockQuoteMarker) else { return }
+        let match = matchContainers(onLine: lineIndex(containing: tokenStream.currentLocation.offset))
+        guard match.matched == containers.count else { return }
+        while !tokenStream.isAtEnd && tokenStream.currentLocation.offset < match.restStart {
+            tokenStream.advance()
+        }
+        skipWhitespace()
     }
 
     private func isAtStartOfListItem() -> Bool {
@@ -426,24 +439,35 @@ final class BlockParser {
         // Skip newline after opening fence
         _ = tokenStream.match(.newline)
 
-        // Find the closing fence; the tokenizer decides which fence closes
-        var closingOffset: Int?
-        while !tokenStream.isAtEnd {
-            if tokenStream.check(.backtick) || tokenStream.check(.tildeCodeFence) {
-                let closingToken = tokenStream.current
-                if closingToken.content.first == fenceChar && closingToken.content.count >= fenceLength {
-                    closingOffset = closingToken.location.offset
-                    tokenStream.advance()
-                    break
-                }
+        // The fence ends at its closing fence, at a line that does not match
+        // the open containers, or at the end of the text
+        let openingLine = lineIndex(containing: startLocation.offset)
+        var line = openingLine + 1
+        var closingLine: Int?
+        while line < lineStarts.count {
+            let match = matchContainers(onLine: line)
+            let rest = match.restStart..<lineContentRange(line).upperBound
+            if match.matched < containers.count && !isBlank(lineContentRange(line)) {
+                break
             }
-            tokenStream.advance()
+            if match.matched == containers.count && isClosingFence(rest, character: fenceChar, length: fenceLength) {
+                closingLine = line
+                break
+            }
+            line += 1
         }
 
+        let lastLine = closingLine ?? line - 1
+        let blockEnd = lineContentRange(lastLine).upperBound
+        while !tokenStream.isAtEnd && tokenStream.currentLocation.offset < blockEnd {
+            tokenStream.advance()
+        }
+        tokenStream.restartTokenizing()
+
         let content = fencedCodeContent(
-            openingFenceOffset: startLocation.offset,
-            fenceIndentation: startLocation.offset - blockIndentationStart,
-            closingFenceOffset: closingOffset
+            openingLine: openingLine,
+            endLine: closingLine ?? line,
+            fenceIndentation: startLocation.offset - blockIndentationStart
         )
 
         // Check if this is a Mermaid diagram
@@ -463,16 +487,10 @@ final class BlockParser {
         )
     }
 
-    /// The content lines between a fence and its closing fence (or the end of
-    /// the text), without the prefixes of the open containers and without up
-    /// to the opening fence's own indentation.
-    private func fencedCodeContent(
-        openingFenceOffset: Int,
-        fenceIndentation: Int,
-        closingFenceOffset: Int?
-    ) -> String {
-        let openingLine = lineIndex(containing: openingFenceOffset)
-        let endLine = closingFenceOffset.map(lineIndex(containing:)) ?? lineStarts.count
+    /// The content lines between a fence's opening line and `endLine`, without
+    /// the prefixes of the open containers and without up to the opening
+    /// fence's own indentation.
+    private func fencedCodeContent(openingLine: Int, endLine: Int, fenceIndentation: Int) -> String {
         guard openingLine + 1 < endLine else { return "" }
 
         let characters = sourceText.characters
@@ -480,7 +498,7 @@ final class BlockParser {
         for line in (openingLine + 1)..<endLine {
             let lineRange = lineContentRange(line)
             let match = matchContainers(onLine: line)
-            var start = match.matched == containers.count ? match.restStart : lineRange.lowerBound
+            var start = match.matched == containers.count ? match.restStart : lineRange.upperBound
             var removed = 0
             while removed < fenceIndentation && start < lineRange.upperBound && characters[start] == " " {
                 start += 1
@@ -492,6 +510,17 @@ final class BlockParser {
             }
         }
         return content
+    }
+
+    /// Whether `range` is a closing fence for a fence of `length` `character`s:
+    /// up to three spaces, at least `length` of them, then only spaces or tabs.
+    private func isClosingFence(_ range: Range<Int>, character: Character, length: Int) -> Bool {
+        let text = Substring(sourceText.string(in: range))
+        let indentation = text.prefix { $0 == " " }.count
+        guard indentation < 4 else { return false }
+        let fence = text.dropFirst(indentation).prefix { $0 == character }
+        return fence.count >= length
+            && text.dropFirst(indentation + fence.count).allSatisfy { $0 == " " || $0 == "\t" }
     }
 
     private func parseMathBlock() throws -> ParsedBlock {

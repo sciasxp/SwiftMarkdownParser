@@ -122,6 +122,27 @@ final class MarkdownTokenizer {
         self.budget = budget
     }
     
+    /// The next token, or the end-of-file token once the input is consumed.
+    func nextStreamToken() -> Token {
+        while !isAtEnd {
+            if let token = nextToken() {
+                return token
+            }
+        }
+        return Token(type: .eof, content: "", location: currentLocation)
+    }
+
+    /// Continues tokenizing at `location`, outside any fenced code or math
+    /// block: the Block Phase decides where those blocks end.
+    func restart(at location: SourceLocation) {
+        rewind(to: location)
+        inFencedCodeBlock = false
+        fenceCharacter = nil
+        fenceLength = 0
+        fenceStartColumn = 0
+        inMathBlock = false
+    }
+
     /// Tokenize the entire input into a sequence of tokens
     func tokenize() -> [Token] {
         var tokens: [Token] = []
@@ -1105,47 +1126,73 @@ final class MarkdownTokenizer {
 
 // MARK: - Token Stream
 
-/// A stream of tokens that can be consumed by the parser
+/// A stream of tokens that can be consumed by the parser. A stream built on a
+/// tokenizer reads tokens on demand, so the Block Phase can restart
+/// tokenizing where a block it delimits by lines ends.
 final class TokenStream {
-    private let tokens: [Token]
+    private var tokens: [Token]
+    private let tokenizer: MarkdownTokenizer?
     private let budget: ParsingBudget
     private var position: Int = 0
     
     init(_ tokens: [Token], budget: ParsingBudget) {
         self.tokens = tokens
+        self.tokenizer = nil
         self.budget = budget
+    }
+
+    init(tokenizer: MarkdownTokenizer, budget: ParsingBudget) {
+        self.tokens = []
+        self.tokenizer = tokenizer
+        self.budget = budget
+    }
+
+    /// The token at `index`, reading tokens up to it; `nil` past the end.
+    private func token(at index: Int) -> Token? {
+        while index >= tokens.count, let tokenizer, tokens.last?.type != .eof {
+            tokens.append(tokenizer.nextStreamToken())
+        }
+        return index < tokens.count ? tokens[index] : nil
+    }
+
+    /// Drops the tokens from the current one on and tokenizes again from its
+    /// location, outside any fenced code or math block.
+    func restartTokenizing() {
+        guard let tokenizer, let token = token(at: position), token.type != .eof else { return }
+        tokens.removeSubrange(position...)
+        tokenizer.restart(at: token.location)
     }
     
     /// Current token
     var current: Token {
         budget.consumeWork()
-        guard position < tokens.count else { 
+        guard let token = token(at: position) else { 
             return Token(type: .eof, content: "", location: SourceLocation(line: 0, column: 0, offset: 0))
         }
-        return tokens[position]
+        return token
     }
     
     /// Peek at the next token
     func peek(_ offset: Int = 1) -> Token {
         budget.consumeWork()
         let pos = position + offset
-        guard pos >= 0 && pos < tokens.count else {
+        guard pos >= 0, let token = token(at: pos) else {
             return Token(type: .eof, content: "", location: SourceLocation(line: 0, column: 0, offset: 0))
         }
-        return tokens[pos]
+        return token
     }
     
     /// Advance to the next token
     func advance() {
         budget.consumeWork()
-        if position < tokens.count {
+        if token(at: position) != nil {
             position += 1
         }
     }
     
     /// Check if we're at the end
     var isAtEnd: Bool {
-        return budget.isExhausted || position >= tokens.count || current.type == .eof
+        return budget.isExhausted || token(at: position) == nil || current.type == .eof
     }
     
     /// Consume and return the current token
@@ -1185,7 +1232,7 @@ final class TokenStream {
     /// Location of the current token, or of the last token once past the
     /// end. Range bookkeeping, like `range(startingAt:)`, so it charges no work.
     var currentLocation: SourceLocation {
-        guard let token = position < tokens.count ? tokens[position] : tokens.last else {
+        guard let token = token(at: position) ?? tokens.last else {
             return SourceLocation(line: 1, column: 1, offset: 0)
         }
         return token.location
