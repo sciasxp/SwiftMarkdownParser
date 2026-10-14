@@ -60,9 +60,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Code spans and strikethrough cross lines inside their paragraph; a code span turns line endings into spaces
   - Setext headings can span lines, and a setext underline may be a single `=` or `-`
   - A list item's marker line starts any block (`- # foo` is a heading, a fence there is a code block without the item's indentation); `* * *` is a thematic break, not nested empty items, on an item's marker line, on its continuation lines, and after it; an HTML block ends with its list item; an empty item ends at a blank line
-  - A fence ends with the list item or block quote that holds it, takes no lazy lines, and never takes container markers as code; a list inside a block quote continues on the quote's marked lines
+  - A fence or `$$` math block ends with the list item or block quote that holds it, takes no lazy lines, and never takes container markers as code or math; a list inside a block quote continues on the quote's marked lines
   - A backslash with nothing after it is literal
-  - Of the 652 CommonMark 0.30 examples, 153 change their HTML; under whitespace normalization the passing examples go from 212 to 298 (with fences ending with their containers), and none that passed fails
+  - Of the 652 CommonMark 0.30 examples, 167 change their HTML with this entry and the Link Reference Definitions entry below; under whitespace normalization the passing examples go from 212 to 298 (with fences ending with their containers), and none that passed fails
 - **Block and Inline Phases**: Document construction recognizes all blocks before it interprets any inline text (ADR 0016)
   - Paragraph and heading text is tokenized again as its own inline fragment, so it charges more work to `ResourceLimits.maximumWork`: a document with a heading, a paragraph, and two list items costs 565 units instead of 420
   - The cost stays linear; the worst case measured is about 2x the previous cost (a single very long line, or a long list), and ordinary prose costs 6 to 7.5 units per character, so 2,000,000 characters of prose still fit the default limit; dense lists cost about 14 units per character, so a list above about 1,800,000 characters no longer fits the default `maximumWork`, which is unchanged

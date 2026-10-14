@@ -134,17 +134,20 @@ out of scope: it is the HTML renderer's raw-HTML policy, not construction.
 - A fence ends with the list item or block quote that holds it: a non-blank line
   that does not match the open containers ends the fence, which takes no lazy
   lines, and container markers never become code. A list inside a block quote
-  continues on the quote's marked lines.
+  continues on the quote's marked lines. A `$$` math block ends the same way;
+  an unclosed `$$` stays paragraph text.
 - A backslash with nothing after it is literal.
 - Stage 2: a definition cannot interrupt a paragraph, so `text` followed by
   `[a]: url` stays one paragraph; a definition inside a `$$` math block or an
   HTML block stays content; a definition in a block quote or list item applies
   to the whole document. A line that is not a complete definition, such as
   `[^1]: The note.` (a footnote, which is not supported) or `[foo]: /url "t" ok`,
-  is now paragraph text instead of being consumed.
+  is now paragraph text instead of being consumed. A raw destination nests at
+  most 32 levels of parentheses, a limit CommonMark allows; a deeper one is not
+  a definition, where `develop` accepted it.
 
 Of the 652 CommonMark 0.30 examples, 153 change their HTML with paragraph
-continuation. Under whitespace normalization (whitespace collapsed, ignored
+continuation and 167 after stage 2. Under whitespace normalization (whitespace collapsed, ignored
 between tags), the examples that pass go from 212 on `develop` to 295 with
 paragraph continuation, 298 once fences end with their containers, and 315
 after stage 2 (strict comparison: 201, 233, 234, 249). None that passed fails. Most of the changed
