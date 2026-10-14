@@ -61,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Setext headings can span lines, and a setext underline may be a single `=` or `-`
   - A list item's marker line starts any block (`- # foo` is a heading, a fence there is a code block without the item's indentation); `* * *` is a thematic break, not nested empty items, on an item's marker line, on its continuation lines, and after it; an HTML block ends with its list item; an empty item ends at a blank line
   - A fence or `$$` math block ends with the list item or block quote that holds it, takes no lazy lines, and never takes container markers as code or math; a list inside a block quote continues on the quote's marked lines
-  - A blank line ends a block quote, with any fence or `$$` math block open in it: `> foo`, a blank line, and `> bar` are two quotes
+  - A blank line ends a block quote, with any fence or `$$` math block open in it: `> foo`, a blank line, and `> bar` are two quotes. Known exception: a quote with an open list keeps going across the blank line (`> - a`, a blank line, `> - b` is one quote)
   - A backslash with nothing after it is literal
   - Of the 652 CommonMark 0.30 examples, 169 change their HTML with this entry and the Link Reference Definitions entry below; under whitespace normalization the passing examples go from 212 to 298 with this entry alone (with fences ending with their containers) and to 316 with the Link Reference Definitions entry, and none that passed fails
 - **Block and Inline Phases**: Document construction recognizes all blocks before it interprets any inline text (ADR 0016)

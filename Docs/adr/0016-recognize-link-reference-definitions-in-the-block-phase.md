@@ -137,6 +137,9 @@ out of scope: it is the HTML renderer's raw-HTML policy, not construction.
   continues on the quote's marked lines. A `$$` math block ends the same way;
   an unclosed `$$` stays paragraph text. A blank line ends a block quote and
   any fence or `$$` open in it; a list item matches a blank line and keeps them.
+  Known deviation: a block quote with an open list does not end at the blank
+  line, because the list consumes it first (`> - a`, a blank line, `> - b` is
+  one quote with a loose list); no text is lost.
 - A backslash with nothing after it is literal.
 - Stage 2: a definition cannot interrupt a paragraph, so `text` followed by
   `[a]: url` stays one paragraph; a definition inside a `$$` math block or an
