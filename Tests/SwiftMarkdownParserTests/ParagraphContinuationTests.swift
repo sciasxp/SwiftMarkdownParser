@@ -129,6 +129,11 @@ import Testing
             expected: "p{aaa\n2. bbb}"
         ),
         Case(name: "ATX heading interrupts", markdown: "aaa\n# bbb\n", expected: "p{aaa} h1{bbb}"),
+        Case(
+            name: "ATX heading with an open code span ends at its line",
+            markdown: "# `foo\nbar`\n",
+            expected: "h1{`foo} p{bar`}"
+        ),
         Case(name: "Thematic break interrupts", markdown: "aaa\n***\n", expected: "p{aaa} thematicBreak{}"),
         Case(name: "Block quote interrupts", markdown: "aaa\n> bbb\n", expected: "p{aaa} quote{p{bbb}}"),
         Case(name: "Bullet list interrupts", markdown: "aaa\n- bbb\n", expected: "p{aaa} list{item{p{bbb}}}"),
@@ -155,6 +160,54 @@ import Testing
         Case(name: "Example 646", markdown: "### foo\\\n", expected: "h3{foo\\}"),
     ]
 
+    /// Continuation lines of a container block: a fence ends with the
+    /// container that holds it, container markers never become code, and a
+    /// thematic break on a list item's continuation line belongs to the item.
+    static let containerContinuation: [Case] = [
+        Case(
+            name: "Unclosed fence in a list item ends before an unindented paragraph",
+            markdown: "- ```\n  code\npara\n",
+            expected: "list{item{code{code}}} p{para}",
+            knownIssues: [.fenceInContainer]
+        ),
+        Case(
+            name: "Unclosed fence in a list item ends before the next item",
+            markdown: "- ~~~\n  code\n- next\n",
+            expected: "list{item{code{code}} item{p{next}}}",
+            knownIssues: [.fenceInContainer]
+        ),
+        Case(
+            name: "Unclosed fence in a list item keeps a blank line and ends before the next item",
+            markdown: "- ~~~\n  a\n\n- b\n",
+            expected: "list{item{code{a}} item{p{b}}}",
+            knownIssues: [.fenceInContainer]
+        ),
+        Case(
+            name: "Fence in a list inside a block quote closes inside the quote",
+            markdown: "> - ```\n>   x\n>   ```\n> - y\n",
+            expected: "quote{list{item{code{x}} item{p{y}}}}",
+            knownIssues: [.fenceInContainer]
+        ),
+        Case(
+            name: "Unclosed fence in a block quote ends before a line without a marker",
+            markdown: "> ```\n> a\nb\n",
+            expected: "quote{code{a}} p{b}",
+            knownIssues: [.fenceInContainer]
+        ),
+        Case(
+            name: "Thematic break on a continuation line of a list item",
+            markdown: "* a\n  * * *\n",
+            expected: "list{item{p{a} thematicBreak{}}}",
+            knownIssues: [.thematicBreakInListItem]
+        ),
+        Case(
+            name: "Thematic break of dashes on a continuation line of a list item",
+            markdown: "- a\n  - - -\n",
+            expected: "list{item{p{a} thematicBreak{}}}",
+            knownIssues: [.thematicBreakInListItem]
+        ),
+    ]
+
     @Test(arguments: specExamples)
     func commonMarkSection4_8(_ testCase: Case) throws {
         try check(testCase)
@@ -172,6 +225,11 @@ import Testing
 
     @Test(arguments: listItemFirstLine)
     func firstLineOfListItem(_ testCase: Case) throws {
+        try check(testCase)
+    }
+
+    @Test(arguments: containerContinuation)
+    func continuationOfContainer(_ testCase: Case) throws {
         try check(testCase)
     }
 
