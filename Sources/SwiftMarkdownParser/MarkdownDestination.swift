@@ -68,12 +68,16 @@ enum MarkdownDestination {
     /// authority the host did not choose. Without a base URL it is emitted as
     /// written and the browser reads it as `//evil.com` on the page's own
     /// scheme. Against a `file` base, `//evil.com/share` or `//:80/x` becomes a
-    /// network share; only `///path`, with an empty authority, stays local.
+    /// network share, and so can `////evil.com/share`, which Windows browsers
+    /// read as a UNC path; only exactly `///` followed by a path segment, with an
+    /// empty authority, stays local.
     /// Against an `http` or `https` base, it takes the base's scheme.
     private static func namesUnchosenAuthority(_ destination: String, relativeTo baseURL: URL?) -> Bool {
         guard destination.hasPrefix("//") else { return false }
         guard let baseURL else { return true }
-        return baseURL.isFileURL && !destination.hasPrefix("///")
+        guard baseURL.isFileURL else { return false }
+        let path = destination.unicodeScalars.dropFirst(3)
+        return !destination.hasPrefix("///") || path.first == nil || path.first == "/"
     }
 
     private static func normalize(_ destination: String) -> String {

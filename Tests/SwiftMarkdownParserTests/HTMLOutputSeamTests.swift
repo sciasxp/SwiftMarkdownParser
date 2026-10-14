@@ -413,6 +413,17 @@ struct HTMLOutputSeamTests {
         #expect(html.contains("x"))
     }
 
+    @Test("Renders the link text for four slashes against a file base")
+    func linkDestination_fourSlashesWithFileBase_rendersLinkText() async throws {
+        let document = try SwiftMarkdownParser().parse("[x](////evil.com/share)")
+        let options = HTMLRenderOptions(baseURL: URL(fileURLWithPath: "/docs/", isDirectory: true))
+
+        let html = try await HTMLRenderer(options: options).renderFragment(document)
+
+        #expect(!html.contains("href"))
+        #expect(html.contains("x"))
+    }
+
     @Test("Resolves a protocol-relative image against a web base URL")
     func imageDestination_protocolRelativeWithWebBase_takesBaseScheme() async throws {
         let document = try SwiftMarkdownParser().parse("![x](//cdn.example/a.png)")

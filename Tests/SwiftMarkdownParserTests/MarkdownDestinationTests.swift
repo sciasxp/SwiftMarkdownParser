@@ -136,7 +136,9 @@ import Testing
     }
 
     @Test(arguments: protocolRelativeDestinations + [
-        "//evil.com/share", "//localhost/etc/passwd", "//:80/x", "//:80", "//"
+        "//evil.com/share", "//localhost/etc/passwd", "//:80/x", "//:80", "//",
+        "////evil.com/share", "/////evil.com/share", "///", "///\t/evil.com/share",
+        "/\n///evil.com/share", "\u{00A0}////evil.com/share", "\u{01}////evil.com/share"
     ])
     func resolve_protocolRelativeWithFileBase_returnsNil(destination: String) {
         #expect(MarkdownDestination.resolve(destination, relativeTo: fileBase) == nil)

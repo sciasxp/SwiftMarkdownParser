@@ -70,9 +70,13 @@ The policy is a fixed list with no new public interface:
   such as leading NBSP, ZWSP, U+3000, U+2028, or C0 controls, and `/<TAB>/`.
   - Without a base URL it is refused: the HTML would carry `//evil.com/a.png`
     unchanged, and the browser loads it from `evil.com` on the page's scheme.
-  - Against a `file:` base it is refused unless it starts with `///` (an empty
-    authority, a local path): `//evil.com/share` would become
-    `file://evil.com/share`, and `//:80/x` would become `file://:80/x`.
+  - Against a `file:` base it is refused unless it starts with exactly `///`
+    followed by a character other than `/` (an empty authority, a local
+    path): `//evil.com/share` would become `file://evil.com/share`, and
+    `//:80/x` would become `file://:80/x`. Four or more slashes are refused
+    too, including those that normalization joins (`///<TAB>/`): Foundation
+    keeps `file:////evil.com/share`, which Windows browsers read as the UNC
+    share `\\evil.com\share`. A bare `///` is refused as well.
   - Against an `http` or `https` base it is resolved and takes the base's
     scheme: `//cdn.example/x` becomes `https://cdn.example/x`.
   Backslashes, which browsers read as slashes in `http`, `https`, and `file`
@@ -111,7 +115,8 @@ belongs to `MarkdownDestination`.
   `![x](//evil.com/a.png)`, renders as its fallback text in HTML and native
   output instead of `<img src="//evil.com/a.png">`. Against a `file:` base,
   `[x](//evil.com/share)` and `[x](//:80/x)` also render as fallback text,
-  while `///path` stays a local file. Against an `http` or `https` base a
+  as do four or more slashes (`[x](////evil.com/share)`), while `///path`
+  stays a local file. Against an `http` or `https` base a
   protocol-relative reference still takes the base's scheme.
 - Behavior change: destinations with schemes outside the allowlist, such as
   `vbscript:`, `ftp:`, `irc:`, or explicit `file:`, now render as their
