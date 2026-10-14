@@ -27,50 +27,6 @@ final class InlineParser {
         self.maximumNestingDepth = maximumNestingDepth
     }
 
-    /// Parse inline content from current position until specified boundary
-    func parseInlines(until boundary: Set<TokenType> = [.newline, .eof]) throws -> [any ASTNode] {
-        var nodes: [any ASTNode] = []
-
-        // Protection mechanisms
-        var lastTokenPosition = -1
-        var stuckPositionCount = 0
-        let maxStuckPositions = 50 // Prevent infinite loops from position not advancing (increased threshold)
-
-        while !tokenStream.isAtEnd && !boundary.contains(tokenStream.current.type) {
-            // Spaces before the boundary are not content
-            if tokenStream.check(.whitespace) && boundary.contains(tokenStream.peek().type) {
-                tokenStream.advance()
-                break
-            }
-            // A backslash at the end of the line is literal and ends it
-            let token = tokenStream.current
-            if token.type == .backslash, token.content.last.map(MarkdownSourceText.isLineEnding) == true {
-                tokenStream.advance()
-                nodes.append(AST.TextNode(content: "\\", sourceLocation: token.location))
-                break
-            }
-            // Position-based protection (detect if parser is stuck)
-            let currentPosition = tokenStream.currentPosition
-            if currentPosition == lastTokenPosition {
-                stuckPositionCount += 1
-                if stuckPositionCount >= maxStuckPositions {
-                    throw MarkdownParsingError.internalInvariant(
-                        message: "Inline parser made no progress at token \(currentPosition).",
-                        location: tokenStream.current.location
-                    )
-                }
-            } else {
-                stuckPositionCount = 0
-                lastTokenPosition = currentPosition
-            }
-
-            let parsedNodes = try parseInline()
-            nodes.append(contentsOf: parsedNodes)
-        }
-
-        return nodes
-    }
-
     /// Parse inline content from a text string
     func parseInlineContent(
         _ text: String,

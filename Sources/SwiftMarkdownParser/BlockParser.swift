@@ -145,9 +145,19 @@ final class BlockParser {
         // Skip whitespace after #
         skipWhitespace()
 
-        // Use the inline parser to properly handle the heading content
-        let inlineParser = makeInlineParser()
-        let children = try inlineParser.parseInlines(until: [.newline, .eof])
+        // The rest of the line, without final spaces, is one inline fragment
+        let contentStart = tokenStream.currentLocation
+        let lineEnd = lineContentRange(lineIndex(containing: startLocation.offset)).upperBound
+        let contentEnd = endTrimmingSpaces(lineEnd, notBefore: contentStart.offset)
+        while !tokenStream.isAtEnd && tokenStream.currentLocation.offset < lineEnd {
+            tokenStream.advance()
+        }
+        let children = contentStart.offset < contentEnd
+            ? try makeInlineParser().parseInlineContent(
+                sourceText.string(in: contentStart.offset..<contentEnd),
+                startingAt: contentStart
+            )
+            : []
 
         return AST.HeadingNode(
             level: level,
@@ -803,10 +813,7 @@ final class BlockParser {
         }
 
         // Final spaces and tabs are not content
-        let characters = sourceText.characters
-        while end > start && (characters[end - 1] == " " || characters[end - 1] == "\t") {
-            end -= 1
-        }
+        end = endTrimmingSpaces(end, notBefore: start)
 
         while !tokenStream.isAtEnd && tokenStream.currentLocation.offset < consumedEnd {
             tokenStream.advance()
@@ -814,7 +821,7 @@ final class BlockParser {
 
         // Container prefixes and indentation of continuation lines become
         // spaces, so the fragment keeps the source's offsets and columns.
-        var fragment = Array(characters[start..<end])
+        var fragment = Array(sourceText.characters[start..<end])
         for prefix in continuationPrefixes {
             for offset in prefix where !MarkdownSourceText.isLineEnding(fragment[offset - start]) {
                 fragment[offset - start] = " "
@@ -898,6 +905,16 @@ final class BlockParser {
     private func isBlank(_ range: Range<Int>) -> Bool {
         let characters = sourceText.characters
         return range.allSatisfy { characters[$0] == " " || characters[$0] == "\t" }
+    }
+
+    /// `end` moved back over the spaces and tabs before it, not past `start`.
+    private func endTrimmingSpaces(_ end: Int, notBefore start: Int) -> Int {
+        let characters = sourceText.characters
+        var end = end
+        while end > start && (characters[end - 1] == " " || characters[end - 1] == "\t") {
+            end -= 1
+        }
+        return end
     }
 
     private func firstNonWhitespace(in range: Range<Int>) -> Int {

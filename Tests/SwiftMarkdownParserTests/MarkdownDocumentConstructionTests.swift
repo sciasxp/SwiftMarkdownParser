@@ -278,17 +278,17 @@ import Testing
 
     /// The source text's line table absorbs the per-character charge the
     /// parse used to start with (420 units, measured on `develop`). Each
-    /// paragraph is now retokenized as one inline fragment, which costs 136
-    /// units more here.
-    @Test func simpleDocument_workCost_includesParagraphFragments() throws {
+    /// paragraph and heading is now retokenized as one inline fragment, which
+    /// costs 145 units more here (ADR 0016).
+    @Test func simpleDocument_workCost_includesInlineFragments() throws {
         let source = "# Title\n\nHello *world* and `code`.\n\n- item one\n- item two\n"
         func parser(maximumWork: Int) -> SwiftMarkdownParser {
             SwiftMarkdownParser(resourceLimits: .init(maximumWork: maximumWork))
         }
 
-        _ = try parser(maximumWork: 556).parse(source)
+        _ = try parser(maximumWork: 565).parse(source)
         guard case let .resourceLimitExceeded(resource, _, _) = parsingError(
-            from: parser(maximumWork: 555),
+            from: parser(maximumWork: 564),
             source: source
         ) else {
             Issue.record("Expected a work-limit failure one unit below the cost")
