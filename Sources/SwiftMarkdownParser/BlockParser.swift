@@ -914,7 +914,8 @@ final class BlockParser {
     private func paragraphText(_ range: Range<Int>, continuationPrefixes: [Range<Int>]) -> [Character] {
         var text = Array(sourceText.characters[range])
         for prefix in continuationPrefixes {
-            for offset in prefix where offset < range.upperBound && !MarkdownSourceText.isLineEnding(text[offset - range.lowerBound]) {
+            for offset in prefix where offset < range.upperBound
+                && !MarkdownSourceText.isLineEnding(text[offset - range.lowerBound]) {
                 text[offset - range.lowerBound] = " "
             }
         }

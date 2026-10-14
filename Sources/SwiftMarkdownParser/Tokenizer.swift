@@ -1163,7 +1163,7 @@ final class TokenStream {
     /// Current token
     var current: Token {
         budget.consumeWork()
-        guard let token = token(at: position) else { 
+        guard let token = token(at: position) else {
             return Token(type: .eof, content: "", location: SourceLocation(line: 0, column: 0, offset: 0))
         }
         return token
