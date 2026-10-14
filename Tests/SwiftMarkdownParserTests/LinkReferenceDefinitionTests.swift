@@ -238,6 +238,11 @@ import Testing
             expected: "list{item{p{foo}}} p{[a](/u)}"
         ),
         Case(
+            name: "List item of only a definition ends at two blank lines",
+            markdown: "- [a]: /u\n\n\n  foo\n",
+            expected: "list{item{}} p{foo}"
+        ),
+        Case(
             name: "Title on the following marked line of a block quote",
             markdown: "> [a]: /u\n> \"t\"\n\n[a]\n",
             expected: #"quote{} p{[a](/u "t")}"#

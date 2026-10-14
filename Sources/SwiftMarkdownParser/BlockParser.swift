@@ -277,6 +277,7 @@ final class BlockParser {
         defer { containers.removeLast() }
 
         var children: [ParsedBlock] = []
+        let definitionParagraphsAtStart = definitionParagraphCount
 
         let taskMarker = tokenStream.check(.taskListMarker) ? tokenStream.consume() : nil
         if taskMarker != nil {
@@ -302,8 +303,12 @@ final class BlockParser {
                 break
             }
 
-            // The item continues only on a line indented to its content
-            guard advanceToNextLineOfItem(isEmpty: isEmpty && children.isEmpty) else {
+            // The item continues only on a line indented to its content; an
+            // item left empty by its definitions ends at a second blank line
+            guard advanceToNextLineOfItem(
+                isEmpty: isEmpty && children.isEmpty,
+                hasOnlyDefinitions: children.isEmpty && definitionParagraphCount > definitionParagraphsAtStart
+            ) else {
                 break
             }
 
@@ -406,11 +411,15 @@ final class BlockParser {
     /// to the innermost list item; returns false when the item ends there.
     /// An empty item ends at a blank line: an item can begin with at most one
     /// blank line.
-    private func advanceToNextLineOfItem(isEmpty: Bool) -> Bool {
+    private func advanceToNextLineOfItem(isEmpty: Bool, hasOnlyDefinitions: Bool) -> Bool {
         guard tokenStream.check(.newline) else { return true }
 
         var line = lineIndex(containing: tokenStream.currentLocation.offset) + 1
         if isEmpty && line < lineStarts.count && isBlank(lineContentRange(line)) {
+            return false
+        }
+        if hasOnlyDefinitions && line + 1 < lineStarts.count
+            && isBlank(lineContentRange(line)) && isBlank(lineContentRange(line + 1)) {
             return false
         }
         while line < lineStarts.count && isBlank(lineContentRange(line)) {
