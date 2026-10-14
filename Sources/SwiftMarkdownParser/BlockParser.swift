@@ -542,30 +542,34 @@ final class BlockParser {
         let startPosition = tokenStream.currentPosition
         let startLocation = tokenStream.current.location
 
-        // Consume opening $$
-        tokenStream.advance()
-
-        // Skip newline after opening $$
-        _ = tokenStream.match(.newline)
-
-        // Collect content
-        var content = ""
-        var foundClosing = false
-
-        while !tokenStream.isAtEnd {
-            // Check for closing $$
-            if tokenStream.check(.dollarSign) && tokenStream.current.content == "$$" {
-                tokenStream.advance()
-                foundClosing = true
+        // The math block ends at its closing $$, at a line that does not match
+        // the open containers, or at the end of the text
+        let openingLine = lineIndex(containing: startLocation.offset)
+        let openingRest = (startLocation.offset + 2)..<lineContentRange(openingLine).upperBound
+        var content = sourceText.string(in: openingRest)
+        if !content.isEmpty {
+            content += "\n"
+        }
+        var line = openingLine + 1
+        var closingLine: Int?
+        while line < lineStarts.count {
+            let match = matchContainers(onLine: line)
+            let lineRange = lineContentRange(line)
+            if match.matched < containers.count {
+                if !isBlank(lineRange) {
+                    break
+                }
+                content += "\n"
+                line += 1
+                continue
+            }
+            let rest = match.restStart..<lineRange.upperBound
+            if isClosingMathDelimiter(rest) {
+                closingLine = line
                 break
             }
-
-            if tokenStream.check(.newline) {
-                content += "\n"
-            } else {
-                content += tokenStream.current.content
-            }
-            tokenStream.advance()
+            content += sourceText.string(in: rest) + "\n"
+            line += 1
         }
 
         // Strip trailing newline from content
@@ -573,15 +577,31 @@ final class BlockParser {
             content = String(content.dropLast())
         }
 
-        guard foundClosing else {
+        guard let closingLine else {
+            // Tokens after the opening $$ were read as math; read them again
+            tokenStream.advance()
+            tokenStream.restartTokenizing()
             tokenStream.setPosition(startPosition)
             return try parseParagraph()
         }
+
+        let blockEnd = lineContentRange(closingLine).upperBound
+        while !tokenStream.isAtEnd && tokenStream.currentLocation.offset < blockEnd {
+            tokenStream.advance()
+        }
+        tokenStream.restartTokenizing()
 
         return .complete(AST.MathBlockNode(
             content: content,
             sourceLocation: tokenStream.range(startingAt: startLocation)
         ))
+    }
+
+    /// Whether `range` closes a math block: `$$` at its start, then only
+    /// whitespace.
+    private func isClosingMathDelimiter(_ range: Range<Int>) -> Bool {
+        let text = Substring(sourceText.string(in: range))
+        return text.hasPrefix("$$") && text.dropFirst(2).allSatisfy(\.isWhitespace)
     }
 
     private func parseIndentedCodeBlock() throws -> AST.CodeBlockNode {

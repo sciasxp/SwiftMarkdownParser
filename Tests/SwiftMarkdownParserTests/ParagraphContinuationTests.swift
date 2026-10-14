@@ -214,6 +214,33 @@ import Testing
             markdown: "* a\n* * *\n",
             expected: "list{item{p{a}}} thematicBreak{}"
         ),
+        Case(
+            name: "Math block in a list item closes inside the item",
+            markdown: "- $$\n  x\n  $$\n",
+            expected: "list{item{math{x}}}"
+        ),
+        Case(
+            name: "Math block in an ordered list item keeps the next item",
+            markdown: "1. $$\n   E=mc^2\n   $$\n2. next\n",
+            expected: "list{item{math{E=mc^2}} item{p{next}}}"
+        ),
+        Case(
+            name: "Math block in a list item keeps the next item",
+            markdown: "- $$\n  x\n  $$\n- y\n",
+            expected: "list{item{math{x}} item{p{y}}}"
+        ),
+        Case(
+            name: "Math block in a block quote closes inside the quote",
+            markdown: "> $$\n> x\n> $$\nb\n",
+            expected: "quote{math{x}} p{b}"
+        ),
+        Case(
+            name: "Unclosed math block in a list item ends before the next item",
+            markdown: "- $$\n  x\n- y\n",
+            // The Inline Phase keeps the indentation after an unclosed $$, as it
+            // does at the document level
+            expected: "list{item{p{$$\n  x}} item{p{y}}}"
+        ),
     ]
 
     @Test(arguments: specExamples)
