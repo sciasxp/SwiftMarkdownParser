@@ -71,23 +71,6 @@ import Testing
         #expect(endPosition(range) == Position(line: 2, column: 3, offset: 5))
     }
 
-    @Test func blankingCharacters_definitionLine_preservesTabsAndLineTable() {
-        let text = makeText("x\n[a]:\tb\ny")
-        let definition = text.lines[1].contentRange
-
-        let blanked = text.blankingCharacters(in: [definition])
-
-        #expect(blanked.string(in: definition) == "    \t ")
-        #expect(blanked.string(in: 0..<blanked.count) == "x\n    \t \ny")
-        #expect(blanked.lines == text.lines)
-    }
-
-    @Test func blankingCharacters_noRanges_keepsCharacters() {
-        let text = makeText("a\nb")
-
-        #expect(text.blankingCharacters(in: []).characters == text.characters)
-    }
-
     @Test func init_parsingBudget_chargesOneUnitPerCharacter() {
         let budget = unlimitedBudget()
 

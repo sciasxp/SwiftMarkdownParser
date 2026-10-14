@@ -71,23 +71,20 @@ public final class SwiftMarkdownParser: Sendable {
         // parse's up-front cost for the source.
         let budget = ParsingBudget(maximumWork: resourceLimits.maximumWork)
         let sourceText = MarkdownSourceText(markdown, budget: budget)
-        let referenceResolution = ReferenceDefinitionResolver.resolve(in: sourceText)
-        let tokenizer = MarkdownTokenizer(
-            referenceResolution.sourceForParsing,
-            budget: budget
-        )
+        let tokenizer = MarkdownTokenizer(sourceText, budget: budget)
         let tokenStream = TokenStream(tokenizer: tokenizer, budget: budget)
         let blockParser = BlockParser(
             tokenStream: tokenStream,
             limits: resourceLimits,
-            sourceText: referenceResolution.sourceForParsing
+            sourceText: sourceText
         )
         let blocks = try blockParser.parseDocument()
 
-        // The Inline Phase runs only after the Block Phase has seen every block.
+        // The Inline Phase runs only after the Block Phase has seen every
+        // block, and so every Link Reference Definition.
         let inlinePhase = InlinePhase(
             budget: budget,
-            linkReferences: referenceResolution.references,
+            linkReferences: blockParser.linkReferences,
             maximumNestingDepth: resourceLimits.maximumNestingDepth
         )
         let document = try inlinePhase.document(

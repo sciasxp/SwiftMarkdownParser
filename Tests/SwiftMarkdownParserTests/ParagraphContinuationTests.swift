@@ -128,6 +128,16 @@ import Testing
             markdown: "aaa\n2. bbb\n",
             expected: "p{aaa\n2. bbb}"
         ),
+        Case(
+            name: "Line of four spaces is a blank line between paragraphs",
+            markdown: "a\n\n    \nb\n",
+            expected: "p{a} p{b}"
+        ),
+        Case(
+            name: "Line of four spaces is a blank line between list items",
+            markdown: "- a\n    \n- b\n",
+            expected: "list{item{p{a}} item{p{b}}}"
+        ),
         Case(name: "ATX heading interrupts", markdown: "aaa\n# bbb\n", expected: "p{aaa} h1{bbb}"),
         Case(
             name: "ATX heading with an open code span ends at its line",

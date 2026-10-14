@@ -549,7 +549,7 @@ final class InlineParser {
             return nil
         }.joined()
 
-        if let reference = linkReferences[ReferenceDefinitionResolver.normalizeLabel(refLabel)] {
+        if let reference = linkReferences[LinkReferenceDefinitionParser.normalizeLabel(refLabel)] {
             if isImage {
                 return AST.ImageNode(
                     url: reference.url,
@@ -687,7 +687,7 @@ final class InlineParser {
             }.joined()
         }
 
-        guard let reference = linkReferences[ReferenceDefinitionResolver.normalizeLabel(refLabel)] else {
+        guard let reference = linkReferences[LinkReferenceDefinitionParser.normalizeLabel(refLabel)] else {
             return nil
         }
 

@@ -63,6 +63,14 @@ final class BlockParser {
     /// Where the block being parsed started, before its indentation.
     private var blockIndentationStart = 0
 
+    /// The Link Reference Definitions found so far, by normalized label; the
+    /// first definition of a label wins.
+    private(set) var linkReferences: [String: LinkReference] = [:]
+
+    /// How many paragraphs held only Link Reference Definitions and so left
+    /// no block.
+    private var definitionParagraphCount = 0
+
     init(
         tokenStream: TokenStream,
         limits: SwiftMarkdownParser.ResourceLimits,
@@ -276,7 +284,8 @@ final class BlockParser {
         }
 
         // The rest of the marker line starts the item's first block
-        if !tokenStream.isAtEnd && !tokenStream.check(.newline), let block = try parseNestedBlock() {
+        var isEmpty = tokenStream.isAtEnd || tokenStream.check(.newline)
+        if !isEmpty, let block = try parseNestedBlock() {
             children.append(block)
         }
 
@@ -294,16 +303,19 @@ final class BlockParser {
             }
 
             // The item continues only on a line indented to its content
-            guard advanceToNextLineOfItem(isEmpty: children.isEmpty) else {
+            guard advanceToNextLineOfItem(isEmpty: isEmpty && children.isEmpty) else {
                 break
             }
 
-            // Parse any continuation blocks
+            // Parse any continuation blocks; a paragraph of only definitions
+            // leaves no block
+            let definitionParagraphsBefore = definitionParagraphCount
             if let block = try parseNestedBlock() {
                 children.append(block)
-            } else {
+            } else if definitionParagraphCount == definitionParagraphsBefore {
                 break
             }
+            isEmpty = false
         }
 
         return .listItem(
@@ -526,7 +538,7 @@ final class BlockParser {
             && text.dropFirst(indentation + fence.count).allSatisfy { $0 == " " || $0 == "\t" }
     }
 
-    private func parseMathBlock() throws -> ParsedBlock {
+    private func parseMathBlock() throws -> ParsedBlock? {
         let startPosition = tokenStream.currentPosition
         let startLocation = tokenStream.current.location
 
@@ -787,8 +799,10 @@ final class BlockParser {
     }
 
     /// Parses a paragraph: its first line plus every continuation line, lazy
-    /// or not. A setext underline after the lines makes it a heading.
-    private func parseParagraph() throws -> ParsedBlock {
+    /// or not. A setext underline after the lines makes it a heading. The Link
+    /// Reference Definitions at its start are recorded and leave the
+    /// paragraph; `nil` when nothing else remains.
+    private func parseParagraph() throws -> ParsedBlock? {
         let startLocation = tokenStream.current.location
         let start = startLocation.offset
         var line = lineIndex(containing: start)
@@ -803,8 +817,10 @@ final class BlockParser {
             let rest = match.restStart..<lineContentRange(next).upperBound
             guard !isBlank(rest) else { break }
 
+            // Lines that are all definitions cannot be a setext heading's text
             let isLazy = match.matched < containers.count
-            if !isLazy, let level = setextUnderlineLevel(rest) {
+            if !isLazy, let level = setextUnderlineLevel(rest),
+               !consistsOfDefinitions(paragraphText(start..<end, continuationPrefixes: continuationPrefixes)) {
                 setextLevel = level
                 consumedEnd = rest.upperBound
                 break
@@ -828,21 +844,59 @@ final class BlockParser {
             tokenStream.advance()
         }
 
-        // Container prefixes and indentation of continuation lines become
-        // spaces, so the fragment keeps the source's offsets and columns.
-        var fragment = Array(sourceText.characters[start..<end])
-        for prefix in continuationPrefixes {
-            for offset in prefix where !MarkdownSourceText.isLineEnding(fragment[offset - start]) {
-                fragment[offset - start] = " "
+        let text = paragraphText(start..<end, continuationPrefixes: continuationPrefixes)
+        let parsed = LinkReferenceDefinitionParser.parse(text)
+        for definition in parsed.definitions {
+            let key = LinkReferenceDefinitionParser.normalizeLabel(definition.label)
+            if linkReferences[key] == nil {
+                linkReferences[key] = LinkReference(
+                    url: definition.url,
+                    title: definition.title,
+                    sourceLocation: sourceText.range(
+                        start + definition.range.lowerBound..<start + definition.range.upperBound
+                    )
+                )
             }
         }
-        let content = InlineSource(text: String(fragment), start: startLocation)
 
-        let range = tokenStream.range(startingAt: startLocation)
+        // The paragraph's text starts after its definitions and their spaces
+        var contentStart = parsed.end
+        while contentStart < text.count && (text[contentStart] == " " || text[contentStart] == "\t") {
+            contentStart += 1
+        }
+        guard contentStart < text.count else {
+            definitionParagraphCount += 1
+            return nil
+        }
+
+        let contentLocation = contentStart == 0 ? startLocation : sourceText.location(at: start + contentStart)
+        let content = InlineSource(text: String(text[contentStart...]), start: contentLocation)
+
+        let range = tokenStream.range(startingAt: contentLocation)
         if let setextLevel {
             return .heading(level: setextLevel, content, range: range)
         }
         return .paragraph(content, range: range)
+    }
+
+    /// The characters of a paragraph in `range`. Container prefixes and
+    /// indentation of continuation lines become spaces, so the text keeps the
+    /// source's offsets and columns.
+    private func paragraphText(_ range: Range<Int>, continuationPrefixes: [Range<Int>]) -> [Character] {
+        var text = Array(sourceText.characters[range])
+        for prefix in continuationPrefixes {
+            for offset in prefix where offset < range.upperBound && !MarkdownSourceText.isLineEnding(text[offset - range.lowerBound]) {
+                text[offset - range.lowerBound] = " "
+            }
+        }
+        return text
+    }
+
+    /// Whether `text` is nothing but Link Reference Definitions.
+    private func consistsOfDefinitions(_ text: [Character]) -> Bool {
+        let parsed = LinkReferenceDefinitionParser.parse(text)
+        return !parsed.definitions.isEmpty
+            && text[parsed.end...].allSatisfy { $0 == " " || $0 == "\t" || MarkdownSourceText.isLineEnding($0) }
     }
 
     // MARK: - Lines

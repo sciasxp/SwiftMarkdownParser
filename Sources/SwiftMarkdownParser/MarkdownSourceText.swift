@@ -116,24 +116,6 @@ struct MarkdownSourceText {
         String(characters[offsets])
     }
 
-    /// Returns a text with every character in `ranges` replaced by a space,
-    /// except tabs, which are kept. The line table, and therefore every
-    /// location, is unchanged; ranges must not contain line endings.
-    func blankingCharacters(in ranges: [Range<Int>]) -> MarkdownSourceText {
-        guard !ranges.isEmpty else { return self }
-
-        var blanked = characters
-        for range in ranges {
-            for offset in range {
-                precondition(!Self.isLineEnding(blanked[offset]), "Cannot blank a line ending")
-                if blanked[offset] != "\t" {
-                    blanked[offset] = " "
-                }
-            }
-        }
-        return MarkdownSourceText(characters: blanked, lineStarts: lineStarts, origin: origin)
-    }
-
     /// Index of the last line starting at or before `offset`.
     private func lineIndex(containing offset: Int) -> Int {
         var lower = 0

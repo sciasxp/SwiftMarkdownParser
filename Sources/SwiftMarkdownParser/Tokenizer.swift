@@ -900,9 +900,6 @@ final class MarkdownTokenizer {
         }
 
         // A whitespace-only line is blank Markdown, not an indented code block.
-        // Reference definitions are replaced with spaces before tokenization to
-        // preserve source offsets, so this distinction also prevents those
-        // placeholders from leaking into the semantic document.
         if isAtEnd || MarkdownSourceText.isLineEnding(currentChar) {
             return Token(
                 type: .whitespace,
@@ -910,7 +907,7 @@ final class MarkdownTokenizer {
                 location: startLocation
             )
         }
-        
+
         return Token(type: .indentedCodeBlock, content: String(repeating: " ", count: spaceCount), location: startLocation)
     }
     
