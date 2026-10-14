@@ -14,168 +14,163 @@ import Testing
 ///   line break is `\n`. Code content drops its trailing line endings.
 ///
 /// Every 4.7 example is ported; none is out of scope. Cases that still fail
-/// are marked `knownIssue` until the Block Phase recognizes definitions
-/// (ADR 0016).
+/// list their causes in `knownIssues`; the cause names what the case is
+/// waiting for (ADR 0016).
 @Suite struct LinkReferenceDefinitionTests {
     struct Case: CustomTestStringConvertible, Sendable {
         let name: String
         let markdown: String
         let expected: String
-        let knownIssue: Bool
+        var knownIssues: [KnownIssue] = []
 
         var testDescription: String { name }
+    }
+
+    /// Why a case still fails; a case lists every cause it depends on.
+    enum KnownIssue: String, Sendable {
+        case multilineParagraph = "paragraphs do not continue across lines yet"
+        case definition = "Link Reference Definitions are not recognized by the Block Phase yet"
+        case escapes = "backslash escapes in link destinations and titles are not decoded"
     }
 
     static let specExamples: [Case] = [
         Case(
             name: "Example 192",
             markdown: "[foo]: /url \"title\"\n\n[foo]\n",
-            expected: #"p{[foo](/url "title")}"#,
-            knownIssue: false
+            expected: #"p{[foo](/url "title")}"#
         ),
         Case(
             name: "Example 193",
             markdown: "   [foo]: \n      /url  \n           'the title'  \n\n[foo]\n",
             expected: #"p{[foo](/url "the title")}"#,
-            knownIssue: true
+            knownIssues: [.definition]
         ),
         Case(
             name: "Example 194",
             markdown: "[Foo*bar\\]]:my_(url) 'title (with parens)'\n\n[Foo*bar\\]]\n",
             expected: #"p{[Foo*bar]](my_(url) "title (with parens)")}"#,
-            knownIssue: true
+            knownIssues: [.definition]
         ),
         Case(
             name: "Example 195",
             markdown: "[Foo bar]:\n<my url>\n'title'\n\n[Foo bar]\n",
             expected: #"p{[Foo bar](my url "title")}"#,
-            knownIssue: true
+            knownIssues: [.definition]
         ),
         Case(
             name: "Example 196",
             markdown: "[foo]: /url '\ntitle\nline1\nline2\n'\n\n[foo]\n",
             expected: "p{[foo](/url \"\ntitle\nline1\nline2\n\")}",
-            knownIssue: true
+            knownIssues: [.definition]
         ),
         Case(
             name: "Example 197",
             markdown: "[foo]: /url 'title\n\nwith blank line'\n\n[foo]\n",
             expected: "p{[foo]: /url 'title} p{with blank line'} p{[foo]}",
-            knownIssue: true
+            knownIssues: [.definition]
         ),
         Case(
             name: "Example 198",
             markdown: "[foo]:\n/url\n\n[foo]\n",
             expected: "p{[foo](/url)}",
-            knownIssue: true
+            knownIssues: [.definition]
         ),
         Case(
             name: "Example 199",
             markdown: "[foo]:\n\n[foo]\n",
-            expected: "p{[foo]:} p{[foo]}",
-            knownIssue: false
+            expected: "p{[foo]:} p{[foo]}"
         ),
         Case(
             name: "Example 200",
             markdown: "[foo]: <>\n\n[foo]\n",
             expected: "p{[foo]()}",
-            knownIssue: true
+            knownIssues: [.definition]
         ),
         Case(
             name: "Example 201",
             markdown: "[foo]: <bar>(baz)\n\n[foo]\n",
             expected: "p{[foo]: <bar>(baz)} p{[foo]}",
-            knownIssue: true
+            knownIssues: [.definition]
         ),
         Case(
             name: "Example 202",
             markdown: "[foo]: /url\\bar\\*baz \"foo\\\"bar\\baz\"\n\n[foo]\n",
             expected: #"p{[foo](/url\bar*baz "foo"bar\baz")}"#,
-            knownIssue: true
+            knownIssues: [.escapes]
         ),
         Case(
             name: "Example 203",
             markdown: "[foo]\n\n[foo]: url\n",
-            expected: "p{[foo](url)}",
-            knownIssue: false
+            expected: "p{[foo](url)}"
         ),
         Case(
             name: "Example 204",
             markdown: "[foo]\n\n[foo]: first\n[foo]: second\n",
-            expected: "p{[foo](first)}",
-            knownIssue: false
+            expected: "p{[foo](first)}"
         ),
         Case(
             name: "Example 205",
             markdown: "[FOO]: /url\n\n[Foo]\n",
-            expected: "p{[Foo](/url)}",
-            knownIssue: false
+            expected: "p{[Foo](/url)}"
         ),
         Case(
             name: "Example 206",
             markdown: "[ΑΓΩ]: /φου\n\n[αγω]\n",
-            expected: "p{[αγω](/φου)}",
-            knownIssue: false
+            expected: "p{[αγω](/φου)}"
         ),
         Case(
             name: "Example 207",
             markdown: "[foo]: /url\n",
-            expected: "",
-            knownIssue: false
+            expected: ""
         ),
         Case(
             name: "Example 208",
             markdown: "[\nfoo\n]: /url\nbar\n",
             expected: "p{bar}",
-            knownIssue: true
+            knownIssues: [.definition]
         ),
         Case(
             name: "Example 209",
             markdown: "[foo]: /url \"title\" ok\n",
             expected: #"p{[foo]: /url "title" ok}"#,
-            knownIssue: true
+            knownIssues: [.definition]
         ),
         Case(
             name: "Example 210",
             markdown: "[foo]: /url\n\"title\" ok\n",
-            expected: #"p{"title" ok}"#,
-            knownIssue: false
+            expected: #"p{"title" ok}"#
         ),
         Case(
             name: "Example 211",
             markdown: "    [foo]: /url \"title\"\n\n[foo]\n",
-            expected: #"code{[foo]: /url "title"} p{[foo]}"#,
-            knownIssue: false
+            expected: #"code{[foo]: /url "title"} p{[foo]}"#
         ),
         Case(
             name: "Example 212",
             markdown: "```\n[foo]: /url\n```\n\n[foo]\n",
-            expected: "code{[foo]: /url} p{[foo]}",
-            knownIssue: false
+            expected: "code{[foo]: /url} p{[foo]}"
         ),
         Case(
             name: "Example 213",
             markdown: "Foo\n[bar]: /baz\n\n[bar]\n",
             expected: "p{Foo\n[bar]: /baz} p{[bar]}",
-            knownIssue: true
+            knownIssues: [.multilineParagraph, .definition]
         ),
         Case(
             name: "Example 214",
             markdown: "# [Foo]\n[foo]: /url\n> bar\n",
-            expected: "h1{[Foo](/url)} quote{p{bar}}",
-            knownIssue: false
+            expected: "h1{[Foo](/url)} quote{p{bar}}"
         ),
         Case(
             name: "Example 215",
             markdown: "[foo]: /url\nbar\n===\n[foo]\n",
-            expected: "h1{bar} p{[foo](/url)}",
-            knownIssue: false
+            expected: "h1{bar} p{[foo](/url)}"
         ),
         Case(
             name: "Example 216",
             markdown: "[foo]: /url\n===\n[foo]\n",
             expected: "p{===\n[foo](/url)}",
-            knownIssue: true
+            knownIssues: [.multilineParagraph]
         ),
         Case(
             name: "Example 217",
@@ -191,13 +186,13 @@ import Testing
 
             """,
             expected: #"p{[foo](/foo-url "foo"),\#n[bar](/bar-url "bar"),\#n[baz](/baz-url)}"#,
-            knownIssue: true
+            knownIssues: [.multilineParagraph, .definition]
         ),
         Case(
             name: "Example 218",
             markdown: "[foo]\n\n> [foo]: /url\n",
             expected: "p{[foo](/url)} quote{}",
-            knownIssue: true
+            knownIssues: [.definition]
         ),
     ]
 
@@ -206,61 +201,58 @@ import Testing
             name: "Definition inside a $$ math block stays math",
             markdown: "$$\n[a]: https://example.com\n$$\n\n[a]\n",
             expected: "math{[a]: https://example.com} p{[a]}",
-            knownIssue: true
+            knownIssues: [.definition]
         ),
         Case(
             name: "Definition inside an HTML block stays HTML",
             markdown: "<div>\n[a]: https://example.com\n</div>\n\n[a]\n",
             expected: "html{<div>\n[a]: https://example.com\n</div>} p{[a]}",
-            knownIssue: true
+            knownIssues: [.definition]
         ),
         Case(
             name: "Definition cannot interrupt a paragraph",
             markdown: "para line\n[a]: https://example.com\n\n[a]\n",
             expected: "p{para line\n[a]: https://example.com} p{[a]}",
-            knownIssue: true
+            knownIssues: [.multilineParagraph, .definition]
         ),
         Case(
             name: "Definition inside a block quote applies to the document",
             markdown: "> [a]: https://example.com\n\n[a]\n",
             expected: "quote{} p{[a](https://example.com)}",
-            knownIssue: true
+            knownIssues: [.definition]
         ),
         Case(
             name: "Definition inside a list item applies to the document",
             markdown: "- [a]: https://example.com\n\n[a]\n",
             expected: "list{item{}} p{[a](https://example.com)}",
-            knownIssue: true
+            knownIssues: [.definition]
         ),
         Case(
             name: "Title on the following line",
             markdown: "[a]: https://example.com\n\"Title\"\n\n[a]\n",
             expected: #"p{[a](https://example.com "Title")}"#,
-            knownIssue: true
+            knownIssues: [.definition]
         ),
         Case(
             name: "Destination on the following line",
             markdown: "[a]:\nhttps://example.com\n\n[a]\n",
             expected: "p{[a](https://example.com)}",
-            knownIssue: true
+            knownIssues: [.definition]
         ),
         Case(
             name: "Definition inside a tilde fence stays code",
             markdown: "~~~\n[a]: https://example.com\n~~~\n\n[a]\n",
-            expected: "code{[a]: https://example.com} p{[a]}",
-            knownIssue: false
+            expected: "code{[a]: https://example.com} p{[a]}"
         ),
         Case(
             name: "Indented definition is code",
             markdown: "    [a]: https://example.com\n\n[a]\n",
-            expected: "code{[a]: https://example.com} p{[a]}",
-            knownIssue: false
+            expected: "code{[a]: https://example.com} p{[a]}"
         ),
         Case(
             name: "Definition after an unclosed fence stays code",
             markdown: "```\ncode\n[a]: https://example.com\n\n[a]\n",
-            expected: "code{code\n[a]: https://example.com\n\n[a]}",
-            knownIssue: false
+            expected: "code{code\n[a]: https://example.com\n\n[a]}"
         ),
     ]
 
@@ -277,8 +269,9 @@ import Testing
     private func check(_ testCase: Case) throws {
         let document = try SwiftMarkdownParser().parse(testCase.markdown)
         let signature = Self.signature(of: document)
-        if testCase.knownIssue {
-            withKnownIssue("Link Reference Definitions are not recognized by the Block Phase yet") {
+        if !testCase.knownIssues.isEmpty {
+            let causes = testCase.knownIssues.map(\.rawValue).joined(separator: "; ")
+            withKnownIssue(Comment(rawValue: causes)) {
                 #expect(signature == testCase.expected)
             }
         } else {
@@ -331,6 +324,8 @@ import Testing
             return "\n"
         case let code as AST.CodeSpanNode:
             return "`\(code.content)`"
+        case let strikethrough as AST.StrikethroughNode:
+            return "~~\(inlines(strikethrough.children))~~"
         case let link as AST.LinkNode:
             return "[\(inlines(link.children))](\(destination(link.url, link.title)))"
         case let image as AST.ImageNode:
