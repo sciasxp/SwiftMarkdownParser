@@ -241,6 +241,18 @@ import Testing
             // does at the document level
             expected: "list{item{p{$$\n  x}} item{p{y}}}"
         ),
+        Case(
+            name: "Blank line ends a math block with its block quote",
+            markdown: "> $$\n> x\n\n> $$",
+            // The Inline Phase keeps the width of `> ` past an unclosed $$, as
+            // it keeps the indentation in a list item
+            expected: "quote{p{$$\n  x}} quote{p{$$}}"
+        ),
+        Case(
+            name: "Blank line ends a fenced code block with its block quote",
+            markdown: "> ```\n> x\n\n> ```",
+            expected: "quote{code{x}} quote{code{}}"
+        ),
     ]
 
     @Test(arguments: specExamples)

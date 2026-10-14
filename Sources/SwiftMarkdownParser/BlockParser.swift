@@ -218,8 +218,14 @@ final class BlockParser {
                 children.append(block)
             }
 
-            // Look for continuation
+            // Look for continuation; a blank line ends the block quote
+            let continuationStart = tokenStream.currentLocation.offset
+            let continuationPosition = tokenStream.currentPosition
             skipWhitespaceAndNewlines()
+            if skipsBlankLine(from: continuationStart) {
+                tokenStream.setPosition(continuationPosition)
+                break
+            }
         }
 
         return .blockQuote(children: children, range: tokenStream.range(startingAt: startLocation))
@@ -480,7 +486,8 @@ final class BlockParser {
             budget.consumeWork()
             let match = matchContainers(onLine: line)
             let rest = match.restStart..<lineContentRange(line).upperBound
-            if match.matched < containers.count && !isBlank(lineContentRange(line)) {
+            // A list item matches a blank line, so only a block quote ends here
+            if match.matched < containers.count {
                 break
             }
             if match.matched == containers.count && isClosingFence(rest, character: fenceChar, length: fenceLength) {
@@ -577,13 +584,9 @@ final class BlockParser {
             budget.consumeWork()
             let match = matchContainers(onLine: line)
             let lineRange = lineContentRange(line)
+            // A list item matches a blank line, so only a block quote ends here
             if match.matched < containers.count {
-                if !isBlank(lineRange) {
-                    break
-                }
-                content += "\n"
-                line += 1
-                continue
+                break
             }
             let rest = match.restStart..<lineRange.upperBound
             if isClosingMathDelimiter(rest) {
@@ -1010,6 +1013,15 @@ final class BlockParser {
             matched += 1
         }
         return (position, matched)
+    }
+
+    /// Whether the spaces and line endings skipped from `start` to the current
+    /// token cover a whole line, which is then blank.
+    private func skipsBlankLine(from start: Int) -> Bool {
+        guard !tokenStream.isAtEnd else { return false }
+        let startLine = lineIndex(containing: start)
+        let firstSkippedLine = lineStarts[startLine] >= start ? startLine : startLine + 1
+        return firstSkippedLine < lineIndex(containing: tokenStream.currentLocation.offset)
     }
 
     private func isBlank(_ range: Range<Int>) -> Bool {
