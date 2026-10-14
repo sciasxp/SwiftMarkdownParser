@@ -115,8 +115,14 @@ out of scope: it is the HTML renderer's raw-HTML policy, not construction.
 - A code span turns its line endings into spaces.
 - The marker line of a list item starts any block, so `- # foo` is a heading
   and ``- ``` `` opens a fence inside the item. A thematic break made of list marker
-  characters (`* * *`, `- - -`) is a thematic break. An HTML block ends with the
-  list item that holds it. An empty list item ends at a blank line.
+  characters (`* * *`, `- - -`) is a thematic break, on a list item's marker
+  line, on its continuation lines, and after it, where it ends the list. An HTML
+  block ends with the list item that holds it. An empty list item ends at a blank
+  line.
+- A fence ends with the list item or block quote that holds it: a non-blank line
+  that does not match the open containers ends the fence, which takes no lazy
+  lines, and container markers never become code. A list inside a block quote
+  continues on the quote's marked lines.
 - A backslash with nothing after it is literal.
 
 Of the 652 CommonMark 0.30 examples, 153 change their HTML. Under whitespace
@@ -151,9 +157,12 @@ document below doubles its cost. Measured as the smallest
 
 The worst case is about twice the cost on `develop`: very long lines and long
 lists, whose text was tokenized once. Ordinary prose costs 6.5 to 8.5 units per
-character, so a document at the default `maximumSourceLength` (2,000,000)
-still fits the default `maximumWork` (25,000,000). The pinned cost lives in
-`MarkdownDocumentConstructionTests`.
+character, so prose at the default `maximumSourceLength` (2,000,000) still fits
+the default `maximumWork` (25,000,000). Dense lists do not: a list such as
+``- item *a* `b` `` costs about 14 units per character, so such a list above
+about 1,800,000 characters, which parsed on `develop`, now exceeds the default
+`maximumWork` (1,875,000 characters cost 25,160,719 units). The default limit
+is unchanged. The pinned cost lives in `MarkdownDocumentConstructionTests`.
 
 ## Validation
 

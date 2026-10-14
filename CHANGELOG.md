@@ -59,12 +59,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Line endings inside a paragraph are `SoftBreakNode`s; two trailing spaces or a backslash make a hard `LineBreakNode`
   - Code spans and strikethrough cross lines inside their paragraph; a code span turns line endings into spaces
   - Setext headings can span lines, and a setext underline may be a single `=` or `-`
-  - A list item's marker line starts any block (`- # foo` is a heading, a fence there is a code block without the item's indentation); `* * *` is a thematic break, not nested empty items; an HTML block ends with its list item; an empty item ends at a blank line
+  - A list item's marker line starts any block (`- # foo` is a heading, a fence there is a code block without the item's indentation); `* * *` is a thematic break, not nested empty items, on an item's marker line, on its continuation lines, and after it; an HTML block ends with its list item; an empty item ends at a blank line
+  - A fence ends with the list item or block quote that holds it, takes no lazy lines, and never takes container markers as code; a list inside a block quote continues on the quote's marked lines
   - A backslash with nothing after it is literal
   - Of the 652 CommonMark 0.30 examples, 153 change their HTML; under whitespace normalization the passing examples go from 221 to 296, and none that passed fails
 - **Block and Inline Phases**: Document construction recognizes all blocks before it interprets any inline text (ADR 0016)
   - Paragraph and heading text is tokenized again as its own inline fragment, so it charges more work to `ResourceLimits.maximumWork`: a document with a heading, a paragraph, and two list items costs 565 units instead of 420
-  - The cost stays linear; the worst case measured is about 2x the previous cost (a single very long line, or a long list), and ordinary prose costs 6.5 to 8.5 units per character, so a 2,000,000-character document still fits the default limit
+  - The cost stays linear; the worst case measured is about 2x the previous cost (a single very long line, or a long list), and ordinary prose costs 6.5 to 8.5 units per character, so 2,000,000 characters of prose still fit the default limit; dense lists cost about 14 units per character, so a list above about 1,800,000 characters no longer fits the default `maximumWork`, which is unchanged
 - **Inline Fragment Work**: Setext heading text and inline-parsed table cells charge one extra unit of work per character to `ResourceLimits.maximumWork`, for their fragment's line table (ADR 0014)
 - **Unicode Separators Are Whitespace**: U+2028, U+2029, NEL, VT, and FF no longer end a line; they are whitespace inside it, as CommonMark specifies (ADR 0014)
 - **Source-Breaking Parser Interface**: Replaced async `parseToAST(_:)` and mode-based `Configuration` with synchronous `parse(_:)` and `ResourceLimits`
