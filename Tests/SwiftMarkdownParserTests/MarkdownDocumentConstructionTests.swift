@@ -277,17 +277,18 @@ import Testing
     }
 
     /// The source text's line table absorbs the per-character charge the
-    /// parse used to start with, so a simple document costs exactly what it
-    /// cost before the table existed (420 units, measured on `develop`).
-    @Test func simpleDocument_workCost_matchesThePreSourceTextCost() throws {
+    /// parse used to start with (420 units, measured on `develop`). Each
+    /// paragraph is now retokenized as one inline fragment, which costs 136
+    /// units more here.
+    @Test func simpleDocument_workCost_includesParagraphFragments() throws {
         let source = "# Title\n\nHello *world* and `code`.\n\n- item one\n- item two\n"
         func parser(maximumWork: Int) -> SwiftMarkdownParser {
             SwiftMarkdownParser(resourceLimits: .init(maximumWork: maximumWork))
         }
 
-        _ = try parser(maximumWork: 420).parse(source)
+        _ = try parser(maximumWork: 556).parse(source)
         guard case let .resourceLimitExceeded(resource, _, _) = parsingError(
-            from: parser(maximumWork: 419),
+            from: parser(maximumWork: 555),
             source: source
         ) else {
             Issue.record("Expected a work-limit failure one unit below the cost")
@@ -297,16 +298,17 @@ import Testing
     }
 
     /// Each inline fragment's line table charges its characters: the two
-    /// three-character cells cost 6 units more than on `develop` (279).
+    /// three-character cells cost 6 units more than on `develop` (279), and
+    /// looking past spaces for a line ending costs two more.
     @Test func inlineTableCells_workCost_includesFragmentTables() throws {
         let source = "| *a* | b |\n|---|---|\n| `1` | 2 |\n"
         func parser(maximumWork: Int) -> SwiftMarkdownParser {
             SwiftMarkdownParser(resourceLimits: .init(maximumWork: maximumWork))
         }
 
-        _ = try parser(maximumWork: 285).parse(source)
+        _ = try parser(maximumWork: 287).parse(source)
         guard case let .resourceLimitExceeded(resource, _, _) = parsingError(
-            from: parser(maximumWork: 284),
+            from: parser(maximumWork: 286),
             source: source
         ) else {
             Issue.record("Expected a work-limit failure one unit below the cost")

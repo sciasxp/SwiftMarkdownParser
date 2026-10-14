@@ -28,7 +28,6 @@ import Testing
 
     /// Why a case still fails; a case lists every cause it depends on.
     enum KnownIssue: String, Sendable {
-        case multilineParagraph = "paragraphs do not continue across lines yet"
         case definition = "Link Reference Definitions are not recognized by the Block Phase yet"
         case escapes = "backslash escapes in link destinations and titles are not decoded"
     }
@@ -154,7 +153,7 @@ import Testing
             name: "Example 213",
             markdown: "Foo\n[bar]: /baz\n\n[bar]\n",
             expected: "p{Foo\n[bar]: /baz} p{[bar]}",
-            knownIssues: [.multilineParagraph, .definition]
+            knownIssues: [.definition]
         ),
         Case(
             name: "Example 214",
@@ -169,8 +168,7 @@ import Testing
         Case(
             name: "Example 216",
             markdown: "[foo]: /url\n===\n[foo]\n",
-            expected: "p{===\n[foo](/url)}",
-            knownIssues: [.multilineParagraph]
+            expected: "p{===\n[foo](/url)}"
         ),
         Case(
             name: "Example 217",
@@ -186,7 +184,7 @@ import Testing
 
             """,
             expected: #"p{[foo](/foo-url "foo"),\#n[bar](/bar-url "bar"),\#n[baz](/baz-url)}"#,
-            knownIssues: [.multilineParagraph, .definition]
+            knownIssues: [.definition]
         ),
         Case(
             name: "Example 218",
@@ -213,7 +211,7 @@ import Testing
             name: "Definition cannot interrupt a paragraph",
             markdown: "para line\n[a]: https://example.com\n\n[a]\n",
             expected: "p{para line\n[a]: https://example.com} p{[a]}",
-            knownIssues: [.multilineParagraph, .definition]
+            knownIssues: [.definition]
         ),
         Case(
             name: "Definition inside a block quote applies to the document",

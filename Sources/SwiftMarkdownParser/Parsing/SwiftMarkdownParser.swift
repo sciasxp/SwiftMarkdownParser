@@ -81,7 +81,7 @@ public final class SwiftMarkdownParser: Sendable {
             tokenStream: tokenStream,
             limits: resourceLimits,
             budget: budget,
-            sourceText: sourceText,
+            sourceText: referenceResolution.sourceForParsing,
             linkReferences: referenceResolution.references
         )
 

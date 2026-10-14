@@ -16,6 +16,23 @@ final class BlockParser {
     private let linkReferences: [String: LinkReference]
     private var nestingDepth = 0
 
+    /// A container block open around the block being parsed.
+    private enum Container {
+        case blockQuote
+        /// A list item whose content starts at `contentColumn` (1-based) on
+        /// the line of its marker.
+        case listItem(contentColumn: Int)
+    }
+
+    /// Containers open around the block being parsed, outermost first.
+    private var containers: [Container] = []
+
+    /// Offset of the first character of each line of `sourceText`.
+    private let lineStarts: [Int]
+
+    /// Where the block being parsed started, before its indentation.
+    private var blockIndentationStart = 0
+
     init(
         tokenStream: TokenStream,
         limits: SwiftMarkdownParser.ResourceLimits,
@@ -28,6 +45,7 @@ final class BlockParser {
         self.budget = budget
         self.sourceText = sourceText
         self.linkReferences = linkReferences
+        self.lineStarts = sourceText.lines.map(\.contentRange.lowerBound)
     }
 
     /// Parse the entire document into an AST
@@ -56,6 +74,7 @@ final class BlockParser {
     /// Parse a single block element
     private func parseBlock() throws -> (any ASTNode)? {
         // Skip whitespace at start of line
+        blockIndentationStart = tokenStream.currentLocation.offset
         skipWhitespace()
 
         guard !tokenStream.isAtEnd else {
@@ -72,6 +91,10 @@ final class BlockParser {
             return try parseBlockQuote()
 
         case .listMarker:
+            // A thematic break takes precedence over a list item
+            if let thematicBreak = parseThematicBreakLine() {
+                return thematicBreak
+            }
             return try parseList()
 
         case .backtick, .tildeCodeFence:
@@ -107,12 +130,7 @@ final class BlockParser {
                 return table
             }
 
-            // Check for setext heading
-            if let setextHeading = try parseSetextHeading() {
-                return setextHeading
-            }
-
-            // Default to paragraph
+            // Default to paragraph; a setext underline turns it into a heading
             return try parseParagraph()
         }
     }
@@ -138,66 +156,13 @@ final class BlockParser {
         )
     }
 
-    private func parseSetextHeading() throws -> AST.HeadingNode? {
-        // Look ahead to see if next line is setext underline
-        let startPosition = tokenStream.currentPosition
-
-        // Parse potential heading text
-        var textTokens: [Token] = []
-        while !tokenStream.isAtEnd && !tokenStream.check(.newline) {
-            textTokens.append(tokenStream.consume())
-        }
-
-        // Must have newline
-        guard tokenStream.match(.newline) else {
-            // Backtrack
-            tokenStream.setPosition(startPosition)
-            return nil
-        }
-
-        // Check for underline
-
-        guard !tokenStream.isAtEnd else {
-            tokenStream.setPosition(startPosition)
-            return nil
-        }
-
-        let underlineToken = tokenStream.current
-
-        // A valid setext underline must be at least 3 consecutive '=' or '-' characters
-        // and must not include other characters.
-        let trimmedContent = underlineToken.content.trimmingCharacters(in: .whitespaces)
-        let isLevel1 = trimmedContent.allSatisfy { $0 == "=" } && trimmedContent.count >= 3
-        let isLevel2 = trimmedContent.allSatisfy { $0 == "-" } && trimmedContent.count >= 3
-
-        guard isLevel1 || isLevel2 else {
-            tokenStream.setPosition(startPosition)
-            return nil
-        }
-
-        // Consume underline token and any trailing newline
-        tokenStream.advance()
-
-        // Create heading
-        let textContent = textTokens.map { $0.content }.joined()
-        let inlineStart = textTokens.first?.location ?? underlineToken.location
-        let children = try makeInlineParser().parseInlineContent(
-            textContent.trimmingCharacters(in: .whitespacesAndNewlines),
-            startingAt: inlineStart
-        )
-
-        return AST.HeadingNode(
-            level: isLevel1 ? 1 : 2,
-            children: children,
-            sourceLocation: tokenStream.range(startingAt: inlineStart)
-        )
-    }
-
     // MARK: - Block Quote Parser
 
     private func parseBlockQuote() throws -> AST.BlockQuoteNode {
         let startLocation = tokenStream.current.location
         var children: [any ASTNode] = []
+        containers.append(.blockQuote)
+        defer { containers.removeLast() }
 
         while !tokenStream.isAtEnd && tokenStream.check(.blockQuoteMarker) {
             tokenStream.advance() // consume >
@@ -269,30 +234,23 @@ final class BlockParser {
         let startLocation = tokenStream.current.location
 
         // Consume list marker
-        tokenStream.advance()
+        let marker = tokenStream.consume()
         skipWhitespace()
+
+        containers.append(.listItem(contentColumn: listItemContentColumn(after: marker)))
+        defer { containers.removeLast() }
 
         var children: [any ASTNode] = []
 
-        // Parse inline content for the first line
         let taskMarker = tokenStream.check(.taskListMarker) ? tokenStream.consume() : nil
         if taskMarker != nil {
             skipWhitespace()
         }
 
-        let inlineParser = makeInlineParser()
-        let inlineNodes = try inlineParser.parseInlines(until: [.newline, .eof])
-
-        // Create paragraph for first line if not empty
-        if !inlineNodes.isEmpty {
-            children.append(AST.ParagraphNode(
-                children: inlineNodes,
-                sourceLocation: tokenStream.range(startingAt: startLocation)
-            ))
+        // The rest of the marker line starts the item's first block
+        if !tokenStream.isAtEnd && !tokenStream.check(.newline), let block = try parseNestedBlock() {
+            children.append(block)
         }
-
-        // Skip the newline if present
-        _ = tokenStream.match(.newline)
 
         // Check if there's continuation content (indented blocks)
         while !tokenStream.isAtEnd {
@@ -301,14 +259,14 @@ final class BlockParser {
                 break
             }
 
-            // Check for blank line followed by non-indented content (ends list)
-            if isBlankLineThenNonIndented() {
-                break
-            }
-
             // Special check: if we encounter a list marker at the start of a line
             // without proper indentation, it should end this list item
             if isListMarkerAtStartOfLine() {
+                break
+            }
+
+            // The item continues only on a line indented to its content
+            guard advanceToNextLineOfItem(isEmpty: children.isEmpty) else {
                 break
             }
 
@@ -385,34 +343,48 @@ final class BlockParser {
         return hasListMarker
     }
 
-    private func isBlankLineThenNonIndented() -> Bool {
-        let currentPos = tokenStream.currentPosition
+    /// The column where the content of the list item opened by `marker`
+    /// starts; the token stream is at the first token after the marker's
+    /// spaces.
+    private func listItemContentColumn(after marker: Token) -> Int {
+        let lineStart = lineStarts[lineIndex(containing: marker.location.offset)]
+        let markerEnd = marker.location.offset + marker.content.count
+        let contentStart = tokenStream.currentLocation.offset
+        let isBlankItem = tokenStream.isAtEnd || tokenStream.check(.newline)
+        // An empty item, or one whose content is indented code, keeps one space
+        guard !isBlankItem, contentStart - markerEnd <= 4 else {
+            return markerEnd - lineStart + 2
+        }
+        return contentStart - lineStart + 1
+    }
 
-        // Check for blank line
-        if !tokenStream.check(.newline) {
+    /// Moves to the content of the next non-blank line when that line belongs
+    /// to the innermost list item; returns false when the item ends there.
+    /// An empty item ends at a blank line: an item can begin with at most one
+    /// blank line.
+    private func advanceToNextLineOfItem(isEmpty: Bool) -> Bool {
+        guard tokenStream.check(.newline) else { return true }
+
+        var line = lineIndex(containing: tokenStream.currentLocation.offset) + 1
+        if isEmpty && line < lineStarts.count && isBlank(lineContentRange(line)) {
             return false
         }
+        while line < lineStarts.count && isBlank(lineContentRange(line)) {
+            line += 1
+        }
+        guard line < lineStarts.count else { return false }
 
-        tokenStream.advance()
+        let match = matchContainers(onLine: line)
+        guard match.matched == containers.count else { return false }
 
-        // Skip any additional blank lines
-        while tokenStream.check(.newline) {
+        let keepsIndentedCode = leadingIndentation(at: match.restStart, line: line) >= 4
+        while !tokenStream.isAtEnd && tokenStream.currentLocation.offset < match.restStart {
+            if keepsIndentedCode && tokenStream.check(.indentedCodeBlock) {
+                break
+            }
             tokenStream.advance()
         }
-
-        // Check if next content is non-indented
-        var spaceCount = 0
-        while tokenStream.check(.whitespace) && spaceCount < 4 {
-            spaceCount += tokenStream.current.content.count
-            tokenStream.advance()
-        }
-
-        let result = spaceCount < 4 && !tokenStream.isAtEnd
-
-        // Restore position
-        tokenStream.setPosition(currentPos)
-
-        return result
+        return true
     }
 
     // MARK: - Code Block Parsers
@@ -438,26 +410,25 @@ final class BlockParser {
         // Skip newline after opening fence
         _ = tokenStream.match(.newline)
 
-        // Collect code content
-        var content = ""
-
+        // Find the closing fence; the tokenizer decides which fence closes
+        var closingOffset: Int?
         while !tokenStream.isAtEnd {
-            // Check for closing fence
             if tokenStream.check(.backtick) || tokenStream.check(.tildeCodeFence) {
                 let closingToken = tokenStream.current
                 if closingToken.content.first == fenceChar && closingToken.content.count >= fenceLength {
+                    closingOffset = closingToken.location.offset
                     tokenStream.advance()
                     break
                 }
             }
-
-            if tokenStream.check(.newline) {
-                content += "\n"
-            } else {
-                content += tokenStream.current.content
-            }
             tokenStream.advance()
         }
+
+        let content = fencedCodeContent(
+            openingFenceOffset: startLocation.offset,
+            fenceIndentation: startLocation.offset - blockIndentationStart,
+            closingFenceOffset: closingOffset
+        )
 
         // Check if this is a Mermaid diagram
         if let language = language, language.lowercased() == "mermaid" {
@@ -474,6 +445,37 @@ final class BlockParser {
             isFenced: true,
             sourceLocation: tokenStream.range(startingAt: startLocation)
         )
+    }
+
+    /// The content lines between a fence and its closing fence (or the end of
+    /// the text), without the prefixes of the open containers and without up
+    /// to the opening fence's own indentation.
+    private func fencedCodeContent(
+        openingFenceOffset: Int,
+        fenceIndentation: Int,
+        closingFenceOffset: Int?
+    ) -> String {
+        let openingLine = lineIndex(containing: openingFenceOffset)
+        let endLine = closingFenceOffset.map(lineIndex(containing:)) ?? lineStarts.count
+        guard openingLine + 1 < endLine else { return "" }
+
+        let characters = sourceText.characters
+        var content = ""
+        for line in (openingLine + 1)..<endLine {
+            let lineRange = lineContentRange(line)
+            let match = matchContainers(onLine: line)
+            var start = match.matched == containers.count ? match.restStart : lineRange.lowerBound
+            var removed = 0
+            while removed < fenceIndentation && start < lineRange.upperBound && characters[start] == " " {
+                start += 1
+                removed += 1
+            }
+            content += sourceText.string(in: start..<lineRange.upperBound)
+            if line + 1 < lineStarts.count {
+                content += "\n"
+            }
+        }
+        return content
     }
 
     private func parseMathBlock() throws -> any ASTNode {
@@ -552,6 +554,23 @@ final class BlockParser {
 
     // MARK: - Other Block Parsers
 
+    /// A thematic break whose marks the tokenizer read as list markers, such
+    /// as `* * *` or `- - -`.
+    private func parseThematicBreakLine() -> AST.ThematicBreakNode? {
+        let startLocation = tokenStream.current.location
+        let lineEnd = lineContentRange(lineIndex(containing: startLocation.offset)).upperBound
+        let text = Substring(sourceText.string(in: startLocation.offset..<lineEnd))
+        guard Self.isThematicBreak(text), let character = text.first else { return nil }
+
+        while !tokenStream.isAtEnd && tokenStream.currentLocation.offset < lineEnd {
+            tokenStream.advance()
+        }
+        return AST.ThematicBreakNode(
+            character: character,
+            sourceLocation: tokenStream.range(startingAt: startLocation)
+        )
+    }
+
     private func parseThematicBreak() -> AST.ThematicBreakNode {
         let startLocation = tokenStream.current.location
         let token = tokenStream.consume()
@@ -576,6 +595,11 @@ final class BlockParser {
             if token.type == .newline {
                 // Check if next line is blank
                 if tokenStream.check(.newline) {
+                    break
+                }
+                // The block ends with the container holding it
+                let nextLine = lineIndex(containing: tokenStream.currentLocation.offset)
+                if !tokenStream.isAtEnd && matchContainers(onLine: nextLine).matched < containers.count {
                     break
                 }
             }
@@ -743,17 +767,278 @@ final class BlockParser {
         return TableLine(content: lineContent, range: sourceText.range(startLocation.offset..<endOffset))
     }
 
-    private func parseParagraph() throws -> AST.ParagraphNode {
+    /// Parses a paragraph: its first line plus every continuation line, lazy
+    /// or not. A setext underline after the lines makes it a heading.
+    private func parseParagraph() throws -> any ASTNode {
         let startLocation = tokenStream.current.location
+        let start = startLocation.offset
+        var line = lineIndex(containing: start)
+        var end = lineContentRange(line).upperBound
+        var consumedEnd = end
+        var continuationPrefixes: [Range<Int>] = []
+        var setextLevel: Int?
 
-        // Use inline parser to properly handle inline elements like code spans, emphasis, etc.
-        let inlineParser = makeInlineParser()
-        let inlineNodes = try inlineParser.parseInlines(until: [.newline, .eof])
+        while line + 1 < lineStarts.count {
+            let next = line + 1
+            let match = matchContainers(onLine: next)
+            let rest = match.restStart..<lineContentRange(next).upperBound
+            guard !isBlank(rest) else { break }
 
-        return AST.ParagraphNode(
-            children: inlineNodes,
-            sourceLocation: tokenStream.range(startingAt: startLocation)
-        )
+            let isLazy = match.matched < containers.count
+            if !isLazy, let level = setextUnderlineLevel(rest) {
+                setextLevel = level
+                consumedEnd = rest.upperBound
+                break
+            }
+            let closesListItem = containers[match.matched...].contains {
+                if case .listItem = $0 { return true }
+                return false
+            }
+            guard !interruptsParagraph(rest, line: next, closesListItem: closesListItem) else { break }
+
+            continuationPrefixes.append(lineStarts[next]..<firstNonWhitespace(in: rest))
+            end = rest.upperBound
+            consumedEnd = end
+            line = next
+        }
+
+        // Final spaces and tabs are not content
+        let characters = sourceText.characters
+        while end > start && (characters[end - 1] == " " || characters[end - 1] == "\t") {
+            end -= 1
+        }
+
+        while !tokenStream.isAtEnd && tokenStream.currentLocation.offset < consumedEnd {
+            tokenStream.advance()
+        }
+
+        // Container prefixes and indentation of continuation lines become
+        // spaces, so the fragment keeps the source's offsets and columns.
+        var fragment = Array(characters[start..<end])
+        for prefix in continuationPrefixes {
+            for offset in prefix where !MarkdownSourceText.isLineEnding(fragment[offset - start]) {
+                fragment[offset - start] = " "
+            }
+        }
+        let children = fragment.isEmpty
+            ? []
+            : try makeInlineParser().parseInlineContent(String(fragment), startingAt: startLocation)
+
+        let range = tokenStream.range(startingAt: startLocation)
+        if let setextLevel {
+            return AST.HeadingNode(level: setextLevel, children: children, sourceLocation: range)
+        }
+        return AST.ParagraphNode(children: children, sourceLocation: range)
+    }
+
+    // MARK: - Lines
+
+    /// Index of the line containing `offset`.
+    private func lineIndex(containing offset: Int) -> Int {
+        var lower = 0
+        var upper = lineStarts.count
+        while upper - lower > 1 {
+            let middle = (lower + upper) / 2
+            if lineStarts[middle] <= offset {
+                lower = middle
+            } else {
+                upper = middle
+            }
+        }
+        return lower
+    }
+
+    /// The characters of `line`, excluding its line ending.
+    private func lineContentRange(_ line: Int) -> Range<Int> {
+        let end = line + 1 < lineStarts.count ? lineStarts[line + 1] - 1 : sourceText.count
+        return lineStarts[line]..<end
+    }
+
+    /// Matches the open containers against the start of `line`, outermost
+    /// first: a block quote needs its `>`, a list item needs indentation to
+    /// its content column or a blank line. Returns where the rest of the line
+    /// starts and how many containers matched.
+    private func matchContainers(onLine line: Int) -> (restStart: Int, matched: Int) {
+        let characters = sourceText.characters
+        let lineRange = lineContentRange(line)
+        var position = lineRange.lowerBound
+        var matched = 0
+
+        for container in containers {
+            switch container {
+            case .blockQuote:
+                var cursor = position
+                while cursor < lineRange.upperBound && characters[cursor] == " " && cursor - position < 3 {
+                    cursor += 1
+                }
+                guard cursor < lineRange.upperBound && characters[cursor] == ">" else {
+                    return (position, matched)
+                }
+                cursor += 1
+                if cursor < lineRange.upperBound && (characters[cursor] == " " || characters[cursor] == "\t") {
+                    cursor += 1
+                }
+                position = cursor
+            case .listItem(let contentColumn):
+                let target = lineRange.lowerBound + contentColumn - 1
+                if isBlank(position..<lineRange.upperBound) || target <= position {
+                    break
+                }
+                guard target <= lineRange.upperBound,
+                      (position..<target).allSatisfy({ characters[$0] == " " || characters[$0] == "\t" }) else {
+                    return (position, matched)
+                }
+                position = target
+            }
+            matched += 1
+        }
+        return (position, matched)
+    }
+
+    private func isBlank(_ range: Range<Int>) -> Bool {
+        let characters = sourceText.characters
+        return range.allSatisfy { characters[$0] == " " || characters[$0] == "\t" }
+    }
+
+    private func firstNonWhitespace(in range: Range<Int>) -> Int {
+        let characters = sourceText.characters
+        return range.first { characters[$0] != " " && characters[$0] != "\t" } ?? range.upperBound
+    }
+
+    /// Columns of indentation at `offset`, with tabs to the next multiple of 4.
+    private func leadingIndentation(at offset: Int, line: Int) -> Int {
+        let characters = sourceText.characters
+        let lineRange = lineContentRange(line)
+        var indentation = 0
+        var cursor = offset
+        while cursor < lineRange.upperBound {
+            if characters[cursor] == " " {
+                indentation += 1
+            } else if characters[cursor] == "\t" {
+                indentation += 4 - indentation % 4
+            } else {
+                break
+            }
+            cursor += 1
+        }
+        return indentation
+    }
+
+    /// The level of a setext underline (`=` for 1, `-` for 2) filling `range`.
+    private func setextUnderlineLevel(_ range: Range<Int>) -> Int? {
+        let text = sourceText.string(in: range)
+        let indentation = text.prefix { $0 == " " }.count
+        guard indentation < 4 else { return nil }
+        let underline = text.dropFirst(indentation).trimmingCharacters(in: .whitespaces)
+        guard let character = underline.first, character == "=" || character == "-",
+              underline.allSatisfy({ $0 == character }) else {
+            return nil
+        }
+        return character == "=" ? 1 : 2
+    }
+
+    /// Whether the rest of `line`, at `range`, starts a block that ends the
+    /// paragraph before it. When the line closes a list item, any list item
+    /// start interrupts; otherwise only a non-empty bullet item or an ordered
+    /// item starting at 1 does.
+    private func interruptsParagraph(_ range: Range<Int>, line: Int, closesListItem: Bool) -> Bool {
+        guard leadingIndentation(at: range.lowerBound, line: line) < 4 else { return false }
+        let text = Substring(sourceText.string(in: firstNonWhitespace(in: range)..<range.upperBound))
+        guard let first = text.first else { return false }
+
+        switch first {
+        case ">":
+            return true
+        case "#":
+            let hashes = text.prefix { $0 == "#" }
+            let after = text.dropFirst(hashes.count).first
+            return hashes.count <= 6 && (after == nil || after == " " || after == "\t")
+        case "`", "~":
+            let fence = text.prefix { $0 == first }
+            return fence.count >= 3 && (first == "~" || !text.dropFirst(fence.count).contains("`"))
+        case "$":
+            return text.hasPrefix("$$")
+        case "<":
+            return Self.startsHTMLBlock(text)
+        default:
+            break
+        }
+
+        if Self.isThematicBreak(text) {
+            return true
+        }
+        if let item = Self.listItemStart(text) {
+            return closesListItem || (item.hasContent && (item.number == nil || item.number == 1))
+        }
+        if line + 1 < lineStarts.count, GFMUtils.isTableRow(String(text)) {
+            let match = matchContainers(onLine: line + 1)
+            let separator = sourceText.string(in: match.restStart..<lineContentRange(line + 1).upperBound)
+            return match.matched == containers.count && GFMUtils.isTableHeaderSeparator(separator)
+        }
+        return false
+    }
+
+    private static func isThematicBreak(_ text: Substring) -> Bool {
+        let marks = text.filter { $0 != " " && $0 != "\t" }
+        guard let mark = marks.first, "-*_".contains(mark) else { return false }
+        return marks.count >= 3 && marks.allSatisfy { $0 == mark }
+    }
+
+    /// A list item marker at the start of `text`: the ordered number, if any,
+    /// and whether content follows the marker.
+    private static func listItemStart(_ text: Substring) -> (number: Int?, hasContent: Bool)? {
+        var rest = text
+        var number: Int?
+        if let first = text.first, "-+*".contains(first) {
+            rest = text.dropFirst()
+        } else {
+            let digits = text.prefix { $0.isASCII && $0.isNumber }
+            guard (1...9).contains(digits.count),
+                  let delimiter = text.dropFirst(digits.count).first, delimiter == "." || delimiter == ")" else {
+                return nil
+            }
+            number = Int(digits)
+            rest = text.dropFirst(digits.count + 1)
+        }
+        guard rest.isEmpty || rest.first == " " || rest.first == "\t" else { return nil }
+        return (number, rest.contains { $0 != " " && $0 != "\t" })
+    }
+
+    /// Block-level HTML tag names that start an HTML block (CommonMark 0.30, type 6).
+    private static let htmlBlockTagNames: Set<String> = [
+        "address", "article", "aside", "base", "basefont", "blockquote", "body", "caption", "center",
+        "col", "colgroup", "dd", "details", "dialog", "dir", "div", "dl", "dt", "fieldset",
+        "figcaption", "figure", "footer", "form", "frame", "frameset", "h1", "h2", "h3", "h4", "h5",
+        "h6", "head", "header", "hr", "html", "iframe", "legend", "li", "link", "main", "menu",
+        "menuitem", "nav", "noframes", "ol", "optgroup", "option", "p", "param", "section", "source",
+        "summary", "table", "tbody", "td", "tfoot", "th", "thead", "title", "tr", "track", "ul",
+    ]
+
+    /// Whether `text` starts an HTML block that can interrupt a paragraph
+    /// (CommonMark 0.30 types 1 to 6).
+    private static func startsHTMLBlock(_ text: Substring) -> Bool {
+        let lowercased = text.lowercased()
+        for name in ["script", "pre", "style", "textarea"] where lowercased.hasPrefix("<" + name) {
+            let after = lowercased.dropFirst(name.count + 1).first
+            if after == nil || after == ">" || after?.isWhitespace == true {
+                return true
+            }
+        }
+        if text.hasPrefix("<!--") || text.hasPrefix("<?") || text.hasPrefix("<![CDATA[") {
+            return true
+        }
+        if text.hasPrefix("<!"), let letter = text.dropFirst(2).first, letter.isASCII, letter.isLetter {
+            return true
+        }
+
+        var name = lowercased.dropFirst()
+        if name.hasPrefix("/") {
+            name = name.dropFirst()
+        }
+        let tag = name.prefix { $0.isASCII && ($0.isLetter || $0.isNumber) }
+        guard htmlBlockTagNames.contains(String(tag)) else { return false }
+        let after = name.dropFirst(tag.count)
+        return after.isEmpty || after.first?.isWhitespace == true || after.hasPrefix(">") || after.hasPrefix("/>")
     }
 
     // MARK: - Utility Methods

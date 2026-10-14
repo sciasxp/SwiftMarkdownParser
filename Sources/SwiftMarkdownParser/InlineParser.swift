@@ -37,6 +37,18 @@ final class InlineParser {
         let maxStuckPositions = 50 // Prevent infinite loops from position not advancing (increased threshold)
 
         while !tokenStream.isAtEnd && !boundary.contains(tokenStream.current.type) {
+            // Spaces before the boundary are not content
+            if tokenStream.check(.whitespace) && boundary.contains(tokenStream.peek().type) {
+                tokenStream.advance()
+                break
+            }
+            // A backslash at the end of the line is literal and ends it
+            let token = tokenStream.current
+            if token.type == .backslash, token.content.last.map(MarkdownSourceText.isLineEnding) == true {
+                tokenStream.advance()
+                nodes.append(AST.TextNode(content: "\\", sourceLocation: token.location))
+                break
+            }
             // Position-based protection (detect if parser is stuck)
             let currentPosition = tokenStream.currentPosition
             if currentPosition == lastTokenPosition {
@@ -121,6 +133,14 @@ final class InlineParser {
 
         let token = tokenStream.current
         switch token.type {
+        case .newline:
+            return [parseLineBreak(isHard: false, startingAt: token.location)]
+        case .whitespace where tokenStream.peek().type == .newline:
+            // Spaces before a line ending are not content; two or more make
+            // the break hard
+            tokenStream.advance()
+            let isHard = token.content.filter { $0 == " " }.count >= 2
+            return [parseLineBreak(isHard: isHard, startingAt: token.location)]
         case .text, .whitespace:
             return [parseText()]
         case .asterisk:
@@ -183,6 +203,10 @@ final class InlineParser {
                 return [parseText()]
             }
         case .backslash:
+            // A backslash before a line ending is a hard break
+            if token.content.count == 2, token.content.last.map(MarkdownSourceText.isLineEnding) == true {
+                return [parseLineBreak(isHard: true, startingAt: token.location)]
+            }
             // Handle escaped characters
             if let escaped = parseEscapedCharacter() {
                 return [escaped]
@@ -200,6 +224,25 @@ final class InlineParser {
     private func parseText() -> AST.TextNode {
         let token = tokenStream.consume()
         return AST.TextNode(content: token.content, sourceLocation: token.location)
+    }
+
+    /// Consumes the token ending a line (a line ending, or a backslash
+    /// followed by one) and the indentation of the next line, which is not
+    /// paragraph content.
+    private func parseLineBreak(isHard: Bool, startingAt start: SourceLocation) -> any ASTNode {
+        tokenStream.advance()
+        let range = tokenStream.range(startingAt: start)
+        skipLineIndentation()
+        if isHard {
+            return AST.LineBreakNode(isHard: true, sourceLocation: range)
+        }
+        return AST.SoftBreakNode(sourceLocation: range)
+    }
+
+    private func skipLineIndentation() {
+        while tokenStream.check(.whitespace) || tokenStream.check(.indentedCodeBlock) {
+            tokenStream.advance()
+        }
     }
 
     // MARK: - Emphasis and Strong Emphasis
@@ -230,7 +273,8 @@ final class InlineParser {
 
         while !tokenStream.isAtEnd {
             // Stop at newlines - emphasis shouldn't span line boundaries
-            if tokenStream.current.type == .newline {
+            if tokenStream.current.type == .newline ||
+                (tokenStream.current.type == .whitespace && tokenStream.peek().type == .newline) {
                 break
             }
 
@@ -335,6 +379,14 @@ final class InlineParser {
                 tokenStream.advance()
                 foundClosing = true
                 break
+            }
+
+            // A line ending is a space; the next line's indentation is not content
+            if token.type == .newline {
+                content += " "
+                tokenStream.advance()
+                skipLineIndentation()
+                continue
             }
 
             // Accept any token type inside code spans - they should all be treated as literal content
@@ -711,7 +763,8 @@ final class InlineParser {
         let token = tokenStream.consume()
 
         // Remove the backslash and return the escaped character
-        let escapedContent = token.content.count > 1 ? String(token.content.dropFirst()) : ""
+        // A backslash with nothing after it is literal
+        let escapedContent = token.content.count > 1 ? String(token.content.dropFirst()) : "\\"
         return AST.TextNode(content: escapedContent, sourceLocation: token.location)
     }
 
