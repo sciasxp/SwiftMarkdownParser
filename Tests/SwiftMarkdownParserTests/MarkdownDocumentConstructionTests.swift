@@ -347,6 +347,29 @@ import Testing
         #expect(!containsNode(ofType: AST.MathBlockNode.self, in: document))
     }
 
+    /// Looking for the line that closes a `$$` or a fence charges one unit per
+    /// line, so the work limit bounds the scan (ADR 0016). The 2,000 unclosed
+    /// `$$` cost 2,000 units more than before; the fence, about 2,000 more.
+    @Test(arguments: [
+        (String(repeating: "$$ a\n", count: 2_000), 104_001),
+        ("```\n" + String(repeating: "x\n", count: 2_000), 18_022),
+    ])
+    func closingLineScan_workCost_chargesEachLine(source: String, cost: Int) throws {
+        func parser(maximumWork: Int) -> SwiftMarkdownParser {
+            SwiftMarkdownParser(resourceLimits: .init(maximumWork: maximumWork))
+        }
+
+        _ = try parser(maximumWork: cost).parse(source)
+        guard case let .resourceLimitExceeded(resource, _, _) = parsingError(
+            from: parser(maximumWork: cost - 1),
+            source: source
+        ) else {
+            Issue.record("Expected a work-limit failure one unit below the cost")
+            return
+        }
+        #expect(resource == .work)
+    }
+
     @Test func oneParserCanBeUsedConcurrently() async throws {
         let parser = SwiftMarkdownParser()
 

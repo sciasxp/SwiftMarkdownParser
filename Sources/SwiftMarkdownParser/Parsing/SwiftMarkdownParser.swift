@@ -76,6 +76,7 @@ public final class SwiftMarkdownParser: Sendable {
         let blockParser = BlockParser(
             tokenStream: tokenStream,
             limits: resourceLimits,
+            budget: budget,
             sourceText: sourceText
         )
         let blocks = try blockParser.parseDocument()

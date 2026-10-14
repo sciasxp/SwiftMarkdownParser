@@ -43,6 +43,7 @@ final class BlockParser {
 
     private let tokenStream: TokenStream
     private let limits: SwiftMarkdownParser.ResourceLimits
+    private let budget: ParsingBudget
     private let sourceText: MarkdownSourceText
     private var nestingDepth = 0
 
@@ -79,10 +80,12 @@ final class BlockParser {
     init(
         tokenStream: TokenStream,
         limits: SwiftMarkdownParser.ResourceLimits,
+        budget: ParsingBudget,
         sourceText: MarkdownSourceText
     ) {
         self.tokenStream = tokenStream
         self.limits = limits
+        self.budget = budget
         self.sourceText = sourceText
         self.lineStarts = sourceText.lines.map(\.contentRange.lowerBound)
     }
@@ -473,7 +476,8 @@ final class BlockParser {
         let openingLine = lineIndex(containing: startLocation.offset)
         var line = openingLine + 1
         var closingLine: Int?
-        while line < lineStarts.count {
+        while line < lineStarts.count && !budget.isExhausted {
+            budget.consumeWork()
             let match = matchContainers(onLine: line)
             let rest = match.restStart..<lineContentRange(line).upperBound
             if match.matched < containers.count && !isBlank(lineContentRange(line)) {
@@ -569,7 +573,8 @@ final class BlockParser {
         }
         var line = openingLine + 1
         var closingLine: Int?
-        while line < lineStarts.count {
+        while line < lineStarts.count && !budget.isExhausted {
+            budget.consumeWork()
             let match = matchContainers(onLine: line)
             let lineRange = lineContentRange(line)
             if match.matched < containers.count {
