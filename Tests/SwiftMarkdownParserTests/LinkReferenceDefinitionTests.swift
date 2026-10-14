@@ -257,6 +257,11 @@ import Testing
             markdown: "```\ncode\n[a]: https://example.com\n\n[a]\n",
             expected: "code{code\n[a]: https://example.com\n\n[a]}"
         ),
+        Case(
+            name: "Raw destination keeps a non-ASCII space",
+            markdown: "[a]: /u\u{A0}x\n\n[a]\n",
+            expected: "p{[a](/u\u{A0}x)}"
+        ),
     ]
 
     @Test(arguments: specExamples)

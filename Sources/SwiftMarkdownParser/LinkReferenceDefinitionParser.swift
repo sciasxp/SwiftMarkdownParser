@@ -154,7 +154,7 @@ enum LinkReferenceDefinitionParser {
 
             var destination = ""
             var depth = 0
-            while let character = current, !character.isWhitespace, !character.isASCIIControl {
+            while let character = current, character != " ", !character.isASCIIControl {
                 if character == "(" {
                     depth += 1
                     guard depth <= 32 else { return nil }
