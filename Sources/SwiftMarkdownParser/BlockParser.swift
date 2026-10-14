@@ -47,7 +47,7 @@ final class BlockParser {
     private var nestingDepth = 0
 
     /// A container block open around the block being parsed.
-    private enum Container {
+    private enum Container: Hashable {
         case blockQuote
         /// A list item whose content starts at `contentColumn` (1-based) on
         /// the line of its marker.
@@ -59,6 +59,11 @@ final class BlockParser {
 
     /// Offset of the first character of each line of `sourceText`.
     private let lineStarts: [Int]
+
+    /// For each shape of open containers, the last `$$` that found no closing
+    /// `$$` and the line where its scan stopped: a later `$$` between the two
+    /// under the same containers stops there too, so it is not scanned again.
+    private var unclosedMathScans: [[Container]: (openingLine: Int, endLine: Int)] = [:]
 
     /// Where the block being parsed started, before its indentation.
     private var blockIndentationStart = 0
@@ -554,6 +559,9 @@ final class BlockParser {
         // The math block ends at its closing $$, at a line that does not match
         // the open containers, or at the end of the text
         let openingLine = lineIndex(containing: startLocation.offset)
+        if let scan = unclosedMathScans[containers], scan.openingLine < openingLine, openingLine < scan.endLine {
+            return try parseUnclosedMath(startingAt: startPosition)
+        }
         let openingRest = (startLocation.offset + 2)..<lineContentRange(openingLine).upperBound
         var content = sourceText.string(in: openingRest)
         if !content.isEmpty {
@@ -587,11 +595,8 @@ final class BlockParser {
         }
 
         guard let closingLine else {
-            // Tokens after the opening $$ were read as math; read them again
-            tokenStream.advance()
-            tokenStream.restartTokenizing()
-            tokenStream.setPosition(startPosition)
-            return try parseParagraph()
+            unclosedMathScans[containers] = (openingLine, line)
+            return try parseUnclosedMath(startingAt: startPosition)
         }
 
         let blockEnd = lineContentRange(closingLine).upperBound
@@ -604,6 +609,15 @@ final class BlockParser {
             content: content,
             sourceLocation: tokenStream.range(startingAt: startLocation)
         ))
+    }
+
+    /// Reads an unclosed `$$` at `startPosition` as the start of a paragraph.
+    private func parseUnclosedMath(startingAt startPosition: Int) throws -> ParsedBlock? {
+        // Tokens after the opening $$ were read as math; read them again
+        tokenStream.advance()
+        tokenStream.restartTokenizing()
+        tokenStream.setPosition(startPosition)
+        return try parseParagraph()
     }
 
     /// Whether `range` closes a math block: `$$` at its start, then only

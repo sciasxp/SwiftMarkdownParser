@@ -339,6 +339,14 @@ import Testing
         #expect(!containsNode(ofType: AST.MathBlockNode.self, in: document))
     }
 
+    /// Each unclosed `$$` once scanned to the end of the text, so repeating
+    /// it cost quadratic time (about 94 s for 20,000 lines in release).
+    @Test(.timeLimit(.minutes(1)), arguments: ["$$ a\n", "> $$ a\n", "a\n$$ a\n"])
+    func repeatedUnclosedMath_parsesInLinearTime(line: String) throws {
+        let document = try SwiftMarkdownParser().parse(String(repeating: line, count: 20_000))
+        #expect(!containsNode(ofType: AST.MathBlockNode.self, in: document))
+    }
+
     @Test func oneParserCanBeUsedConcurrently() async throws {
         let parser = SwiftMarkdownParser()
 
