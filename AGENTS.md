@@ -25,7 +25,7 @@ SwiftMarkdownParser is a pure Swift markdown parser with zero external dependenc
 ```
 Markdown Source
     → SwiftMarkdownParser.parse(_:)
-    → one internal parse execution (tokens, blocks, inlines, references, budgets)
+    → one internal parse execution (tokens, Block Phase, then Inline Phase; references, budgets)
     → complete Markdown Document (DocumentNode with semantic children and source ranges)
     ├→ HTMLRenderer.renderFragment(_:) / renderDocument(_:metadata:)
     └→ SwiftUIRenderer.render(_:)
@@ -44,7 +44,7 @@ Markdown Source
 ## Key Source Directories
 
 - `Sources/SwiftMarkdownParser/` — all library code
-  - Construction: `Parsing/SwiftMarkdownParser.swift` and `Parsing/LinkReference.swift`; at the root, `Tokenizer.swift`, `BlockParser.swift`, `InlineParser.swift`, `MarkdownSourceText.swift`, `ReferenceDefinitionResolver.swift`, `ParsingBudget.swift`, `MarkdownDocumentValidator.swift`
+  - Construction: `Parsing/SwiftMarkdownParser.swift` and `Parsing/LinkReference.swift`; at the root, `Tokenizer.swift`, `BlockParser.swift` (Block Phase), `InlinePhase.swift`, `InlineParser.swift`, `MarkdownSourceText.swift`, `ReferenceDefinitionResolver.swift`, `ParsingBudget.swift`, `MarkdownDocumentValidator.swift`
   - Destination policy: `MarkdownDestination.swift` (link, image, and autolink safety and base-URL resolution for both outputs)
   - AST: `AST.swift`, `ASTTraversal.swift`, `ASTRewriter.swift`
   - HTML output: `Rendering/HTML/`

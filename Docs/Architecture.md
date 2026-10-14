@@ -150,7 +150,9 @@ rich-content adapter seam.
 ## Extension rules
 
 - Change Markdown semantics inside document construction and verify them from
-  Markdown Source to complete `AST.DocumentNode`.
+  Markdown Source to complete `AST.DocumentNode`. Block structure belongs to
+  the Block Phase; inline meaning is interpreted only by the Inline Phase, after
+  every block is known (ADR 0016).
 - Implement generic analysis with `depthFirst()` and transformations with one
   `rewriting(_:)` pass instead of adding recursive walkers to callers.
 - Keep output-specific behavior inside its renderer. Do not introduce a shared
@@ -195,8 +197,9 @@ Sources/SwiftMarkdownParser/
 ├── MarkdownSourceText.swift           line endings, lines, and source positions
 ├── MarkdownDestination.swift          link, image, and autolink destination policy
 ├── Tokenizer.swift                    internal tokenizer
-├── BlockParser.swift                  internal block parser
-├── InlineParser.swift                 internal inline parser
+├── BlockParser.swift                  Block Phase: block structure, raw inline text
+├── InlinePhase.swift                  Inline Phase: inline meaning after all blocks
+├── InlineParser.swift                 internal inline parser for one fragment
 ├── ReferenceDefinitionResolver.swift  reference-definition resolution
 ├── ParsingBudget.swift                deterministic resource limits
 ├── MarkdownDocumentValidator.swift    document validation
@@ -231,3 +234,4 @@ Sources/SwiftMarkdownParser/
 - [ADR 0013: Deepen native presentation style](adr/0013-deepen-native-presentation-style.md)
 - [ADR 0014: Own line endings and positions in Source Text](adr/0014-own-line-endings-and-positions-in-source-text.md)
 - [ADR 0015: Own destination safety and resolution in MarkdownDestination](adr/0015-own-destination-safety-and-resolution.md)
+- [ADR 0016: Recognize Link Reference Definitions in the Block Phase](adr/0016-recognize-link-reference-definitions-in-the-block-phase.md)

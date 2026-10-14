@@ -16,6 +16,22 @@ _Avoid_: Raw string scanning, newline helper
 The target of one link, image, or autolink, decided once for every output: safe only when, after normalizing as browsers do, it names http, https, or mailto or is a relative reference or fragment, and resolved against the host's base URL into the one URL it represents.
 _Avoid_: URL normalization, renderer-specific URL check
 
+**Link Reference Definition**:
+A label bound to a Destination and an optional title, written as its own block (`[label]: destination "title"`) and applying to the whole Markdown Source, so a reference link may appear before or after it.
+_Avoid_: Reference line, link alias
+
+**Block Phase**:
+The first stage of document construction: it recognizes the block structure of the whole Markdown Source and keeps the inline text of each block raw.
+_Avoid_: First pass, line scanner
+
+**Inline Phase**:
+The second stage of document construction: it interprets the raw inline text of every block only after the Block Phase has finished, so every Link Reference Definition is known.
+_Avoid_: Eager inline parsing, second pass
+
+**Paragraph Continuation Line**:
+A line that extends the open paragraph instead of starting a block, because it is not blank and starts no block that can interrupt a paragraph; it is lazy when it omits the prefixes of the block quotes or list items around the paragraph.
+_Avoid_: Wrapped line, joined line
+
 **Markdown Document**:
 The complete semantic interpretation of one Markdown Source, with all recognized block, inline, and reference meaning resolved.
 _Avoid_: Partial document, staged document
