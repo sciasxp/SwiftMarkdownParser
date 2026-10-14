@@ -368,6 +368,60 @@ struct HTMLOutputSeamTests {
         #expect(!html.contains("href"))
         #expect(html.contains("x"))
     }
+
+    @Test("Renders the alt text for a protocol-relative image without a base URL")
+    func imageDestination_protocolRelativeWithoutBase_rendersAltText() async throws {
+        let document = try SwiftMarkdownParser().parse("![x](//evil.com/a.png)")
+
+        let html = try await HTMLRenderer().renderFragment(document)
+
+        #expect(!html.contains("src"))
+        #expect(!html.contains("evil.com"))
+        #expect(html.contains("x"))
+    }
+
+    @Test(
+        "Renders the fallback for protocol-relative destinations without a base URL",
+        arguments: protocolRelativeDestinations
+    )
+    func destination_protocolRelativeWithoutBase_rendersFallback(destination: String) async throws {
+        let document = AST.DocumentNode(children: [
+            AST.ParagraphNode(children: [
+                AST.LinkNode(url: destination, title: nil, children: [AST.TextNode(content: "link")]),
+                AST.ImageNode(url: destination, altText: "image", title: nil),
+                AST.AutolinkNode(url: destination, text: "autolink")
+            ])
+        ])
+
+        let html = try await HTMLRenderer().renderFragment(document)
+
+        #expect(!html.contains("href"))
+        #expect(!html.contains("src"))
+        #expect(html.contains("link"))
+        #expect(html.contains("image"))
+        #expect(html.contains("autolink"))
+    }
+
+    @Test("Renders the link text for a protocol-relative reference with only a port against a file base")
+    func linkDestination_portOnlyWithFileBase_rendersLinkText() async throws {
+        let document = try SwiftMarkdownParser().parse("[x](//:80/x)")
+        let options = HTMLRenderOptions(baseURL: URL(fileURLWithPath: "/docs/", isDirectory: true))
+
+        let html = try await HTMLRenderer(options: options).renderFragment(document)
+
+        #expect(!html.contains("href"))
+        #expect(html.contains("x"))
+    }
+
+    @Test("Resolves a protocol-relative image against a web base URL")
+    func imageDestination_protocolRelativeWithWebBase_takesBaseScheme() async throws {
+        let document = try SwiftMarkdownParser().parse("![x](//cdn.example/a.png)")
+        let options = HTMLRenderOptions(baseURL: URL(string: "https://example.com/docs/"))
+
+        let html = try await HTMLRenderer(options: options).renderFragment(document)
+
+        #expect(html.contains(#"src="https://cdn.example/a.png""#))
+    }
 }
 
 private let markAfterSchemeColonDestinations = [

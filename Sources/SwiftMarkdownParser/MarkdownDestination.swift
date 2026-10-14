@@ -13,8 +13,9 @@ import Foundation
 /// the host's base URL with Foundation. The scheme is read by Unicode scalar,
 /// and the resolved URL's own scheme is checked against the allowlist again;
 /// `file` is accepted there only when a relative reference was resolved
-/// against a host-chosen `file` base, and not when a protocol-relative
-/// reference (`//host/share`) would add a host the base did not name.
+/// against a host-chosen `file` base. A protocol-relative reference
+/// (`//host/x`) names its own authority, so it is accepted only against an
+/// `http` or `https` base.
 enum MarkdownDestination {
     private static let allowedSchemes: Set<String> = ["http", "https", "mailto"]
 
@@ -26,13 +27,14 @@ enum MarkdownDestination {
 
         let scheme = explicitScheme(of: normalized)
         if let scheme, !allowedSchemes.contains(scheme) { return nil }
+        if scheme == nil, namesUnchosenAuthority(normalized, relativeTo: baseURL) { return nil }
 
         let url = if scheme == nil, let baseURL {
             URL(string: normalized, relativeTo: baseURL)?.absoluteURL
         } else {
             URL(string: normalized)
         }
-        guard let url, isAllowed(url, from: normalized, resolvedAgainst: scheme == nil ? baseURL : nil) else {
+        guard let url, isAllowed(url, resolvedAgainst: scheme == nil ? baseURL : nil) else {
             return nil
         }
         return url
@@ -45,24 +47,33 @@ enum MarkdownDestination {
         guard let baseURL else { return URLComponents().url }
         guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: true) else { return nil }
         components.fragment = nil
-        guard let url = components.url, isAllowed(url, from: "", resolvedAgainst: baseURL) else { return nil }
+        guard let url = components.url, isAllowed(url, resolvedAgainst: baseURL) else { return nil }
         return url
     }
 
     /// Checks the scheme of the URL that will actually be followed, so that
     /// nothing Foundation reads differently from the destination text can slip
     /// past the allowlist. A `file` URL is allowed only when a relative
-    /// reference was resolved against a host-chosen `file` base, and not
-    /// when a protocol-relative `//host/share` turns it into a network share
-    /// the host never chose.
-    private static func isAllowed(_ url: URL, from destination: String, resolvedAgainst baseURL: URL?) -> Bool {
+    /// reference was resolved against a host-chosen `file` base.
+    private static func isAllowed(_ url: URL, resolvedAgainst baseURL: URL?) -> Bool {
         let scheme = explicitScheme(of: url.absoluteString)
         guard url.scheme?.lowercased() == scheme else { return false }
         guard let scheme else { return true }
 
         if allowedSchemes.contains(scheme) { return true }
-        guard scheme == "file", baseURL?.isFileURL == true else { return false }
-        return !(destination.hasPrefix("//") && !(url.host ?? "").isEmpty)
+        return scheme == "file" && baseURL?.isFileURL == true
+    }
+
+    /// Whether a scheme-less reference starting with `//` would reach an
+    /// authority the host did not choose. Without a base URL it is emitted as
+    /// written and the browser reads it as `//evil.com` on the page's own
+    /// scheme. Against a `file` base, `//evil.com/share` or `//:80/x` becomes a
+    /// network share; only `///path`, with an empty authority, stays local.
+    /// Against an `http` or `https` base, it takes the base's scheme.
+    private static func namesUnchosenAuthority(_ destination: String, relativeTo baseURL: URL?) -> Bool {
+        guard destination.hasPrefix("//") else { return false }
+        guard let baseURL else { return true }
+        return baseURL.isFileURL && !destination.hasPrefix("///")
     }
 
     private static func normalize(_ destination: String) -> String {

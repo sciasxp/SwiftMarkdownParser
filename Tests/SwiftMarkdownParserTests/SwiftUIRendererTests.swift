@@ -244,6 +244,62 @@ struct SwiftUIRendererTests {
         #expect(links.allSatisfy { $0.link == nil })
     }
 
+    @Test(
+        "Projects link and autolink text without a protocol-relative destination when there is no base URL",
+        arguments: protocolRelativeDestinations
+    )
+    func projectLink_protocolRelativeWithoutBase_dropsLink(destination: String) throws {
+        let links = try projectedLinks([
+            AST.LinkNode(url: destination, title: nil, children: [AST.TextNode(content: "link")]),
+            AST.AutolinkNode(url: destination, text: "autolink")
+        ])
+
+        #expect(links.map(\.text) == ["linkautolink"])
+        #expect(links.allSatisfy { $0.link == nil })
+    }
+
+    @Test(
+        "Does not send protocol-relative image destinations to the host adapter without a base URL",
+        arguments: protocolRelativeDestinations
+    )
+    func rejectsProtocolRelativeImageWithoutBase(destination: String) async throws {
+        let document = AST.DocumentNode(children: [
+            AST.ImageNode(url: destination, altText: "Unavailable", title: nil)
+        ])
+        let recorder = URLRecorder()
+        let options = SwiftUIRenderOptions(
+            richContentAdapter: SwiftUIRichContentAdapter { request in
+                guard case let .image(_, source) = request else { return nil }
+                recorder.record(source)
+                return AnyView(EmptyView())
+            }
+        )
+
+        _ = try await SwiftUIRenderer(options: options).render(document)
+
+        #expect(recorder.urls.isEmpty)
+    }
+
+    @Test func projectLink_protocolRelativeWithFileBase_dropsLink() throws {
+        let base = URL(fileURLWithPath: "/Users/reader/docs/", isDirectory: true)
+
+        let links = try projectedLinks(
+            [AST.LinkNode(url: "//:80/x", title: nil, children: [AST.TextNode(content: "share")])],
+            baseURL: base
+        )
+
+        #expect(links.first?.link == nil)
+    }
+
+    @Test func projectLink_protocolRelativeWithWebBase_takesBaseScheme() throws {
+        let links = try projectedLinks(
+            [AST.LinkNode(url: "//cdn.example/x", title: nil, children: [AST.TextNode(content: "cdn")])],
+            baseURL: URL(string: "https://example.com/docs/")
+        )
+
+        #expect(links.first?.link?.absoluteString == "https://cdn.example/x")
+    }
+
     @Test func projectLink_relativeDestinationWithFileBase_resolvesAgainstBase() throws {
         let base = URL(fileURLWithPath: "/Users/reader/docs/", isDirectory: true)
 

@@ -51,7 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Destination Allowlist**: Link, image, and autolink destinations are decided once by `MarkdownDestination` for HTML and SwiftUI output ([ADR 0015](Docs/adr/0015-own-destination-safety-and-resolution.md))
   - Only `http`, `https`, `mailto`, relative references, and fragments are kept; `vbscript:`, `ftp:`, explicit `file:`, and every other scheme now render as the link text, image alt text, or autolink text
   - An empty destination, such as `[x]()`, keeps CommonMark's `href=""`; with a `baseURL` it resolves to the base without its fragment, in HTML and SwiftUI output
-  - A `file:` URL produced by resolving a relative destination against a host `file:` base URL is still accepted, unless a protocol-relative destination (`//host/share`) adds a host
+  - A `file:` URL produced by resolving a relative destination against a host `file:` base URL is still accepted, unless the destination starts with `//` but not `///`
+  - A protocol-relative destination (`//host/x`) is resolved only against an `http` or `https` base URL, where it takes the base's scheme; without a base URL it renders as text
   - HTML resolves relative destinations with Foundation whenever `baseURL` is set and emits the percent-encoded result (`my page.html` becomes `my%20page.html`)
 - **Inline Fragment Work**: Setext heading text and inline-parsed table cells charge one extra unit of work per character to `ResourceLimits.maximumWork`, for their fragment's line table (ADR 0014)
 - **Unicode Separators Are Whitespace**: U+2028, U+2029, NEL, VT, and FF no longer end a line; they are whitespace inside it, as CommonMark specifies (ADR 0014)
@@ -99,7 +100,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - **Destination Scheme Bypass**: A TAB, LF, or CR inside a destination's scheme (for example `java<TAB>script:alert(1)` in a reference definition) no longer reaches `href` or `src`; destinations are normalized the way browsers parse URLs before the scheme is checked
 - **Destination Scheme Bypass Through Combining Characters**: A combining mark, ZWJ, ZWNJ, or variation selector right after the scheme's colon (for example `javascript:\u{301}alert(1)` in a reference definition with a `baseURL`) no longer reaches `href` or `src`; the scheme is read by Unicode scalar and the resolved URL's scheme is checked against the allowlist again
-- **Protocol-Relative File Shares**: A protocol-relative destination resolved against a `file:` base URL (for example `[x](//evil.com/share)` with `file:///docs/`) renders as text instead of linking to the network share `file://evil.com/share`
+- **Protocol-Relative File Shares**: A protocol-relative destination resolved against a `file:` base URL (for example `[x](//evil.com/share)` or `[x](//:80/x)` with `file:///docs/`) renders as text instead of linking to the network share `file://evil.com/share` or `file://:80/x`
+- **Protocol-Relative Destinations Without a Base URL**: `![x](//evil.com/a.png)` without a `baseURL` renders its alt text instead of `<img src="//evil.com/a.png">`, which browsers load from `evil.com`; this also covers links, autolinks, SwiftUI output, and leading NBSP, ZWSP, U+3000, U+2028, C0 controls, or `/<TAB>/` that normalization joins into `//`
 - **Resource Management**: Added deterministic source, nesting, and work protection for large or hostile documents
 - **User Content Safety**: Resource failures are atomic and never expose a partial document
 

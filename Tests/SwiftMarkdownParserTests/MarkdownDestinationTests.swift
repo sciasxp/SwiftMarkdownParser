@@ -122,9 +122,28 @@ import Testing
         #expect(url?.absoluteString == "file:///Users/reader/docs/images/logo.png")
     }
 
-    @Test(arguments: ["//evil.com/share", "//evil.com", "//localhost/etc/passwd"])
+    @Test(arguments: protocolRelativeDestinations + ["///evil.com/a.png"])
+    func resolve_protocolRelativeWithoutBase_returnsNil(destination: String) {
+        #expect(MarkdownDestination.resolve(destination, relativeTo: nil) == nil)
+    }
+
+    @Test(arguments: ["\\\\evil.com/a.png", "/\\evil.com/a.png", "/    /evil.com/a.png"])
+    func resolve_slashLookalikeWithoutBase_keepsPathWithoutHost(destination: String) {
+        let url = MarkdownDestination.resolve(destination, relativeTo: nil)
+
+        #expect(url?.host == nil)
+        #expect(url?.absoluteString.hasPrefix("//") == false)
+    }
+
+    @Test(arguments: protocolRelativeDestinations + [
+        "//evil.com/share", "//localhost/etc/passwd", "//:80/x", "//:80", "//"
+    ])
     func resolve_protocolRelativeWithFileBase_returnsNil(destination: String) {
         #expect(MarkdownDestination.resolve(destination, relativeTo: fileBase) == nil)
+    }
+
+    @Test func resolve_absolutePathReferenceWithFileBase_keepsLocalFile() {
+        #expect(MarkdownDestination.resolve("///etc/hosts", relativeTo: fileBase)?.absoluteString == "file:///etc/hosts")
     }
 
     @Test func resolve_relativeWithFileShareBase_keepsBaseHost() {
@@ -136,9 +155,10 @@ import Testing
         )
     }
 
-    @Test func resolve_protocolRelativeWithWebBase_keepsBaseScheme() {
+    @Test(arguments: ["//cdn.example/logo.png", "\u{00A0}//cdn.example/logo.png", "/\t/cdn.example/logo.png"])
+    func resolve_protocolRelativeWithWebBase_keepsBaseScheme(destination: String) {
         #expect(
-            MarkdownDestination.resolve("//cdn.example/logo.png", relativeTo: webBase)?.absoluteString
+            MarkdownDestination.resolve(destination, relativeTo: webBase)?.absoluteString
                 == "https://cdn.example/logo.png"
         )
     }
@@ -147,3 +167,19 @@ import Testing
         #expect(MarkdownDestination.resolve("my page.html", relativeTo: nil)?.absoluteString == "my%20page.html")
     }
 }
+
+/// Destinations that are protocol-relative once normalized, including those
+/// whose two slashes are only joined by trimming or by removing TAB, LF, or CR.
+let protocolRelativeDestinations = [
+    "//evil.com/a.png",
+    "//evil.com",
+    " //evil.com/a.png ",
+    "\u{00A0}//evil.com/a.png",
+    "\u{200B}//evil.com/a.png",
+    "\u{3000}//evil.com/a.png",
+    "\u{2028}//evil.com/a.png",
+    "\u{01}//evil.com/a.png",
+    "/\t/evil.com/a.png",
+    "/\n/evil.com/a.png",
+    "/\r\n/evil.com/a.png"
+]

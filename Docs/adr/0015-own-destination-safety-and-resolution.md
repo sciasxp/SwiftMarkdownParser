@@ -62,11 +62,22 @@ The policy is a fixed list with no new public interface:
   the scheme a browser reads from its serialization. The only exception is a
   `file:` URL that results from resolving a relative reference against a
   host-chosen `file:` base; the host decided that base, the Markdown did not.
-  Even then, a protocol-relative reference whose `file:` result names a host
-  is refused: `//evil.com/share` against `file:///docs/` would become
-  `file://evil.com/share`, a network share the host never chose. A relative
-  path against a base that already names a host, such as
+  A relative path against a base that already names a host, such as
   `file://server/share/`, keeps that host.
+- **Refuse protocol-relative references the host did not anchor.** A
+  scheme-less destination that starts with `//` after normalization names its
+  own authority. This includes variants that normalization joins into `//`,
+  such as leading NBSP, ZWSP, U+3000, U+2028, or C0 controls, and `/<TAB>/`.
+  - Without a base URL it is refused: the HTML would carry `//evil.com/a.png`
+    unchanged, and the browser loads it from `evil.com` on the page's scheme.
+  - Against a `file:` base it is refused unless it starts with `///` (an empty
+    authority, a local path): `//evil.com/share` would become
+    `file://evil.com/share`, and `//:80/x` would become `file://:80/x`.
+  - Against an `http` or `https` base it is resolved and takes the base's
+    scheme: `//cdn.example/x` becomes `https://cdn.example/x`.
+  Backslashes, which browsers read as slashes in `http`, `https`, and `file`
+  URLs, never reach the output as such: Foundation percent-encodes them
+  (`\\evil.com` becomes `%5C%5Cevil.com`), as it does interior spaces.
 
 `HTMLRenderer` serializes the resolved URL's `absoluteString` and escapes it as
 an attribute; it no longer applies the `contains("://")` heuristic. Native Inline
@@ -96,9 +107,12 @@ belongs to `MarkdownDestination`.
   output.
 - A combining mark, ZWJ, ZWNJ, or variation selector after the scheme's colon
   no longer bypasses the check, with or without a base URL.
-- Behavior change: a protocol-relative reference against a `file:` base, such
-  as `[x](//evil.com/share)`, renders as its fallback text. Against an `http`
-  or `https` base it still takes the base's scheme.
+- Behavior change: a protocol-relative reference without a base URL, such as
+  `![x](//evil.com/a.png)`, renders as its fallback text in HTML and native
+  output instead of `<img src="//evil.com/a.png">`. Against a `file:` base,
+  `[x](//evil.com/share)` and `[x](//:80/x)` also render as fallback text,
+  while `///path` stays a local file. Against an `http` or `https` base a
+  protocol-relative reference still takes the base's scheme.
 - Behavior change: destinations with schemes outside the allowlist, such as
   `vbscript:`, `ftp:`, `irc:`, or explicit `file:`, now render as their
   fallback text in HTML and native output.
