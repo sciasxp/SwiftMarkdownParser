@@ -192,14 +192,17 @@ import Testing
         Case(
             name: "Thematic break on a continuation line of a list item",
             markdown: "* a\n  * * *\n",
-            expected: "list{item{p{a} thematicBreak{}}}",
-            knownIssues: [.thematicBreakInListItem]
+            expected: "list{item{p{a} thematicBreak{}}}"
         ),
         Case(
             name: "Thematic break of dashes on a continuation line of a list item",
             markdown: "- a\n  - - -\n",
-            expected: "list{item{p{a} thematicBreak{}}}",
-            knownIssues: [.thematicBreakInListItem]
+            expected: "list{item{p{a} thematicBreak{}}}"
+        ),
+        Case(
+            name: "Thematic break of list marker characters after a list item ends the list",
+            markdown: "* a\n* * *\n",
+            expected: "list{item{p{a}}} thematicBreak{}"
         ),
     ]
 

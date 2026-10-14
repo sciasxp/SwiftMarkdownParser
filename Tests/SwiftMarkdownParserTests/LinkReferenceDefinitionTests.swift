@@ -30,7 +30,6 @@ import Testing
     enum KnownIssue: String, Sendable {
         case definition = "Link Reference Definitions are not recognized by the Block Phase yet"
         case escapes = "backslash escapes in link destinations and titles are not decoded"
-        case thematicBreakInListItem = "a thematic break on a list item's continuation line starts nested items"
     }
 
     static let specExamples: [Case] = [

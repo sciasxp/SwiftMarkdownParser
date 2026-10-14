@@ -235,7 +235,8 @@ final class BlockParser {
             // A list inside a block quote continues on the quote's marked lines
             let lineStart = tokenStream.currentPosition
             advancePastContainerMarkers()
-            guard tokenStream.check(.listMarker), continuesList(tokenStream.current.content) else {
+            guard tokenStream.check(.listMarker), continuesList(tokenStream.current.content),
+                  !isThematicBreak(from: tokenStream.currentLocation.offset) else {
                 if tokenStream.currentPosition != lineStart {
                     tokenStream.setPosition(lineStart)
                 }
@@ -340,7 +341,8 @@ final class BlockParser {
             tokenStream.advance()
         }
 
-        let result = tokenStream.check(.listMarker)
+        // A thematic break takes precedence over a list item
+        let result = tokenStream.check(.listMarker) && !isThematicBreak(from: tokenStream.currentLocation.offset)
 
         // Restore position
         tokenStream.setPosition(currentPos)
@@ -363,8 +365,9 @@ final class BlockParser {
             tokenStream.advance()
         }
 
-        // Check if there's a list marker here
+        // Check if there's a list marker here that is not a thematic break
         let hasListMarker = tokenStream.check(.listMarker)
+            && !isThematicBreak(from: tokenStream.currentLocation.offset)
 
         // Restore position
         tokenStream.setPosition(currentPos)
@@ -997,6 +1000,12 @@ final class BlockParser {
             return match.matched == containers.count && GFMUtils.isTableHeaderSeparator(separator)
         }
         return false
+    }
+
+    /// Whether the rest of the line from `offset` is a thematic break.
+    private func isThematicBreak(from offset: Int) -> Bool {
+        let lineEnd = lineContentRange(lineIndex(containing: offset)).upperBound
+        return Self.isThematicBreak(Substring(sourceText.string(in: offset..<lineEnd)))
     }
 
     private static func isThematicBreak(_ text: Substring) -> Bool {
