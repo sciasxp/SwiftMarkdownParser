@@ -17,8 +17,8 @@ The target of one link, image, or autolink, decided once for every output: safe 
 _Avoid_: URL normalization, renderer-specific URL check
 
 **Link Reference Definition**:
-A label bound to a Destination and an optional title, written as its own block (`[label]: destination "title"`) and applying to the whole Markdown Source, so a reference link may appear before or after it.
-_Avoid_: Reference line, link alias
+A label bound to a Destination and an optional title, written at the start of a paragraph (`[label]: destination "title"`), recognized by the Block Phase when that paragraph closes, and applying to the whole Markdown Source, so a reference link may appear before or after it.
+_Avoid_: Reference line, link alias, reference pre-pass
 
 **Block Phase**:
 The first stage of document construction: it recognizes the block structure of the whole Markdown Source and keeps the inline text of each block raw.

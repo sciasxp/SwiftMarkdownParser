@@ -151,8 +151,9 @@ rich-content adapter seam.
 
 - Change Markdown semantics inside document construction and verify them from
   Markdown Source to complete `AST.DocumentNode`. Block structure belongs to
-  the Block Phase; inline meaning is interpreted only by the Inline Phase, after
-  every block is known (ADR 0016).
+  the Block Phase, which also records Link Reference Definitions when a
+  paragraph closes; inline meaning is interpreted only by the Inline Phase,
+  after every block and definition is known (ADR 0016).
 - Implement generic analysis with `depthFirst()` and transformations with one
   `rewriting(_:)` pass instead of adding recursive walkers to callers.
 - Keep output-specific behavior inside its renderer. Do not introduce a shared
@@ -200,7 +201,7 @@ Sources/SwiftMarkdownParser/
 ├── BlockParser.swift                  Block Phase: block structure, raw inline text
 ├── InlinePhase.swift                  Inline Phase: inline meaning after all blocks
 ├── InlineParser.swift                 internal inline parser for one fragment
-├── ReferenceDefinitionResolver.swift  reference-definition resolution
+├── LinkReferenceDefinitionParser.swift definitions at the start of a paragraph
 ├── ParsingBudget.swift                deterministic resource limits
 ├── MarkdownDocumentValidator.swift    document validation
 ├── GFMExtensions.swift                GFM table utilities
