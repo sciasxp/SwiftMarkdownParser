@@ -15,7 +15,28 @@ final class InlineParser {
     private let maximumNestingDepth: Int
     private var nestingDepth = 0
 
-    init(
+    /// Parses the inline content of one fragment of Markdown Source. The
+    /// fragment gets its own line table and tokens, anchored at its start.
+    static func parse(
+        _ source: InlineSource,
+        budget: ParsingBudget,
+        linkReferences: [String: LinkReference],
+        maximumNestingDepth: Int
+    ) throws -> [any ASTNode] {
+        let tokenizer = MarkdownTokenizer(
+            MarkdownSourceText(source.text, startingAt: source.start, budget: budget),
+            budget: budget
+        )
+        let parser = InlineParser(
+            tokenStream: TokenStream(tokenizer.tokenize(), budget: budget),
+            budget: budget,
+            linkReferences: linkReferences,
+            maximumNestingDepth: maximumNestingDepth
+        )
+        return try parser.parseAll()
+    }
+
+    private init(
         tokenStream: TokenStream,
         budget: ParsingBudget,
         linkReferences: [String: LinkReference],
@@ -27,25 +48,7 @@ final class InlineParser {
         self.maximumNestingDepth = maximumNestingDepth
     }
 
-    /// Parse inline content from a text string
-    func parseInlineContent(
-        _ text: String,
-        startingAt location: SourceLocation = SourceLocation(line: 1, column: 1, offset: 0)
-    ) throws -> [any ASTNode] {
-        let inlineTokenizer = MarkdownTokenizer(
-            MarkdownSourceText(text, startingAt: location, budget: budget),
-            budget: budget
-        )
-        let inlineTokenStream = TokenStream(inlineTokenizer.tokenize(), budget: budget)
-
-        // Create a single parser instance for the entire text
-        let tempParser = InlineParser(
-            tokenStream: inlineTokenStream,
-            budget: budget,
-            linkReferences: linkReferences,
-            maximumNestingDepth: maximumNestingDepth
-        )
-
+    private func parseAll() throws -> [any ASTNode] {
         var nodes: [any ASTNode] = []
 
         // Protection mechanisms
@@ -53,15 +56,15 @@ final class InlineParser {
         var stuckPositionCount = 0
         let maxStuckPositions = 50 // Prevent infinite loops from position not advancing (increased threshold)
 
-        while !inlineTokenStream.isAtEnd {
+        while !tokenStream.isAtEnd {
             // Position-based protection (detect if parser is stuck)
-            let currentPosition = inlineTokenStream.currentPosition
+            let currentPosition = tokenStream.currentPosition
             if currentPosition == lastTokenPosition {
                 stuckPositionCount += 1
                 if stuckPositionCount >= maxStuckPositions {
                     throw MarkdownParsingError.internalInvariant(
                         message: "Inline content parser made no progress at token \(currentPosition).",
-                        location: inlineTokenStream.current.location
+                        location: tokenStream.current.location
                     )
                 }
             } else {
@@ -69,7 +72,7 @@ final class InlineParser {
                 lastTokenPosition = currentPosition
             }
 
-            let parsedNodes = try tempParser.parseInline()
+            let parsedNodes = try parseInline()
             nodes.append(contentsOf: parsedNodes)
         }
         return nodes

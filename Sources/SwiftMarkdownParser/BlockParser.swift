@@ -1,8 +1,40 @@
-/// Block parser for converting tokens into block-level AST nodes
+/// The Block Phase of document construction: converts tokens into the block
+/// structure of a Markdown Document.
 ///
 /// This parser handles container blocks (block quotes, lists) and leaf blocks
 /// (headings, paragraphs, code blocks) according to the CommonMark specification.
+/// Blocks that carry inline content keep its raw text as an `InlineSource`;
+/// the Inline Phase interprets it once the whole block structure is known.
 import Foundation
+
+// MARK: - Block Phase Output
+
+/// A block recognized by the Block Phase. Inline-bearing blocks keep their raw
+/// inline text; every other block is already a complete AST node.
+indirect enum ParsedBlock {
+    case paragraph(InlineSource, range: SourceLocation)
+    case heading(level: Int, InlineSource, range: SourceLocation)
+    case blockQuote(children: [ParsedBlock], range: SourceLocation)
+    case list(isOrdered: Bool, startNumber: Int?, items: [ParsedBlock], range: SourceLocation)
+    /// `taskIsChecked` is `nil` for an item without a task-list marker.
+    case listItem(taskIsChecked: Bool?, children: [ParsedBlock], range: SourceLocation)
+    case table(rows: [ParsedTableRow], alignments: [GFMTableAlignment], range: SourceLocation)
+    case complete(any ASTNode)
+}
+
+struct ParsedTableRow {
+    let cells: [ParsedTableCell]
+    let isHeader: Bool
+    let range: SourceLocation
+}
+
+/// One table cell: its trimmed text, which covers exactly `range`.
+struct ParsedTableCell {
+    let content: InlineSource
+    let range: SourceLocation
+    let isHeader: Bool
+    let alignment: GFMTableAlignment
+}
 
 // MARK: - Block Parser
 
@@ -11,9 +43,7 @@ final class BlockParser {
 
     private let tokenStream: TokenStream
     private let limits: SwiftMarkdownParser.ResourceLimits
-    private let budget: ParsingBudget
     private let sourceText: MarkdownSourceText
-    private let linkReferences: [String: LinkReference]
     private var nestingDepth = 0
 
     /// A container block open around the block being parsed.
@@ -36,21 +66,17 @@ final class BlockParser {
     init(
         tokenStream: TokenStream,
         limits: SwiftMarkdownParser.ResourceLimits,
-        budget: ParsingBudget,
-        sourceText: MarkdownSourceText,
-        linkReferences: [String: LinkReference]
+        sourceText: MarkdownSourceText
     ) {
         self.tokenStream = tokenStream
         self.limits = limits
-        self.budget = budget
         self.sourceText = sourceText
-        self.linkReferences = linkReferences
         self.lineStarts = sourceText.lines.map(\.contentRange.lowerBound)
     }
 
-    /// Parse the entire document into an AST
-    func parseDocument() throws -> AST.DocumentNode {
-        var children: [any ASTNode] = []
+    /// Parse the entire document into its top-level blocks
+    func parseDocument() throws -> [ParsedBlock] {
+        var children: [ParsedBlock] = []
 
         while !tokenStream.isAtEnd {
             let startingPosition = tokenStream.currentPosition
@@ -67,12 +93,11 @@ final class BlockParser {
             }
         }
 
-        let documentRange = sourceText.range(0..<sourceText.count)
-        return AST.DocumentNode(children: children, sourceLocation: documentRange)
+        return children
     }
 
     /// Parse a single block element
-    private func parseBlock() throws -> (any ASTNode)? {
+    private func parseBlock() throws -> ParsedBlock? {
         // Skip whitespace at start of line
         blockIndentationStart = tokenStream.currentLocation.offset
         skipWhitespace()
@@ -93,13 +118,13 @@ final class BlockParser {
         case .listMarker:
             // A thematic break takes precedence over a list item
             if let thematicBreak = parseThematicBreakLine() {
-                return thematicBreak
+                return .complete(thematicBreak)
             }
             return try parseList()
 
         case .backtick, .tildeCodeFence:
             if token.content.count >= 3 {
-                return try parseFencedCodeBlock()
+                return .complete(try parseFencedCodeBlock())
             }
             // Single backticks should be treated as part of a paragraph, not as code blocks
             return try parseParagraph()
@@ -111,13 +136,13 @@ final class BlockParser {
             return try parseParagraph()
 
         case .indentedCodeBlock:
-            return try parseIndentedCodeBlock()
+            return .complete(try parseIndentedCodeBlock())
 
         case .thematicBreak:
-            return parseThematicBreak()
+            return .complete(parseThematicBreak())
 
         case .htmlTag:
-            return try parseHTMLBlock()
+            return .complete(try parseHTMLBlock())
 
         case .newline:
             // Empty line - skip
@@ -137,7 +162,7 @@ final class BlockParser {
 
     // MARK: - Heading Parsers
 
-    private func parseATXHeading() throws -> AST.HeadingNode {
+    private func parseATXHeading() throws -> ParsedBlock {
         let startLocation = tokenStream.current.location
         let headerToken = tokenStream.consume()
         let level = headerToken.content.count
@@ -152,25 +177,19 @@ final class BlockParser {
         while !tokenStream.isAtEnd && tokenStream.currentLocation.offset < lineEnd {
             tokenStream.advance()
         }
-        let children = contentStart.offset < contentEnd
-            ? try makeInlineParser().parseInlineContent(
-                sourceText.string(in: contentStart.offset..<contentEnd),
-                startingAt: contentStart
-            )
-            : []
-
-        return AST.HeadingNode(
-            level: level,
-            children: children,
-            sourceLocation: tokenStream.range(startingAt: startLocation)
+        let content = InlineSource(
+            text: sourceText.string(in: contentStart.offset..<max(contentStart.offset, contentEnd)),
+            start: contentStart
         )
+
+        return .heading(level: level, content, range: tokenStream.range(startingAt: startLocation))
     }
 
     // MARK: - Block Quote Parser
 
-    private func parseBlockQuote() throws -> AST.BlockQuoteNode {
+    private func parseBlockQuote() throws -> ParsedBlock {
         let startLocation = tokenStream.current.location
-        var children: [any ASTNode] = []
+        var children: [ParsedBlock] = []
         containers.append(.blockQuote)
         defer { containers.removeLast() }
 
@@ -187,15 +206,12 @@ final class BlockParser {
             skipWhitespaceAndNewlines()
         }
 
-        return AST.BlockQuoteNode(
-            children: children,
-            sourceLocation: tokenStream.range(startingAt: startLocation)
-        )
+        return .blockQuote(children: children, range: tokenStream.range(startingAt: startLocation))
     }
 
     // MARK: - List Parsers
 
-    private func parseList() throws -> AST.ListNode {
+    private func parseList() throws -> ParsedBlock {
         let startLocation = tokenStream.current.location
         let firstMarker = tokenStream.current.content
 
@@ -204,7 +220,7 @@ final class BlockParser {
         let delimiter = isOrdered ? firstMarker.last : nil
         let bulletChar = isOrdered ? nil : firstMarker.first
 
-        var items: [any ASTNode] = []
+        var items: [ParsedBlock] = []
 
         while !tokenStream.isAtEnd && tokenStream.check(.listMarker) {
             let marker = tokenStream.current.content
@@ -232,15 +248,15 @@ final class BlockParser {
             skipWhitespaceAndNewlines()
         }
 
-        return AST.ListNode(
+        return .list(
             isOrdered: isOrdered,
             startNumber: startNumber,
             items: items,
-            sourceLocation: tokenStream.range(startingAt: startLocation)
+            range: tokenStream.range(startingAt: startLocation)
         )
     }
 
-    private func parseListItem() throws -> any ASTNode {
+    private func parseListItem() throws -> ParsedBlock {
         let startLocation = tokenStream.current.location
 
         // Consume list marker
@@ -250,7 +266,7 @@ final class BlockParser {
         containers.append(.listItem(contentColumn: listItemContentColumn(after: marker)))
         defer { containers.removeLast() }
 
-        var children: [any ASTNode] = []
+        var children: [ParsedBlock] = []
 
         let taskMarker = tokenStream.check(.taskListMarker) ? tokenStream.consume() : nil
         if taskMarker != nil {
@@ -288,21 +304,11 @@ final class BlockParser {
             }
         }
 
-        let itemRange = tokenStream.range(startingAt: startLocation)
-        if let taskMarker {
-            let marker = taskMarker.content.lowercased()
-            let isChecked = marker != "[ ]"
-            var taskChildren = children
-            if let paragraph = children.first as? AST.ParagraphNode {
-                taskChildren = paragraph.children + children.dropFirst()
-            }
-            return AST.GFMTaskListItemNode(
-                isChecked: isChecked,
-                children: taskChildren,
-                sourceLocation: itemRange
-            )
-        }
-        return AST.ListItemNode(children: children, sourceLocation: itemRange)
+        return .listItem(
+            taskIsChecked: taskMarker.map { $0.content.lowercased() != "[ ]" },
+            children: children,
+            range: tokenStream.range(startingAt: startLocation)
+        )
     }
 
     private func isAtStartOfListItem() -> Bool {
@@ -488,7 +494,7 @@ final class BlockParser {
         return content
     }
 
-    private func parseMathBlock() throws -> any ASTNode {
+    private func parseMathBlock() throws -> ParsedBlock {
         let startPosition = tokenStream.currentPosition
         let startLocation = tokenStream.current.location
 
@@ -528,10 +534,10 @@ final class BlockParser {
             return try parseParagraph()
         }
 
-        return AST.MathBlockNode(
+        return .complete(AST.MathBlockNode(
             content: content,
             sourceLocation: tokenStream.range(startingAt: startLocation)
-        )
+        ))
     }
 
     private func parseIndentedCodeBlock() throws -> AST.CodeBlockNode {
@@ -623,7 +629,7 @@ final class BlockParser {
 
     // MARK: - GFM Table Parser
 
-    private func parseSimpleGFMTable() throws -> AST.GFMTableNode? {
+    private func parseSimpleGFMTable() throws -> ParsedBlock? {
         // Save current position for backtracking
         let startPosition = tokenStream.currentPosition
 
@@ -665,41 +671,28 @@ final class BlockParser {
         // Parse the table
         let alignments = GFMUtils.parseTableHeaderSeparator(lines[1].content)
 
-        var rows: [AST.GFMTableRowNode] = []
+        var rows: [ParsedTableRow] = []
 
         // Create header row
-        let headerRow = AST.GFMTableRowNode(
-            cells: try parseTableCells(
-                in: lines[0],
-                isHeader: true,
-                alignments: alignments
-            ),
+        rows.append(ParsedTableRow(
+            cells: parseTableCells(in: lines[0], isHeader: true, alignments: alignments),
             isHeader: true,
-            sourceLocation: lines[0].range
-        )
-        rows.append(headerRow)
+            range: lines[0].range
+        ))
 
         // Create body rows (skip separator line at index 1)
-        for i in 2..<lines.count {
-            if GFMUtils.isTableRow(lines[i].content) {
-                let cells = try parseTableCells(
-                    in: lines[i],
-                    isHeader: false,
-                    alignments: alignments
-                )
-                let row = AST.GFMTableRowNode(
-                    cells: cells,
-                    isHeader: false,
-                    sourceLocation: lines[i].range
-                )
-                rows.append(row)
-            }
+        for i in 2..<lines.count where GFMUtils.isTableRow(lines[i].content) {
+            rows.append(ParsedTableRow(
+                cells: parseTableCells(in: lines[i], isHeader: false, alignments: alignments),
+                isHeader: false,
+                range: lines[i].range
+            ))
         }
 
-        return AST.GFMTableNode(
+        return .table(
             rows: rows,
             alignments: alignments,
-            sourceLocation: lines[0].range.spanning(to: lines[lines.count - 1].range)
+            range: lines[0].range.spanning(to: lines[lines.count - 1].range)
         )
     }
 
@@ -714,10 +707,10 @@ final class BlockParser {
         in line: TableLine,
         isHeader: Bool,
         alignments: [GFMTableAlignment]
-    ) throws -> [AST.GFMTableCellNode] {
+    ) -> [ParsedTableCell] {
         let cellContents = GFMUtils.parseTableRow(line.content)
         var searchStart = line.content.startIndex
-        var cells: [AST.GFMTableCellNode] = []
+        var cells: [ParsedTableCell] = []
 
         for (index, cellContent) in cellContents.enumerated() {
             let trimmed = cellContent.trimmingCharacters(in: .whitespaces)
@@ -729,35 +722,19 @@ final class BlockParser {
             assert(cellOffset + trimmed.count <= line.range.endOffset, "Table cell extends past its line")
             let cellRange = sourceText.range(cellOffset..<cellOffset + trimmed.count)
             let cellStart = SourceLocation(line: cellRange.line, column: cellRange.column, offset: cellRange.offset)
-            let children: [any ASTNode]
-            if trimmed.isEmpty {
-                children = []
-            } else if needsInlineParsing(trimmed) {
-                children = try makeInlineParser().parseInlineContent(trimmed, startingAt: cellStart)
-            } else {
-                children = [AST.TextNode(content: trimmed, sourceLocation: cellRange)]
-            }
             let alignment = index < alignments.count ? alignments[index] : .none
 
-            cells.append(AST.GFMTableCellNode(
-                children: children,
+            cells.append(ParsedTableCell(
+                content: InlineSource(text: trimmed, start: cellStart),
+                range: cellRange,
                 isHeader: isHeader,
-                alignment: alignment,
-                sourceLocation: cellRange
+                alignment: alignment
             ))
             if let contentRange {
                 searchStart = contentRange.upperBound
             }
         }
         return cells
-    }
-
-    private func needsInlineParsing(_ source: String) -> Bool {
-        source.contains { "*_`[!~$\\&<".contains($0) } ||
-            source.contains("http://") ||
-            source.contains("https://") ||
-            source.contains("www.") ||
-            source.contains("@")
     }
 
     private func collectCurrentLine() -> TableLine? {
@@ -779,7 +756,7 @@ final class BlockParser {
 
     /// Parses a paragraph: its first line plus every continuation line, lazy
     /// or not. A setext underline after the lines makes it a heading.
-    private func parseParagraph() throws -> any ASTNode {
+    private func parseParagraph() throws -> ParsedBlock {
         let startLocation = tokenStream.current.location
         let start = startLocation.offset
         var line = lineIndex(containing: start)
@@ -827,15 +804,13 @@ final class BlockParser {
                 fragment[offset - start] = " "
             }
         }
-        let children = fragment.isEmpty
-            ? []
-            : try makeInlineParser().parseInlineContent(String(fragment), startingAt: startLocation)
+        let content = InlineSource(text: String(fragment), start: startLocation)
 
         let range = tokenStream.range(startingAt: startLocation)
         if let setextLevel {
-            return AST.HeadingNode(level: setextLevel, children: children, sourceLocation: range)
+            return .heading(level: setextLevel, content, range: range)
         }
-        return AST.ParagraphNode(children: children, sourceLocation: range)
+        return .paragraph(content, range: range)
     }
 
     // MARK: - Lines
@@ -1072,16 +1047,7 @@ final class BlockParser {
         }
     }
 
-    private func makeInlineParser() -> InlineParser {
-        InlineParser(
-            tokenStream: tokenStream,
-            budget: budget,
-            linkReferences: linkReferences,
-            maximumNestingDepth: limits.maximumNestingDepth
-        )
-    }
-
-    private func parseNestedBlock() throws -> (any ASTNode)? {
+    private func parseNestedBlock() throws -> ParsedBlock? {
         nestingDepth += 1
         defer { nestingDepth -= 1 }
 

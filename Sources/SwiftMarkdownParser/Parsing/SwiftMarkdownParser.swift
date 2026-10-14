@@ -80,12 +80,20 @@ public final class SwiftMarkdownParser: Sendable {
         let blockParser = BlockParser(
             tokenStream: tokenStream,
             limits: resourceLimits,
-            budget: budget,
-            sourceText: referenceResolution.sourceForParsing,
-            linkReferences: referenceResolution.references
+            sourceText: referenceResolution.sourceForParsing
         )
+        let blocks = try blockParser.parseDocument()
 
-        let document = try blockParser.parseDocument()
+        // The Inline Phase runs only after the Block Phase has seen every block.
+        let inlinePhase = InlinePhase(
+            budget: budget,
+            linkReferences: referenceResolution.references,
+            maximumNestingDepth: resourceLimits.maximumNestingDepth
+        )
+        let document = try inlinePhase.document(
+            from: blocks,
+            range: sourceText.range(0..<sourceText.count)
+        )
         try budget.validate()
         try MarkdownDocumentValidator.validate(document, sourceLength: sourceLength)
         return document
