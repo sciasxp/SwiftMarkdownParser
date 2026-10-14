@@ -61,17 +61,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Setext headings can span lines, and a setext underline may be a single `=` or `-`
   - A list item's marker line starts any block (`- # foo` is a heading, a fence there is a code block without the item's indentation); `* * *` is a thematic break, not nested empty items, on an item's marker line, on its continuation lines, and after it; an HTML block ends with its list item; an empty item ends at a blank line
   - A fence or `$$` math block ends with the list item or block quote that holds it, takes no lazy lines, and never takes container markers as code or math; a list inside a block quote continues on the quote's marked lines
+  - A blank line ends a block quote, with any fence or `$$` math block open in it: `> foo`, a blank line, and `> bar` are two quotes
   - A backslash with nothing after it is literal
-  - Of the 652 CommonMark 0.30 examples, 167 change their HTML with this entry and the Link Reference Definitions entry below; under whitespace normalization the passing examples go from 212 to 298 (with fences ending with their containers), and none that passed fails
+  - Of the 652 CommonMark 0.30 examples, 169 change their HTML with this entry and the Link Reference Definitions entry below; under whitespace normalization the passing examples go from 212 to 298 with this entry alone (with fences ending with their containers) and to 316 with the Link Reference Definitions entry, and none that passed fails
 - **Block and Inline Phases**: Document construction recognizes all blocks before it interprets any inline text (ADR 0016)
   - Paragraph and heading text is tokenized again as its own inline fragment, so it charges more work to `ResourceLimits.maximumWork`: a document with a heading, a paragraph, and two list items costs 565 units instead of 420
   - The cost stays linear; the worst case measured is about 2x the previous cost (a single very long line, or a long list), and ordinary prose costs 6 to 7.5 units per character, so 2,000,000 characters of prose still fit the default limit; dense lists cost about 14 units per character, so a list above about 1,800,000 characters no longer fits the default `maximumWork`, which is unchanged
+  - Finding the line that closes a fence or a `$$` math block charges one unit per scanned line, so `maximumWork` bounds it; a fence of 2,000 lines costs 2,001 units more. Repeated unclosed `$$` lines no longer rescan the rest of the document, which made them quadratic: 20,000 of them took about 94 s and now parse in linear time
 - **Link Reference Definitions in the Block Phase**: Definitions are recognized when a paragraph closes, as CommonMark 0.30 section 4.7 specifies, instead of by a line-based pre-read; this is an intentional behavior change (ADR 0016)
   - A definition inside a block quote or list item applies to the whole document; labels, destinations, and titles may continue on the following lines; backslash escapes are decoded in destinations and titles
   - A definition cannot interrupt a paragraph: `text` followed by `[a]: url` stays one paragraph
   - A definition inside a `$$` math block or an HTML block stays content
   - A line that is not a complete definition, such as `[^1]: The note.` or `[foo]: /url "title" ok`, is now paragraph text instead of being consumed
-  - Under whitespace normalization the passing CommonMark 0.30 examples go from 298 to 315, and none that passed fails
+  - Under whitespace normalization the passing CommonMark 0.30 examples go from 298 to 315, and to 316 once a blank line ends a block quote; none that passed fails
 - **Inline Fragment Work**: Setext heading text and inline-parsed table cells charge one extra unit of work per character to `ResourceLimits.maximumWork`, for their fragment's line table (ADR 0014)
 - **Unicode Separators Are Whitespace**: U+2028, U+2029, NEL, VT, and FF no longer end a line; they are whitespace inside it, as CommonMark specifies (ADR 0014)
 - **Source-Breaking Parser Interface**: Replaced async `parseToAST(_:)` and mode-based `Configuration` with synchronous `parse(_:)` and `ResourceLimits`

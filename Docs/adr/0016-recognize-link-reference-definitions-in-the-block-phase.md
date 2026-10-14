@@ -135,7 +135,8 @@ out of scope: it is the HTML renderer's raw-HTML policy, not construction.
   that does not match the open containers ends the fence, which takes no lazy
   lines, and container markers never become code. A list inside a block quote
   continues on the quote's marked lines. A `$$` math block ends the same way;
-  an unclosed `$$` stays paragraph text.
+  an unclosed `$$` stays paragraph text. A blank line ends a block quote and
+  any fence or `$$` open in it; a list item matches a blank line and keeps them.
 - A backslash with nothing after it is literal.
 - Stage 2: a definition cannot interrupt a paragraph, so `text` followed by
   `[a]: url` stays one paragraph; a definition inside a `$$` math block or an
@@ -150,7 +151,8 @@ Of the 652 CommonMark 0.30 examples, 153 change their HTML with paragraph
 continuation and 167 after stage 2. Under whitespace normalization (whitespace collapsed, ignored
 between tags), the examples that pass go from 212 on `develop` to 295 with
 paragraph continuation, 298 once fences end with their containers, and 315
-after stage 2 (strict comparison: 201, 233, 234, 249). None that passed fails. Most of the changed
+after stage 2 (strict comparison: 201, 233, 234, 249). Once a blank line ends
+a block quote, 169 change and 316 pass (strict: 251). None that passed fails. Most of the changed
 examples that still fail do so for limitations that predate this ADR, such as
 tight lists rendered with `<p>` and emphasis that does not cross a line.
 Example 236 (`>     foo` followed by `    bar`) is a known deviation: indented
@@ -177,9 +179,9 @@ document below doubles its cost. Measured as the smallest
 | `` `a `` and a line ending × 3,000 | 9,000 | 69,001 | 97,504 | 1.41 |
 | `[a` and a line ending × 3,000 | 9,000 | 206,999 | 123,018 | 0.59 |
 | ``- item *a* `b` `` × 2,000 | 30,000 | 220,004 | 418,016 | 1.90 |
-| block quote of 2,000 lines | 38,000 | 270,006 | 246,031 | 0.91 |
+| block quote of 2,000 lines | 38,000 | 270,006 | 246,032 | 0.91 |
 | table of 500 rows | 5,020 | 32,140 | 32,140 | 1.00 |
-| fence of 2,000 lines | 20,008 | 62,037 | 48,037 | 0.77 |
+| fence of 2,000 lines | 20,008 | 62,037 | 50,038 | 0.81 |
 | 1,000 definitions and 1,000 references | 16,001 | 98,024 | 108,063 | 1.10 |
 
 Stage 2 changes only the definitions row (97,014 at the end of stage 1): the
@@ -196,6 +198,17 @@ the default `maximumWork` (25,000,000). Dense lists do not: a list such as
 about 1,800,000 characters, which parsed on `develop`, now exceeds the default
 `maximumWork` (1,875,000 characters cost 25,160,719 units). The default limit
 is unchanged. The pinned cost lives in `MarkdownDocumentConstructionTests`.
+
+The Block Phase finds the line that closes a fence or a `$$` math block by
+scanning lines, and each scanned line charges one unit, so `maximumWork` bounds
+the scan: the fence row above went from 48,037 to 50,038 with it. An unclosed
+`$$` falls back to paragraph text, and the next `$$` in that paragraph would
+scan the same lines again, which made repeated unclosed `$$` lines quadratic
+(20,000 of them took about 94 s). The Block Phase remembers, for each shape of
+open containers, where the last unclosed scan stopped, and a later `$$` before
+that line is not scanned. Repeated unclosed `$$` or fences, at the top level,
+in a block quote, in a list item, or after a paragraph line, now cost 4 to 11
+units per character, and doubling them doubles both their cost and their time.
 
 ## Validation
 
