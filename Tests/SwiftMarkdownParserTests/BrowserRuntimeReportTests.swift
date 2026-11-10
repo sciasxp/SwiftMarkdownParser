@@ -35,6 +35,40 @@ struct BrowserRuntimeReportTests {
         )
     }
 
+    @Test("Decodes the additive rejectedDiagrams count and defaults it to zero")
+    func rejectedDiagrams() throws {
+        let ready = try BrowserRuntimeReport(messageBody: [
+            "version": 1, "status": "ready", "requiredFeatures": ["mermaid"],
+            "failedFeatures": [], "rejectedDiagrams": 2
+        ])
+        let failed = try BrowserRuntimeReport(messageBody: [
+            "version": 1, "status": "failed", "requiredFeatures": ["mermaid"],
+            "failedFeatures": ["mermaid"], "rejectedDiagrams": 1, "detail": "Pele mount failed: boom"
+        ])
+        let absent = try BrowserRuntimeReport(messageBody: [
+            "version": 1, "status": "ready", "requiredFeatures": ["mermaid"], "failedFeatures": []
+        ])
+
+        #expect(ready == .ready(requiredFeatures: [.mermaid], rejectedDiagrams: 2))
+        #expect(
+            failed == .failed(
+                requiredFeatures: [.mermaid],
+                failedFeatures: [.mermaid],
+                detail: "Pele mount failed: boom",
+                rejectedDiagrams: 1
+            )
+        )
+        #expect(absent == .ready(requiredFeatures: [.mermaid], rejectedDiagrams: 0))
+        for invalid: Any in [-1, "2", 1.5] {
+            #expect(throws: BrowserRuntimeError.self) {
+                try BrowserRuntimeReport(messageBody: [
+                    "version": 1, "status": "ready", "requiredFeatures": [],
+                    "failedFeatures": [], "rejectedDiagrams": invalid
+                ])
+            }
+        }
+    }
+
     @Test("Accepts legacy unversioned reports internally")
     func legacy() throws {
         let ready = try BrowserRuntimeReport(messageBody: ["status": "ready"])

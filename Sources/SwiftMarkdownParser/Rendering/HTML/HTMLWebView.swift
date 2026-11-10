@@ -25,11 +25,14 @@ enum BrowserRuntimeError: Error, LocalizedError {
 enum BrowserRuntimeReport: Equatable {
     static let currentVersion = 1
 
-    case ready(requiredFeatures: Set<BrowserFeature>)
+    /// `rejectedDiagrams` counts diagrams Pele refused or that threw while mounting. It is additive to
+    /// version 1, so a payload without it decodes as 0.
+    case ready(requiredFeatures: Set<BrowserFeature>, rejectedDiagrams: Int = 0)
     case failed(
         requiredFeatures: Set<BrowserFeature>,
         failedFeatures: Set<BrowserFeature>,
-        detail: String
+        detail: String,
+        rejectedDiagrams: Int = 0
     )
 
     init(messageBody: Any) throws {
@@ -58,21 +61,33 @@ enum BrowserRuntimeReport: Equatable {
             throw BrowserRuntimeError.invalidReport
         }
 
+        let rejectedDiagrams = try Self.rejectedDiagrams(in: payload)
+
         switch status {
         case "ready":
             guard failedFeatures.isEmpty else {
                 throw BrowserRuntimeError.invalidReport
             }
-            self = .ready(requiredFeatures: requiredFeatures)
+            self = .ready(requiredFeatures: requiredFeatures, rejectedDiagrams: rejectedDiagrams)
         case "failed":
             self = .failed(
                 requiredFeatures: requiredFeatures,
                 failedFeatures: failedFeatures,
-                detail: payload["detail"] as? String ?? "Unknown browser runtime failure"
+                detail: payload["detail"] as? String ?? "Unknown browser runtime failure",
+                rejectedDiagrams: rejectedDiagrams
             )
         default:
             throw BrowserRuntimeError.invalidReport
         }
+    }
+
+    /// The optional, additive `rejectedDiagrams` count; absent means 0.
+    private static func rejectedDiagrams(in payload: [String: Any]) throws -> Int {
+        guard let value = payload["rejectedDiagrams"] else { return 0 }
+        guard let count = value as? Int, count >= 0 else {
+            throw BrowserRuntimeError.invalidReport
+        }
+        return count
     }
 
     private static func features(in payload: [String: Any], key: String) throws -> Set<BrowserFeature> {
@@ -311,7 +326,7 @@ struct MarkdownWebViewRepresentable: NSViewRepresentable {
                 switch try BrowserRuntimeReport(messageBody: message.body) {
                 case .ready:
                     finish(with: .success(()))
-                case .failed(_, _, let detail):
+                case .failed(_, _, let detail, _):
                     finish(with: .failure(BrowserRuntimeError.failed(detail)))
                 }
             } catch {
@@ -409,7 +424,7 @@ struct MermaidWebViewRepresentable: NSViewRepresentable {
                 switch try BrowserRuntimeReport(messageBody: message.body) {
                 case .ready:
                     finish(with: .success(()))
-                case .failed(_, _, let detail):
+                case .failed(_, _, let detail, _):
                     finish(with: .failure(BrowserRuntimeError.failed(detail)))
                 }
             } catch {

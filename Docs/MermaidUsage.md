@@ -139,14 +139,27 @@ let html = try await HTMLRenderer(options: options).renderFragment(document)
 `--pele-fg`, `--pele-fg-on-dark`, `--pele-fg-on-light`, `--pele-line`,
 `--pele-border`, `--pele-surface`, `--pele-surface-alt`, `--pele-muted`,
 `--pele-accent`, `--pele-critical`, `--pele-error`, `--pele-series-1…12`) and
-`fontFamily` onto `--pele-font`. Pele paints with these variables at paint
-time, so changing them restyles a rendered diagram without rendering it again.
+`fontFamily` onto `--pele-font`. Pele paints the colors with these variables at
+paint time, so changing them restyles a rendered diagram without rendering it
+again. The font is different: Pele measures label widths when it draws, so a new
+`--pele-font` needs a new draw (render the diagram again or trigger a resize),
+or the labels stay cut to the old measurements.
 A value containing `;`, `{`, `}`, `<`, `>`, a backslash or a line break is
 ignored. `customCSS` is trusted host CSS for anything else.
 
 `zoom` is `.auto` (controls only when a diagram is scaled down), `.always`, or
 `.disabled`. `fontSize` and `maxTextSize` (Pele's source `limit`) are passed to
-`pele.mount`.
+`pele.mount`, with `linkSchemes: ['http', 'https', 'mailto']` so diagram links
+follow the same schemes as links in the text. The zoom controls take their
+accessible names from `messages.zoomIn`, `messages.zoomOut` and `messages.reset`
+(defaults from the package catalog, en and pt-BR; `.localized(locale:)` gives
+all of them in one locale).
+
+The readiness report has an additive `rejectedDiagrams` count of diagrams Pele
+refused or that threw while mounting, so a host can tell "all drawn" from "3 of
+5 refused". With diagrams in the document, `ready` is reported after
+`document.fonts.ready` and two animation frames, bounded to 2 seconds because a
+web view that is not on screen never runs frames.
 
 When Pele rejects a diagram, the diagram's container shows
 `messages.diagramFailed` followed by the escaped source in a

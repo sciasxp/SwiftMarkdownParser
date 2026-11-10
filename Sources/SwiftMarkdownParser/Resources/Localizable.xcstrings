@@ -24,6 +24,57 @@
         }
       }
     },
+    "html.diagram.zoom.in" : {
+      "comment" : "Accessible name and tooltip of the button that zooms a diagram in.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom in"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aumentar zoom"
+          }
+        }
+      }
+    },
+    "html.diagram.zoom.out" : {
+      "comment" : "Accessible name and tooltip of the button that zooms a diagram out.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom out"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diminuir zoom"
+          }
+        }
+      }
+    },
+    "html.diagram.zoom.reset" : {
+      "comment" : "Accessible name and tooltip of the button that restores a diagram to its fitted size.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset zoom"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redefinir zoom"
+          }
+        }
+      }
+    },
     "native.accessibility.code_block" : {
       "comment" : "VoiceOver label for a code block without a language.",
       "localizations" : {

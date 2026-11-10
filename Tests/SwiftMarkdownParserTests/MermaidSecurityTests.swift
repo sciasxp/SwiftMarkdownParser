@@ -319,8 +319,6 @@ import Testing
         #expect(html.contains("class=\"mermaid\""))
 
         #expect(html.contains("\"limit\":10000"))
-        // Pele's own error text is never shown: the localized message replaces it.
-        #expect(!html.contains("onError: function(error)"))
     }
 
     @Test func mermaidRendererDisabledSecurely() async throws {

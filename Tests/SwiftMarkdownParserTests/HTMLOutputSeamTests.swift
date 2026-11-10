@@ -39,7 +39,7 @@ struct HTMLOutputSeamTests {
 
         #expect(head.contains("katex.min.css"))
         #expect(head.contains("pele@1.13.0/dist/pele.global.js"))
-        #expect(body.contains("pele.mount(container, source, options)"))
+        #expect(body.contains("swift-markdown-runtime"))
         #expect(!body.contains("<link rel=\"stylesheet\""))
         #expect(html.contains("<html lang=\"pt-BR\">"))
         #expect(html.contains("<title>Math &amp; Diagrams</title>"))
@@ -83,6 +83,7 @@ struct HTMLOutputSeamTests {
         )
 
         let html = try await HTMLRenderer(options: options).renderDocument(document)
+        let root = try #require(try rootStyleSheet(in: html))
 
         for (name, value) in [
             ("--pele-bg", "#010203"), ("--pele-fg", "#111111"), ("--pele-fg-on-dark", "#fafafa"),
@@ -90,13 +91,14 @@ struct HTMLOutputSeamTests {
             ("--pele-surface", "#112233"), ("--pele-surface-alt", "#223344"), ("--pele-muted", "#334455"),
             ("--pele-accent", "#0a84ff"), ("--pele-critical", "#ff453a"), ("--pele-error", "#ff9f0a")
         ] {
-            #expect(html.contains("\(name): \(value);"), "\(name)")
+            #expect(root.contains("\(name): \(value);"), "\(name)")
         }
-        #expect(html.contains("--pele-series-1: #0003e8;"))
-        #expect(html.contains("--pele-series-12: #002ee0;"))
-        #expect(!html.contains("--pele-series-13"))
-        #expect(html.contains("--pele-font: \\\"Avenir Next\\\", sans-serif;"))
-        #expect(html.contains("\"fontFamily\":\"\\\"Avenir Next\\\", sans-serif\""))
+        #expect(root.contains("--pele-series-1: #0003e8;"))
+        #expect(root.contains("--pele-series-12: #002ee0;"))
+        #expect(!root.contains("--pele-series-13"))
+        #expect(root.contains("--pele-font: \"Avenir Next\", sans-serif;"))
+        // Pele reads the computed --pele-font to measure and paint, so the mount options carry no font.
+        #expect(!html.contains("\"fontFamily\""))
         #expect(html.contains("class=\"mermaid\""))
     }
 
@@ -106,8 +108,7 @@ struct HTMLOutputSeamTests {
 
         let html = try await HTMLRenderer().renderDocument(document)
 
-        #expect(!html.contains("--pele-bg"))
-        #expect(!html.contains("--pele-font:"))
+        #expect(try rootStyleSheet(in: html) == nil)
     }
 
     @Test("Ignores palette values that could escape a CSS declaration")
@@ -122,29 +123,84 @@ struct HTMLOutputSeamTests {
 
         let html = try await HTMLRenderer(options: options).renderDocument(document)
 
-        #expect(html.contains("--pele-fg: #abcdef;"))
-        #expect(!html.contains("--pele-bg"))
-        #expect(!html.contains("--pele-line"))
-        #expect(!html.contains("display: none"))
+        let root = try #require(try rootStyleSheet(in: html))
+        #expect(root.contains("--pele-fg: #abcdef;"))
+        #expect(!root.contains("--pele-bg"))
+        #expect(!root.contains("--pele-line"))
+        #expect(!root.contains("display: none"))
     }
 
-    @Test("Maps zoom, size and limit to Pele mount options")
+    @Test(
+        "Ignores palette values that fetch a resource, open a comment or leave a string open",
+        arguments: [
+            "url(https://example.com/p.png)", "URL( 'x' )", "image-set(\"a.png\" 1x)", "-webkit-image-set(x)",
+            "red /*", "red */", "@import 'x'", "javascript:alert(1)", "JavaScript:alert(1)",
+            "\"x", "'x", "\"red\"", "red; color: blue", "red\\"
+        ]
+    )
+    func unsafeColorValues_areIgnored(value: String) async throws {
+        let document = try SwiftMarkdownParser().parse("```mermaid\ngraph TD\nA --> B\n```")
+        let theme = MermaidConfiguration.Theme(background: value, foreground: "#abcdef", line: "#112233")
+        let options = HTMLRenderOptions(mermaidConfiguration: MermaidConfiguration(theme: theme))
+
+        let html = try await HTMLRenderer(options: options).renderDocument(document)
+
+        let root = try #require(try rootStyleSheet(in: html))
+        #expect(!root.contains("--pele-bg"))
+        // The declarations after the rejected one are intact.
+        #expect(root.contains("--pele-fg: #abcdef;"))
+        #expect(root.contains("--pele-line: #112233;"))
+    }
+
+    @Test(
+        "Accepts a font family only when its quotes are balanced",
+        arguments: [
+            ("\"Avenir Next\", sans-serif", true), ("'Helvetica Neue', Arial", true),
+            ("\"It's\", serif", true), ("-apple-system, BlinkMacSystemFont, sans-serif", true),
+            ("\"Avenir, sans-serif", false), ("'x", false), ("\"a' , serif", false),
+            ("url(x)", false), ("\"a\" /* b", false)
+        ]
+    )
+    func fontFamilyQuotes_mustBeBalanced(value: String, accepted: Bool) async throws {
+        let document = try SwiftMarkdownParser().parse("```mermaid\ngraph TD\nA --> B\n```")
+        let options = HTMLRenderOptions(
+            mermaidConfiguration: MermaidConfiguration(
+                theme: .init(foreground: "#abcdef"),
+                fontFamily: value
+            )
+        )
+
+        let html = try await HTMLRenderer(options: options).renderDocument(document)
+
+        let root = try #require(try rootStyleSheet(in: html))
+        #expect(root.contains("--pele-font: \(value);") == accepted)
+        #expect(root.contains("--pele-fg: #abcdef;"))
+    }
+
+    @Test("Maps zoom, size, limit and link schemes to Pele mount options")
     func peleMountOptions() async throws {
         let document = try SwiftMarkdownParser().parse("```mermaid\ngraph TD\nA --> B\n```")
+        let messages = MermaidConfiguration.Messages(
+            diagramFailed: "Falhou", zoomIn: "Aproximar", zoomOut: "Afastar", reset: "Restaurar"
+        )
+        let labels = "\"labels\":{\"reset\":\"Restaurar\",\"zoomIn\":\"Aproximar\",\"zoomOut\":\"Afastar\"}"
 
         for (zoom, expected) in [
-            (MermaidConfiguration.Zoom.auto, "\"zoom\":\"auto\""),
-            (.always, "\"zoom\":true"),
+            (MermaidConfiguration.Zoom.auto, "\"zoom\":{\"always\":false,\(labels)}"),
+            (.always, "\"zoom\":{\"always\":true,\(labels)}"),
             (.disabled, "\"zoom\":false")
         ] {
             let options = HTMLRenderOptions(
-                mermaidConfiguration: MermaidConfiguration(fontSize: 14, maxTextSize: 1234, zoom: zoom)
+                mermaidConfiguration: MermaidConfiguration(
+                    fontSize: 14, maxTextSize: 1234, zoom: zoom, messages: messages
+                )
             )
             let html = try await HTMLRenderer(options: options).renderDocument(document)
 
-            #expect(html.contains(expected))
+            #expect(html.contains(expected), "\(zoom)")
             #expect(html.contains("\"fontSize\":14"))
             #expect(html.contains("\"limit\":1234"))
+            #expect(html.contains("\"linkSchemes\":[\"http\",\"https\",\"mailto\"]"))
         }
     }
 
@@ -159,12 +215,8 @@ struct HTMLOutputSeamTests {
 
         let html = try await HTMLRenderer(options: options).renderDocument(document)
 
+        // How the message and the source are shown is covered in WebKit by PeleDiagramRuntimeTests.
         #expect(html.contains("\"diagramFailed\":\"Não foi possível desenhar o diagrama.\""))
-        #expect(html.contains("onError: function() { showDiagramError(container, source); }"))
-        // The message and the source are written as text, never as markup, and Pele's own text is not used.
-        #expect(html.contains("message.textContent = peleConfiguration.messages.diagramFailed"))
-        #expect(html.contains("code.textContent = source"))
-        #expect(!html.contains("onError: function(error)"))
     }
 
     @Test("Localizes the diagram error message from the package catalog")
@@ -176,19 +228,18 @@ struct HTMLOutputSeamTests {
         #expect(portuguese == "Não foi possível desenhar este diagrama. O código-fonte aparece abaixo.")
     }
 
-    @Test("Reports the mermaid feature as failed when the Pele runtime is missing")
-    func missingRuntimeFallsBack() async throws {
-        let document = try SwiftMarkdownParser().parse("```mermaid\ngraph TD\nA --> B\n```")
+    @Test("Localizes the zoom labels from the package catalog")
+    func zoomLabelLocalization() {
+        let english = MermaidConfiguration.Messages.localized(locale: Locale(identifier: "en"))
+        let portuguese = MermaidConfiguration.Messages.localized(locale: Locale(identifier: "pt-BR"))
 
-        let html = try await HTMLRenderer().renderDocument(document)
-
-        #expect(html.contains("if (typeof pele === 'undefined' || typeof pele.mount !== 'function')"))
-        #expect(html.contains("throw new Error('Pele runtime unavailable')"))
-        #expect(html.contains("if (asset === 'pele') { return ['mermaid']; }"))
-        #expect(html.contains("onerror=\"window.__swiftMarkdownAssetFailed('pele')\""))
-        #expect(html.contains("activeFeature = requiredFeatures.includes('mermaid') ? 'mermaid' : null"))
-        // The source stays in the document as text until the runtime replaces it.
-        #expect(html.contains("<pre class=\"mermaid\""))
+        #expect([english.zoomIn, english.zoomOut, english.reset] == ["Zoom in", "Zoom out", "Reset zoom"])
+        #expect(
+            [portuguese.zoomIn, portuguese.zoomOut, portuguese.reset]
+                == ["Aumentar zoom", "Diminuir zoom", "Redefinir zoom"]
+        )
+        let explicit = MermaidConfiguration.Messages(diagramFailed: "x")
+        #expect(!explicit.zoomIn.isEmpty && !explicit.zoomOut.isEmpty && !explicit.reset.isEmpty)
     }
 
     @Test("Uses configured KaTeX assets")
@@ -273,7 +324,7 @@ struct HTMLOutputSeamTests {
         #expect(!html.contains("cdn.jsdelivr.net"))
         #expect(html.contains("data:font/woff2;base64,"))
         #expect(html.contains("var pele=(()=>"))
-        #expect(html.contains("pele.mount(container, source, options)"))
+        #expect(html.contains("pele.mount("))
         #expect(!html.contains("mermaid.min.js"))
         #expect(!html.contains("mermaid.initialize"))
         #expect(!html.contains("mermaid.run"))
@@ -557,4 +608,18 @@ private extension String {
     func occurrences(of value: String) -> Int {
         components(separatedBy: value).count - 1
     }
+}
+
+/// The CSS strings the bootstrap appends to `<head>` (`customStyles`), decoded from the document.
+private func configuredStyleSheets(in html: String) throws -> [String] {
+    let marker = "const customStyles = "
+    let start = try #require(html.range(of: marker)).upperBound
+    let end = try #require(html.range(of: ";\n", range: start..<html.endIndex)).lowerBound
+    let json = Data(html[start..<end].utf8)
+    return try #require(try JSONSerialization.jsonObject(with: json) as? [String])
+}
+
+/// The `:root` rule that declares the `--pele-*` variables, or `nil` when none is emitted.
+private func rootStyleSheet(in html: String) throws -> String? {
+    try configuredStyleSheets(in: html).first { $0.hasPrefix(":root") }
 }

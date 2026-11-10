@@ -104,7 +104,13 @@ feature assets, and browser readiness.
 
 The complete document publishes one versioned runtime observation after
 initialization. Version 1 contains `status`, the sorted `requiredFeatures`, the
-sorted `failedFeatures`, and optional diagnostic `detail`. It is dispatched as
+sorted `failedFeatures`, `rejectedDiagrams`, and optional diagnostic `detail`.
+`rejectedDiagrams` is an additive integer: the number of diagrams Pele refused
+(`onError`) or that threw while mounting, set before the report is made. A
+refused diagram does not fail the report, so a host that wants to treat it as a
+problem reads this count; a payload without the field means 0. An exception from
+the runtime itself (not a syntax error in the document) makes the report
+`failed` with `["mermaid"]`, after every diagram was attempted. It is dispatched as
 the `swift-markdown-runtime` DOM event and, when present, posted to WebKit's
 `markdownRuntime` message handler. The report deliberately has no host attempt
 identity or artifact policy.

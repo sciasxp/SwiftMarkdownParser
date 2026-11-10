@@ -13,9 +13,13 @@ public struct MermaidConfiguration: Sendable, Equatable {
     /// Data-only palette projected onto the `--pele-*` CSS custom properties.
     ///
     /// Pele paints with these variables at paint time, so changing them restyles an
-    /// already rendered diagram without rendering it again. Every value is a CSS
-    /// color. A value containing `;`, `{`, `}`, `<`, `>`, a backslash or a line
-    /// break is ignored, because it cannot be a color and could escape the declaration.
+    /// already rendered diagram without rendering it again, except for the font,
+    /// which Pele measures when it draws. Every value is a CSS color. A value is
+    /// ignored when it contains `;`, `{`, `}`, `<`, `>`, `@`, a backslash, a line
+    /// break, a comment delimiter (`/*` or `*/`), `url(`, `image-set(`,
+    /// `javascript:` or a quote, because it cannot be a color and could escape the
+    /// declaration, swallow the ones after it, or make the page request a resource.
+    /// The font family also accepts quoted names with balanced quotes.
     public struct Theme: Sendable, Equatable {
         /// Number of `--pele-series-N` variables Pele reads.
         public static let seriesCount = 12
@@ -74,8 +78,27 @@ public struct MermaidConfiguration: Sendable, Equatable {
         /// Shown above the diagram source when Pele rejects a diagram.
         public let diagramFailed: String
 
-        public init(diagramFailed: String) {
+        /// Accessible name and tooltip of the zoom-in control.
+        public let zoomIn: String
+
+        /// Accessible name and tooltip of the zoom-out control.
+        public let zoomOut: String
+
+        /// Accessible name and tooltip of the control that restores the fitted size.
+        public let reset: String
+
+        /// The zoom labels default to the package string catalog in the process locale.
+        /// Use ``localized(locale:)`` to get every text in another locale.
+        public init(
+            diagramFailed: String,
+            zoomIn: String = Messages.catalogZoomIn(locale: .current),
+            zoomOut: String = Messages.catalogZoomOut(locale: .current),
+            reset: String = Messages.catalogReset(locale: .current)
+        ) {
             self.diagramFailed = diagramFailed
+            self.zoomIn = zoomIn
+            self.zoomOut = zoomOut
+            self.reset = reset
         }
 
         /// Messages from the package string catalog, in the given locale.
@@ -89,7 +112,48 @@ public struct MermaidConfiguration: Sendable, Equatable {
                 comment: "Message shown above the source of a diagram that the renderer rejected."
             )
             resource.locale = locale
-            return Messages(diagramFailed: String(localized: resource))
+            return Messages(
+                diagramFailed: String(localized: resource),
+                zoomIn: catalogZoomIn(locale: locale),
+                zoomOut: catalogZoomOut(locale: locale),
+                reset: catalogReset(locale: locale)
+            )
+        }
+
+        @usableFromInline
+        static func catalogZoomIn(locale: Locale) -> String {
+            var resource = LocalizedStringResource(
+                "html.diagram.zoom.in",
+                defaultValue: "Zoom in",
+                bundle: #bundle,
+                comment: "Accessible name and tooltip of the button that zooms a diagram in."
+            )
+            resource.locale = locale
+            return String(localized: resource)
+        }
+
+        @usableFromInline
+        static func catalogZoomOut(locale: Locale) -> String {
+            var resource = LocalizedStringResource(
+                "html.diagram.zoom.out",
+                defaultValue: "Zoom out",
+                bundle: #bundle,
+                comment: "Accessible name and tooltip of the button that zooms a diagram out."
+            )
+            resource.locale = locale
+            return String(localized: resource)
+        }
+
+        @usableFromInline
+        static func catalogReset(locale: Locale) -> String {
+            var resource = LocalizedStringResource(
+                "html.diagram.zoom.reset",
+                defaultValue: "Reset zoom",
+                bundle: #bundle,
+                comment: "Accessible name and tooltip of the button that restores a diagram to its fitted size."
+            )
+            resource.locale = locale
+            return String(localized: resource)
         }
     }
 
@@ -125,7 +189,11 @@ public struct MermaidConfiguration: Sendable, Equatable {
     /// Palette projected onto the `--pele-*` custom properties.
     public let theme: Theme
 
-    /// Font family for diagram text. `nil` inherits `--pele-font`, then the page font.
+    /// Font family for diagram text, emitted as `--pele-font`. `nil` inherits the page font.
+    ///
+    /// Pele reads the computed `--pele-font` both to measure and to paint the text,
+    /// so the value is not sent as a `mount` option. Changing it after a diagram is
+    /// drawn needs a new draw, because Pele measures label widths when it draws.
     public let fontFamily: String?
 
     /// Base font size in pixels.
@@ -181,8 +249,8 @@ extension MermaidConfiguration {
     /// The `:root` rule declaring every configured `--pele-*` variable, or `nil` when none is set.
     var themeStyleSheet: String? {
         var variables: [(name: String, value: String)] = []
-        func add(_ name: String, _ value: String?) {
-            guard let value = Self.safeCSSValue(value) else { return }
+        func add(_ name: String, _ value: String?, allowsQuotedNames: Bool = false) {
+            guard let value = Self.safeCSSValue(value, allowsQuotedNames: allowsQuotedNames) else { return }
             variables.append((name, value))
         }
 
@@ -201,19 +269,45 @@ extension MermaidConfiguration {
         for (index, color) in theme.series.prefix(Theme.seriesCount).enumerated() {
             add("--pele-series-\(index + 1)", color)
         }
-        add("--pele-font", fontFamily)
+        add("--pele-font", fontFamily, allowsQuotedNames: true)
 
         guard !variables.isEmpty else { return nil }
         let declarations = variables.map { "    \($0.name): \($0.value);" }.joined(separator: "\n")
         return ":root {\n\(declarations)\n}"
     }
 
-    private static func safeCSSValue(_ value: String?) -> String? {
+    /// The pattern of values that fetch a resource or open or close a comment.
+    private static let forbiddenCSSPattern = #"url\s*\(|image-set\s*\(|/\*|\*/|javascript:"#
+
+    private static func safeCSSValue(_ value: String?, allowsQuotedNames: Bool = false) -> String? {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
             return nil
         }
-        let forbidden = CharacterSet(charactersIn: ";{}<>\\").union(.newlines)
-        guard trimmed.rangeOfCharacter(from: forbidden) == nil else { return nil }
+        let forbidden = CharacterSet(charactersIn: ";{}<>\\@").union(.newlines)
+        guard
+            trimmed.rangeOfCharacter(from: forbidden) == nil,
+            trimmed.range(of: forbiddenCSSPattern, options: [.regularExpression, .caseInsensitive]) == nil
+        else {
+            return nil
+        }
+        let hasQuote = trimmed.contains("\"") || trimmed.contains("'")
+        if hasQuote {
+            guard allowsQuotedNames, hasBalancedQuotes(trimmed) else { return nil }
+        }
         return trimmed
+    }
+
+    /// Whether every quote closes with the same kind of quote; the other kind is literal inside a string.
+    /// Backslashes never reach this check, so there are no escapes to honor.
+    private static func hasBalancedQuotes(_ value: String) -> Bool {
+        var open: Character?
+        for character in value {
+            if let current = open {
+                if character == current { open = nil }
+            } else if character == "\"" || character == "'" {
+                open = character
+            }
+        }
+        return open == nil
     }
 }

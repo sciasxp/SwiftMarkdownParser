@@ -99,6 +99,9 @@ struct BrowserAssetAssembler: Sendable {
         "KaTeX_Typewriter-Regular.woff2",
     ]
 
+    /// Upper bound for the wait that lets Pele settle before `ready` is reported.
+    private static let layoutSettleTimeoutMilliseconds = 2000
+
     let options: HTMLRenderOptions
     let loader: any BrowserAssetLoading
 
@@ -295,6 +298,7 @@ struct BrowserAssetAssembler: Sendable {
                     }
                     document.querySelectorAll('pre.mermaid').forEach(mountDiagram);
         """ : ""
+        let diagramSettling = hasMermaid ? "await waitForDiagramLayout();" : ""
 
         let diagramHelpers = hasMermaid ? """
             function showDiagramError(container, source) {
@@ -313,16 +317,64 @@ struct BrowserAssetAssembler: Sendable {
                 container.replaceChildren(wrapper);
             }
 
-            function mountDiagram(sourceElement) {
-                const source = sourceElement.textContent;
+            function createDiagramContainer(id) {
                 const container = document.createElement('div');
                 container.className = 'pele-diagram';
-                if (sourceElement.id) { container.id = sourceElement.id; }
+                if (id) { container.id = id; }
+                return container;
+            }
+
+            // Pele reports a rejected diagram through onError; an exception is a runtime fault. Either way the
+            // diagram shows its error and source in place, and the diagrams after it are still mounted.
+            function mountDiagram(sourceElement) {
+                const source = sourceElement.textContent;
+                const id = sourceElement.id;
+                let container = createDiagramContainer(id);
                 sourceElement.replaceWith(container);
+                let rejected = false;
+                function reject() {
+                    if (rejected) { return; }
+                    rejected = true;
+                    rejectedDiagrams += 1;
+                }
                 const options = Object.assign({}, peleConfiguration.options, {
-                    onError: function() { showDiagramError(container, source); }
+                    onError: function() { reject(); showDiagramError(container, source); }
                 });
-                pele.mount(container, source, options);
+                try {
+                    pele.mount(container, source, options);
+                } catch (error) {
+                    // A half-mounted diagram may keep observers that redraw into its container, so the error
+                    // goes into a fresh container and the old one is left detached.
+                    const replacement = createDiagramContainer(id);
+                    container.replaceWith(replacement);
+                    container = replacement;
+                    reject();
+                    showDiagramError(container, source);
+                    mountFailures.push(errorMessage(error));
+                }
+            }
+
+            // Pele measures text again once fonts load, so a report made before that describes a drawing
+            // that may still change. Hidden or throttled web views may never run frames or finish a font
+            // load, so the wait is bounded rather than able to hold the report forever.
+            async function waitForDiagramLayout() {
+                const nextFrame = function() {
+                    return new Promise(function(resolve) { requestAnimationFrame(function() { resolve(); }); });
+                };
+                const settled = (async function() {
+                    if (document.fonts && document.fonts.ready) { await document.fonts.ready; }
+                    await nextFrame();
+                    await nextFrame();
+                })();
+                let timer;
+                const timeout = new Promise(function(resolve) {
+                    timer = setTimeout(resolve, \(Self.layoutSettleTimeoutMilliseconds));
+                });
+                try {
+                    await Promise.race([settled, timeout]);
+                } finally {
+                    clearTimeout(timer);
+                }
             }
         """ : ""
 
@@ -336,6 +388,12 @@ struct BrowserAssetAssembler: Sendable {
 
             let didReport = false;
             let activeFeature = null;
+            let rejectedDiagrams = 0;
+            const mountFailures = [];
+
+            function errorMessage(error) {
+                return error instanceof Error ? error.message : String(error);
+            }
 
             function report(status, failedFeatures, detail) {
                 if (didReport) { return; }
@@ -345,6 +403,7 @@ struct BrowserAssetAssembler: Sendable {
                     status: status,
                     requiredFeatures: requiredFeatures,
                     failedFeatures: Array.from(new Set(failedFeatures || [])).sort(),
+                    rejectedDiagrams: rejectedDiagrams,
                     detail: detail || null
                 };
                 window.dispatchEvent(new CustomEvent('swift-markdown-runtime', { detail: payload }));
@@ -414,13 +473,16 @@ struct BrowserAssetAssembler: Sendable {
                     activeFeature = requiredFeatures.includes('taskLists') ? 'taskLists' : null;
                     if (activeFeature) { initializeTaskLists(); }
                     activeFeature = null;
-                    report('ready', []);
+        \(diagramSettling)
+                    if (mountFailures.length > 0) {
+                        report('failed', ['mermaid'], 'Pele mount failed: ' + mountFailures[0]);
+                    } else {
+                        report('ready', []);
+                    }
                 } catch (error) {
-                    report(
-                        'failed',
-                        activeFeature ? [activeFeature] : [],
-                        error instanceof Error ? error.message : String(error)
-                    );
+                    const failed = activeFeature ? [activeFeature] : [];
+                    if (mountFailures.length > 0) { failed.push('mermaid'); }
+                    report('failed', failed, errorMessage(error));
                 }
             }
 
@@ -439,14 +501,21 @@ struct BrowserAssetAssembler: Sendable {
         var mountOptions: [String: Any] = [
             "fontSize": configuration.fontSize,
             "limit": configuration.maxTextSize,
+            // Diagram links follow the same schemes as MarkdownDestination.
+            "linkSchemes": ["http", "https", "mailto"]
         ]
         switch configuration.zoom {
-        case .auto: mountOptions["zoom"] = "auto"
-        case .always: mountOptions["zoom"] = true
-        case .disabled: mountOptions["zoom"] = false
-        }
-        if let fontFamily = configuration.fontFamily, !fontFamily.isEmpty {
-            mountOptions["fontFamily"] = fontFamily
+        case .auto, .always:
+            mountOptions["zoom"] = [
+                "always": configuration.zoom == .always,
+                "labels": [
+                    "zoomIn": configuration.messages.zoomIn,
+                    "zoomOut": configuration.messages.zoomOut,
+                    "reset": configuration.messages.reset
+                ]
+            ] as [String: Any]
+        case .disabled:
+            mountOptions["zoom"] = false
         }
         return [
             "options": mountOptions,
