@@ -7,6 +7,23 @@
     "Failed to render markdown" : {
 
     },
+    "html.diagram.error.render_failed" : {
+      "comment" : "Message shown above the source of a diagram that the renderer rejected.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This diagram could not be rendered. Its source is shown below."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível desenhar este diagrama. O código-fonte aparece abaixo."
+          }
+        }
+      }
+    },
     "native.accessibility.code_block" : {
       "comment" : "VoiceOver label for a code block without a language.",
       "localizations" : {

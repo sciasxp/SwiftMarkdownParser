@@ -132,20 +132,20 @@ struct BrowserAssetAssembler: Sendable {
     private func mermaidAssets() throws -> String {
         switch options.mermaidConfiguration.assetSource {
         case .bundled:
-            return try cachedBundledAsset(for: "mermaid-runtime") {
-                try inlineScript(loader.text(named: "mermaid.min.js"))
+            return try cachedBundledAsset(for: "pele-runtime") {
+                try inlineScript(loader.text(named: "pele.global.js"))
             }
         case .cdn(let version):
-            let encodedVersion = try validatedPackageVersion(version, feature: "Mermaid")
+            let encodedVersion = try validatedPackageVersion(version, feature: "Pele")
             let url = try validatedRemoteURL(
-                "https://cdn.jsdelivr.net/npm/mermaid@\(encodedVersion)/dist/mermaid.min.js",
-                feature: "Mermaid"
+                "https://cdn.jsdelivr.net/npm/pele@\(encodedVersion)/dist/pele.global.js",
+                feature: "Pele"
             )
-            return externalScript(url: url, name: "mermaid")
+            return externalScript(url: url, name: "pele")
         case .custom(let scriptURL):
             return externalScript(
-                url: try validatedAssetURL(scriptURL, feature: "Mermaid"),
-                name: "mermaid"
+                url: try validatedAssetURL(scriptURL, feature: "Pele"),
+                name: "pele"
             )
         }
     }
@@ -261,11 +261,16 @@ struct BrowserAssetAssembler: Sendable {
     private func runtimeBootstrap(requirements: BrowserRequirements) throws -> String {
         let hasMermaid = requirements.contains(.mermaid)
         let hasKaTeX = requirements.contains(.katex)
-        let mermaidConfiguration = hasMermaid ? try inlineJSON(mermaidConfigurationObject) : "null"
+        let peleConfiguration = hasMermaid ? try inlineJSON(peleConfigurationObject) : "null"
         let katexConfiguration = hasKaTeX ? try inlineJSON(katexConfigurationObject) : "null"
         var configuredStyles: [String] = []
-        if hasMermaid, let css = options.mermaidConfiguration.customCSS, !css.isEmpty {
-            configuredStyles.append(css)
+        if hasMermaid {
+            if let themeStyleSheet = options.mermaidConfiguration.themeStyleSheet {
+                configuredStyles.append(themeStyleSheet)
+            }
+            if let css = options.mermaidConfiguration.customCSS, !css.isEmpty {
+                configuredStyles.append(css)
+            }
         }
         if hasKaTeX, let css = options.katexConfiguration.customCSS, !css.isEmpty {
             configuredStyles.append(css)
@@ -285,22 +290,47 @@ struct BrowserAssetAssembler: Sendable {
                     });
         """ : ""
         let mermaidInitialization = hasMermaid ? """
-                    if (typeof mermaid === 'undefined') { throw new Error('Mermaid runtime unavailable'); }
-                    mermaid.initialize(mermaidConfiguration);
-                    if (mermaidConfiguration.startOnLoad) {
-                        if (typeof mermaid.run === 'function') {
-                            await mermaid.run({ querySelector: '.mermaid' });
-                        } else {
-                            mermaid.init(undefined, document.querySelectorAll('.mermaid'));
-                        }
+                    if (typeof pele === 'undefined' || typeof pele.mount !== 'function') {
+                        throw new Error('Pele runtime unavailable');
                     }
+                    document.querySelectorAll('pre.mermaid').forEach(mountDiagram);
+        """ : ""
+
+        let diagramHelpers = hasMermaid ? """
+            function showDiagramError(container, source) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'pele-diagram-error';
+                wrapper.setAttribute('role', 'alert');
+                const message = document.createElement('p');
+                message.className = 'pele-diagram-error-message';
+                message.textContent = peleConfiguration.messages.diagramFailed;
+                const pre = document.createElement('pre');
+                const code = document.createElement('code');
+                code.className = 'language-mermaid';
+                code.textContent = source;
+                pre.appendChild(code);
+                wrapper.append(message, pre);
+                container.replaceChildren(wrapper);
+            }
+
+            function mountDiagram(sourceElement) {
+                const source = sourceElement.textContent;
+                const container = document.createElement('div');
+                container.className = 'pele-diagram';
+                if (sourceElement.id) { container.id = sourceElement.id; }
+                sourceElement.replaceWith(container);
+                const options = Object.assign({}, peleConfiguration.options, {
+                    onError: function() { showDiagramError(container, source); }
+                });
+                pele.mount(container, source, options);
+            }
         """ : ""
 
         return """
         <script>
         (function() {
             const requiredFeatures = \(requiredFeatures);
-            const mermaidConfiguration = \(mermaidConfiguration);
+            const peleConfiguration = \(peleConfiguration);
             const katexConfiguration = \(katexConfiguration);
             const customStyles = \(customStyles);
 
@@ -324,7 +354,7 @@ struct BrowserAssetAssembler: Sendable {
 
             function failedAssetFeatures() {
                 return window.__swiftMarkdownAssetFailures.flatMap(function(asset) {
-                    if (asset === 'mermaid') { return ['mermaid']; }
+                    if (asset === 'pele') { return ['mermaid']; }
                     if (asset === 'katex' || asset === 'katex-css') { return ['katex']; }
                     return [];
                 });
@@ -338,6 +368,7 @@ struct BrowserAssetAssembler: Sendable {
                 });
             }
 
+        \(diagramHelpers)
             function initializeFootnotes() {
                 document.querySelectorAll('a[href^="#fn"]').forEach(function(link) {
                     link.addEventListener('click', function(event) {
@@ -403,39 +434,24 @@ struct BrowserAssetAssembler: Sendable {
         """
     }
 
-    private var mermaidConfigurationObject: [String: Any] {
+    private var peleConfigurationObject: [String: Any] {
         let configuration = options.mermaidConfiguration
-        var result: [String: Any] = [
-            "startOnLoad": configuration.startOnLoad,
-            "theme": configuration.theme.rawValue,
-            "securityLevel": configuration.securityLevel.rawValue,
-            "fontFamily": configuration.fontFamily,
+        var mountOptions: [String: Any] = [
             "fontSize": configuration.fontSize,
-            "maxTextSize": configuration.maxTextSize,
-            "useMaxWidth": configuration.useMaxWidth,
-            "htmlLabels": true,
-            "suppressErrorRendering": !configuration.displayErrors,
-            "logLevel": configuration.logLevel,
-            "flowchart": [
-                "curve": configuration.flowchart.curve.rawValue,
-                "padding": configuration.flowchart.padding,
-                "nodeSpacing": configuration.flowchart.nodeSpacing,
-                "rankSpacing": configuration.flowchart.rankSpacing,
-                "useMaxWidth": configuration.flowchart.useMaxWidth,
-            ],
-            "sequence": [
-                "showSequenceNumbers": configuration.sequence.showNumbers,
-                "actorMargin": configuration.sequence.actorMargin,
-                "noteMargin": configuration.sequence.noteMargin,
-                "messageMargin": configuration.sequence.messageMargin,
-                "mirrorActors": configuration.sequence.mirrorActors,
-                "useMaxWidth": configuration.sequence.useMaxWidth,
-            ],
+            "limit": configuration.maxTextSize,
         ]
-        if let themeVariables = configuration.themeVariables {
-            result["themeVariables"] = themeVariables.browserConfiguration
+        switch configuration.zoom {
+        case .auto: mountOptions["zoom"] = "auto"
+        case .always: mountOptions["zoom"] = true
+        case .disabled: mountOptions["zoom"] = false
         }
-        return result
+        if let fontFamily = configuration.fontFamily, !fontFamily.isEmpty {
+            mountOptions["fontFamily"] = fontFamily
+        }
+        return [
+            "options": mountOptions,
+            "messages": ["diagramFailed": configuration.messages.diagramFailed],
+        ]
     }
 
     private var katexConfigurationObject: [String: Any] {

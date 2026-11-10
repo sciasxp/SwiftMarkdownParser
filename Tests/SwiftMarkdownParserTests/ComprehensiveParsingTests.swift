@@ -108,7 +108,7 @@ struct ComprehensiveParsingTests {
         #expect(html.contains("<span class=\"math math-inline\">0.05</span>"))
         #expect(html.contains("<div class=\"math math-display\">"))
 
-        #expect(html.occurrences(of: "mermaid@10.9.1/dist/mermaid.min.js") == 1)
+        #expect(html.occurrences(of: "pele@1.13.0/dist/pele.global.js") == 1)
         #expect(html.occurrences(of: "katex@0.16.21/dist/katex.min.js") == 1)
         #expect(html.contains("const requiredFeatures = [\"katex\",\"mermaid\",\"taskLists\"]"))
     }

@@ -39,7 +39,7 @@ private extension SwiftUIRichContentRequest {
         case let .image(node, source):
             "image:\(node.altText):\(source.lastPathComponent)"
         case let .mermaid(node, configuration):
-            "mermaid:\(configuration.theme.rawValue):\(node.content)"
+            "mermaid:\(configuration.theme.accent ?? "-"):\(node.content)"
         case let .mathBlock(node):
             "math-block:\(node.content)"
         case let .inlineMath(node):
@@ -121,7 +121,7 @@ struct SwiftUIRendererTests {
 
         let rendered = try await SwiftUIRenderer(
             options: SwiftUIRenderOptions(
-                mermaidConfiguration: MermaidConfiguration(theme: .dark),
+                mermaidConfiguration: MermaidConfiguration(theme: .init(accent: "#0a84ff")),
                 richContentAdapter: adapter
             )
         ).render(document)
@@ -132,7 +132,7 @@ struct SwiftUIRendererTests {
         #endif
 
         #expect(recorder.values == [
-            "mermaid:dark:graph TD; A-->B",
+            "mermaid:#0a84ff:graph TD; A-->B",
             "math-block:x^2",
             "math-inline:x",
             "html-block:<aside>Note</aside>",

@@ -38,8 +38,8 @@ struct HTMLOutputSeamTests {
         let body = html[bodyStart.lowerBound...]
 
         #expect(head.contains("katex.min.css"))
-        #expect(head.contains("mermaid.min.js"))
-        #expect(body.contains("mermaid.initialize"))
+        #expect(head.contains("pele@1.13.0/dist/pele.global.js"))
+        #expect(body.contains("pele.mount(container, source, options)"))
         #expect(!body.contains("<link rel=\"stylesheet\""))
         #expect(html.contains("<html lang=\"pt-BR\">"))
         #expect(html.contains("<title>Math &amp; Diagrams</title>"))
@@ -57,48 +57,138 @@ struct HTMLOutputSeamTests {
         #expect(!html.contains("/* Base styling */"))
     }
 
-    @Test(
-        "Owns Mermaid theme generation",
-        arguments: [
-            (MermaidConfiguration.Theme.dark, "\"theme\":\"dark\""),
-            (.forest, "\"theme\":\"forest\""),
-            (.neutral, "\"theme\":\"neutral\""),
-            (.base, "\"theme\":\"base\""),
-        ]
-    )
-    func mermaidThemes(theme: MermaidConfiguration.Theme, expected: String) async throws {
+    @Test("Emits the configured palette as --pele-* custom properties")
+    func peleThemeVariables() async throws {
         let document = try SwiftMarkdownParser().parse("```mermaid\ngraph TD\nA --> B\n```")
-        let options = HTMLRenderOptions(
-            mermaidConfiguration: MermaidConfiguration(theme: theme)
-        )
-
-        let html = try await HTMLRenderer(options: options).renderDocument(document)
-
-        #expect(html.contains(expected))
-        #expect(html.contains("class=\"mermaid\""))
-    }
-
-    @Test("Encodes typed Mermaid theme variables as configuration data")
-    func mermaidThemeVariables() async throws {
-        let document = try SwiftMarkdownParser().parse("```mermaid\ngraph TD\nA --> B\n```")
-        let variables = MermaidConfiguration.ThemeVariables(
-            primaryColor: "#112233",
-            lineColor: "#445566",
-            darkMode: true
+        let theme = MermaidConfiguration.Theme(
+            background: "#010203",
+            foreground: "#111111",
+            foregroundOnDark: "#fafafa",
+            foregroundOnLight: "#0a0a0a",
+            line: "#445566",
+            border: "#778899",
+            surface: "#112233",
+            surfaceAlternate: "#223344",
+            muted: "#334455",
+            accent: "#0a84ff",
+            critical: "#ff453a",
+            error: "#ff9f0a",
+            series: (1...14).map { String(format: "#%06x", $0 * 1000) }
         )
         let options = HTMLRenderOptions(
             mermaidConfiguration: MermaidConfiguration(
-                theme: .base,
-                themeVariables: variables
+                theme: theme,
+                fontFamily: "\"Avenir Next\", sans-serif"
             )
         )
 
         let html = try await HTMLRenderer(options: options).renderDocument(document)
 
-        #expect(html.contains("\"theme\":\"base\""))
-        #expect(html.contains("\"themeVariables\":{\"darkMode\":true"))
-        #expect(html.contains("\"lineColor\":\"#445566\""))
-        #expect(html.contains("\"primaryColor\":\"#112233\""))
+        for (name, value) in [
+            ("--pele-bg", "#010203"), ("--pele-fg", "#111111"), ("--pele-fg-on-dark", "#fafafa"),
+            ("--pele-fg-on-light", "#0a0a0a"), ("--pele-line", "#445566"), ("--pele-border", "#778899"),
+            ("--pele-surface", "#112233"), ("--pele-surface-alt", "#223344"), ("--pele-muted", "#334455"),
+            ("--pele-accent", "#0a84ff"), ("--pele-critical", "#ff453a"), ("--pele-error", "#ff9f0a")
+        ] {
+            #expect(html.contains("\(name): \(value);"), "\(name)")
+        }
+        #expect(html.contains("--pele-series-1: #0003e8;"))
+        #expect(html.contains("--pele-series-12: #002ee0;"))
+        #expect(!html.contains("--pele-series-13"))
+        #expect(html.contains("--pele-font: \\\"Avenir Next\\\", sans-serif;"))
+        #expect(html.contains("\"fontFamily\":\"\\\"Avenir Next\\\", sans-serif\""))
+        #expect(html.contains("class=\"mermaid\""))
+    }
+
+    @Test("Emits no custom properties for the default theme")
+    func defaultThemeEmitsNoVariables() async throws {
+        let document = try SwiftMarkdownParser().parse("```mermaid\ngraph TD\nA --> B\n```")
+
+        let html = try await HTMLRenderer().renderDocument(document)
+
+        #expect(!html.contains("--pele-bg"))
+        #expect(!html.contains("--pele-font:"))
+    }
+
+    @Test("Ignores palette values that could escape a CSS declaration")
+    func unsafeThemeValuesAreIgnored() async throws {
+        let document = try SwiftMarkdownParser().parse("```mermaid\ngraph TD\nA --> B\n```")
+        let theme = MermaidConfiguration.Theme(
+            background: "red; } body { display: none",
+            foreground: "#abcdef",
+            line: "</style><script>alert(1)</script>"
+        )
+        let options = HTMLRenderOptions(mermaidConfiguration: MermaidConfiguration(theme: theme))
+
+        let html = try await HTMLRenderer(options: options).renderDocument(document)
+
+        #expect(html.contains("--pele-fg: #abcdef;"))
+        #expect(!html.contains("--pele-bg"))
+        #expect(!html.contains("--pele-line"))
+        #expect(!html.contains("display: none"))
+    }
+
+    @Test("Maps zoom, size and limit to Pele mount options")
+    func peleMountOptions() async throws {
+        let document = try SwiftMarkdownParser().parse("```mermaid\ngraph TD\nA --> B\n```")
+
+        for (zoom, expected) in [
+            (MermaidConfiguration.Zoom.auto, "\"zoom\":\"auto\""),
+            (.always, "\"zoom\":true"),
+            (.disabled, "\"zoom\":false")
+        ] {
+            let options = HTMLRenderOptions(
+                mermaidConfiguration: MermaidConfiguration(fontSize: 14, maxTextSize: 1234, zoom: zoom)
+            )
+            let html = try await HTMLRenderer(options: options).renderDocument(document)
+
+            #expect(html.contains(expected))
+            #expect(html.contains("\"fontSize\":14"))
+            #expect(html.contains("\"limit\":1234"))
+        }
+    }
+
+    @Test("Shows a localized message and the source when Pele rejects a diagram")
+    func diagramErrorContract() async throws {
+        let document = try SwiftMarkdownParser().parse("```mermaid\ngraph TD\nA --> B\n```")
+        let options = HTMLRenderOptions(
+            mermaidConfiguration: MermaidConfiguration(
+                messages: .init(diagramFailed: "Não foi possível desenhar o diagrama.")
+            )
+        )
+
+        let html = try await HTMLRenderer(options: options).renderDocument(document)
+
+        #expect(html.contains("\"diagramFailed\":\"Não foi possível desenhar o diagrama.\""))
+        #expect(html.contains("onError: function() { showDiagramError(container, source); }"))
+        // The message and the source are written as text, never as markup, and Pele's own text is not used.
+        #expect(html.contains("message.textContent = peleConfiguration.messages.diagramFailed"))
+        #expect(html.contains("code.textContent = source"))
+        #expect(!html.contains("onError: function(error)"))
+    }
+
+    @Test("Localizes the diagram error message from the package catalog")
+    func diagramErrorMessageLocalization() {
+        let english = MermaidConfiguration.Messages.localized(locale: Locale(identifier: "en")).diagramFailed
+        let portuguese = MermaidConfiguration.Messages.localized(locale: Locale(identifier: "pt-BR")).diagramFailed
+
+        #expect(english == "This diagram could not be rendered. Its source is shown below.")
+        #expect(portuguese == "Não foi possível desenhar este diagrama. O código-fonte aparece abaixo.")
+    }
+
+    @Test("Reports the mermaid feature as failed when the Pele runtime is missing")
+    func missingRuntimeFallsBack() async throws {
+        let document = try SwiftMarkdownParser().parse("```mermaid\ngraph TD\nA --> B\n```")
+
+        let html = try await HTMLRenderer().renderDocument(document)
+
+        #expect(html.contains("if (typeof pele === 'undefined' || typeof pele.mount !== 'function')"))
+        #expect(html.contains("throw new Error('Pele runtime unavailable')"))
+        #expect(html.contains("if (asset === 'pele') { return ['mermaid']; }"))
+        #expect(html.contains("onerror=\"window.__swiftMarkdownAssetFailed('pele')\""))
+        #expect(html.contains("activeFeature = requiredFeatures.includes('mermaid') ? 'mermaid' : null"))
+        // The source stays in the document as text until the runtime replaces it.
+        #expect(html.contains("<pre class=\"mermaid\""))
     }
 
     @Test("Uses configured KaTeX assets")
@@ -127,7 +217,8 @@ struct HTMLOutputSeamTests {
         let html = try await HTMLRenderer(options: options).renderDocument(document)
 
         #expect(!html.contains("katex.min.js"))
-        #expect(!html.contains("mermaid.initialize"))
+        #expect(!html.contains("pele.mount"))
+        #expect(!html.contains("pele.global.js"))
         #expect(html.contains("<code class=\"language-mermaid\">"))
     }
 
@@ -159,7 +250,7 @@ struct HTMLOutputSeamTests {
 
         let html = try await HTMLRenderer().renderDocument(document)
 
-        #expect(html.occurrences(of: "mermaid@10.9.1/dist/mermaid.min.js") == 1)
+        #expect(html.occurrences(of: "pele@1.13.0/dist/pele.global.js") == 1)
         #expect(html.occurrences(of: "katex@0.16.21/dist/katex.min.js") == 1)
         #expect(html.occurrences(of: "const requiredFeatures = [\"katex\",\"mermaid\"]") == 1)
         #expect(html.contains("version: 1"))
@@ -181,7 +272,13 @@ struct HTMLOutputSeamTests {
 
         #expect(!html.contains("cdn.jsdelivr.net"))
         #expect(html.contains("data:font/woff2;base64,"))
-        #expect(html.contains("mermaid.initialize(mermaidConfiguration)"))
+        #expect(html.contains("var pele=(()=>"))
+        #expect(html.contains("pele.mount(container, source, options)"))
+        #expect(!html.contains("mermaid.min.js"))
+        #expect(!html.contains("mermaid.initialize"))
+        #expect(!html.contains("mermaid.run"))
+        #expect(!html.contains("mermaid.init("))
+        #expect(html.occurrences(of: "var pele=(()=>") == 1)
         #expect(html.contains("katex.render(element.textContent"))
     }
 
@@ -238,9 +335,9 @@ struct HTMLOutputSeamTests {
         let document = try SwiftMarkdownParser().parse("```mermaid\ngraph TD\nA --> B\n```")
         let options = HTMLRenderOptions(
             mermaidConfiguration: MermaidConfiguration(
+                theme: .init(background: attack),
                 fontFamily: attack,
-                customCSS: attack,
-                themeVariables: .init(primaryColor: attack)
+                customCSS: attack
             )
         )
 

@@ -1,371 +1,219 @@
-/// HTML output options for Mermaid diagram rendering.
+/// HTML output options for diagram rendering.
 ///
-/// This file provides configuration settings for customizing Mermaid diagram
-/// appearance and behavior when rendering markdown with embedded diagrams.
+/// Diagrams are written in Mermaid syntax (a ```mermaid fenced block) and drawn in
+/// the browser by the Pele runtime bundled with this package.
 
 public import Foundation
 
 // MARK: - Mermaid Configuration
 
-/// Configuration for Mermaid diagram rendering
-public struct MermaidConfiguration: Sendable {
+/// Configuration for rendering Mermaid-syntax diagrams with the Pele browser runtime.
+public struct MermaidConfiguration: Sendable, Equatable {
 
-    /// Data-only Mermaid theme variables used with the base theme.
-    public struct ThemeVariables: Sendable, Equatable {
-        public let primaryColor: String?
-        public let primaryTextColor: String?
-        public let primaryBorderColor: String?
-        public let lineColor: String?
-        public let sectionBackgroundColor: String?
-        public let alternateSectionBackgroundColor: String?
-        public let gridColor: String?
-        public let secondaryColor: String?
-        public let tertiaryColor: String?
+    /// Data-only palette projected onto the `--pele-*` CSS custom properties.
+    ///
+    /// Pele paints with these variables at paint time, so changing them restyles an
+    /// already rendered diagram without rendering it again. Every value is a CSS
+    /// color. A value containing `;`, `{`, `}`, `<`, `>`, a backslash or a line
+    /// break is ignored, because it cannot be a color and could escape the declaration.
+    public struct Theme: Sendable, Equatable {
+        /// Number of `--pele-series-N` variables Pele reads.
+        public static let seriesCount = 12
+
         public let background: String?
-        public let mainBackground: String?
-        public let secondaryBackground: String?
-        public let secondaryTextColor: String?
-        public let tertiaryTextColor: String?
-        public let darkMode: Bool?
+        public let foreground: String?
+        public let foregroundOnDark: String?
+        public let foregroundOnLight: String?
+        public let line: String?
+        public let border: String?
+        public let surface: String?
+        public let surfaceAlternate: String?
+        public let muted: String?
+        public let accent: String?
+        public let critical: String?
+        public let error: String?
+        /// Series colors in order. Entries beyond ``seriesCount`` are ignored.
+        public let series: [String]
 
         public init(
-            primaryColor: String? = nil,
-            primaryTextColor: String? = nil,
-            primaryBorderColor: String? = nil,
-            lineColor: String? = nil,
-            sectionBackgroundColor: String? = nil,
-            alternateSectionBackgroundColor: String? = nil,
-            gridColor: String? = nil,
-            secondaryColor: String? = nil,
-            tertiaryColor: String? = nil,
             background: String? = nil,
-            mainBackground: String? = nil,
-            secondaryBackground: String? = nil,
-            secondaryTextColor: String? = nil,
-            tertiaryTextColor: String? = nil,
-            darkMode: Bool? = nil
+            foreground: String? = nil,
+            foregroundOnDark: String? = nil,
+            foregroundOnLight: String? = nil,
+            line: String? = nil,
+            border: String? = nil,
+            surface: String? = nil,
+            surfaceAlternate: String? = nil,
+            muted: String? = nil,
+            accent: String? = nil,
+            critical: String? = nil,
+            error: String? = nil,
+            series: [String] = []
         ) {
-            self.primaryColor = primaryColor
-            self.primaryTextColor = primaryTextColor
-            self.primaryBorderColor = primaryBorderColor
-            self.lineColor = lineColor
-            self.sectionBackgroundColor = sectionBackgroundColor
-            self.alternateSectionBackgroundColor = alternateSectionBackgroundColor
-            self.gridColor = gridColor
-            self.secondaryColor = secondaryColor
-            self.tertiaryColor = tertiaryColor
             self.background = background
-            self.mainBackground = mainBackground
-            self.secondaryBackground = secondaryBackground
-            self.secondaryTextColor = secondaryTextColor
-            self.tertiaryTextColor = tertiaryTextColor
-            self.darkMode = darkMode
+            self.foreground = foreground
+            self.foregroundOnDark = foregroundOnDark
+            self.foregroundOnLight = foregroundOnLight
+            self.line = line
+            self.border = border
+            self.surface = surface
+            self.surfaceAlternate = surfaceAlternate
+            self.muted = muted
+            self.accent = accent
+            self.critical = critical
+            self.error = error
+            self.series = series
+        }
+
+        /// The Pele defaults: no variable is set.
+        public static let `default` = Theme()
+    }
+
+    /// Texts shown by the browser runtime. The host owns localization.
+    public struct Messages: Sendable, Equatable {
+        /// Shown above the diagram source when Pele rejects a diagram.
+        public let diagramFailed: String
+
+        public init(diagramFailed: String) {
+            self.diagramFailed = diagramFailed
+        }
+
+        /// Messages from the package string catalog, in the given locale.
+        ///
+        /// Pass the locale the document is shown in when it is not the process locale.
+        public static func localized(locale: Locale = .current) -> Messages {
+            var resource = LocalizedStringResource(
+                "html.diagram.error.render_failed",
+                defaultValue: "This diagram could not be rendered. Its source is shown below.",
+                bundle: #bundle,
+                comment: "Message shown above the source of a diagram that the renderer rejected."
+            )
+            resource.locale = locale
+            return Messages(diagramFailed: String(localized: resource))
         }
     }
 
-    /// Mermaid theme options
-    public enum Theme: String, Sendable, CaseIterable {
-        case `default` = "default"
-        case dark = "dark"
-        case forest = "forest"
-        case neutral = "neutral"
-        case base = "base"
-    }
-
-    /// Source used to load the Mermaid browser runtime.
+    /// Source used to load the Pele browser runtime.
     public enum AssetSource: Sendable, Equatable {
-        /// Inline the Mermaid.js resource shipped with this package.
+        /// Inline the Pele runtime shipped with this package.
         case bundled
-        /// Use CDN-hosted Mermaid.js (requires internet connection)
+        /// Use the CDN-hosted runtime (requires internet connection).
         case cdn(version: String)
-        /// Use a caller-owned Mermaid.js URL.
+        /// Use a caller-owned `pele.global.js` URL (HTTPS or file).
         case custom(scriptURL: URL)
     }
 
-    /// Security level for Mermaid rendering
-    public enum SecurityLevel: String, Sendable {
-        case strict = "strict"
-        case loose = "loose"
-        case antiscript = "antiscript"
-        case sandbox = "sandbox"
+    /// Pan and zoom controls for diagrams wider than their container.
+    public enum Zoom: String, Sendable, Equatable {
+        /// Controls appear only when the diagram is scaled down to fit.
+        case auto
+        /// Controls are always available.
+        case always
+        /// No controls.
+        case disabled
     }
 
-    /// Whether Mermaid rendering is enabled
+    /// The Pele version `.cdn` loads by default; it matches the bundled runtime.
+    public static let defaultRuntimeVersion = "1.13.0"
+
+    /// Whether diagram rendering is enabled. When `false`, diagrams stay as code blocks.
     public let enabled: Bool
 
-    /// Mermaid theme to use
-    public let theme: Theme
-
-    /// Source used to load Mermaid.js.
+    /// Source used to load the Pele runtime.
     public let assetSource: AssetSource
 
-    /// Security level for rendering
-    public let securityLevel: SecurityLevel
+    /// Palette projected onto the `--pele-*` custom properties.
+    public let theme: Theme
 
-    /// Start on load (auto-render on page load)
-    public let startOnLoad: Bool
+    /// Font family for diagram text. `nil` inherits `--pele-font`, then the page font.
+    public let fontFamily: String?
 
-    /// Font family for diagrams
-    public let fontFamily: String
-
-    /// Font size in pixels
+    /// Base font size in pixels.
     public let fontSize: Int
 
-    /// Maximum text size allowed
+    /// Maximum diagram source length in characters. Longer sources are rejected by Pele.
     public let maxTextSize: Int
 
-    /// Whether to use max width for diagrams
-    public let useMaxWidth: Bool
+    /// Zoom controls.
+    public let zoom: Zoom
 
     /// HTML ID prefix for diagram containers
     public let htmlIdPrefix: String
 
-    /// Enable error rendering in diagrams
-    public let displayErrors: Bool
-
-    /// Log level for debugging
-    public let logLevel: Int
+    /// Texts shown by the browser runtime.
+    public let messages: Messages
 
     /// Custom CSS to inject for diagrams
     public let customCSS: String?
 
-    /// Theme variables encoded by the browser assembler as inert configuration data.
-    public let themeVariables: ThemeVariables?
-
-    /// Flowchart-specific configuration
-    public let flowchart: FlowchartConfig
-
-    /// Sequence diagram-specific configuration
-    public let sequence: SequenceConfig
-
     /// Default configuration
     public static let `default` = MermaidConfiguration()
-
-    /// Dark theme configuration with enhanced visibility
-    public static let dark = MermaidConfiguration(
-        theme: .dark,
-        customCSS: """
-        .mermaid .messageText {
-            fill: #ffffff !important;
-            font-weight: 500;
-        }
-        .mermaid .actor {
-            fill: #2d2d2d !important;
-            stroke: #ffffff !important;
-        }
-        .mermaid .actor-box {
-            fill: #2d2d2d !important;
-        }
-        .mermaid .labelText {
-            fill: #ffffff !important;
-            font-weight: 500;
-        }
-        .mermaid text {
-            fill: #ffffff !important;
-        }
-        .mermaid .sequenceNumber {
-            fill: #ffffff !important;
-        }
-        .mermaid .note {
-            fill: #4a4a4a !important;
-            stroke: #ffffff !important;
-        }
-        .mermaid .noteText {
-            fill: #ffffff !important;
-        }
-        """
-    )
-
-    /// High contrast dark theme configuration for maximum visibility
-    public static let darkHighContrast = MermaidConfiguration(
-        theme: .dark,
-        customCSS: """
-        .mermaid .messageText {
-            fill: #ffffff !important;
-            font-weight: bold;
-            font-size: 14px;
-        }
-        .mermaid .actor {
-            fill: #1a1a1a !important;
-            stroke: #ffffff !important;
-            stroke-width: 2px;
-        }
-        .mermaid .actor-box {
-            fill: #1a1a1a !important;
-        }
-        .mermaid .labelText, .mermaid text {
-            fill: #ffffff !important;
-            font-weight: bold;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-        }
-        .mermaid .sequenceNumber {
-            fill: #ffffff !important;
-            font-weight: bold;
-        }
-        .mermaid .note {
-            fill: #2d2d2d !important;
-            stroke: #ffffff !important;
-            stroke-width: 2px;
-        }
-        .mermaid .noteText {
-            fill: #ffffff !important;
-            font-weight: bold;
-        }
-        .mermaid .activation0, .mermaid .activation1, .mermaid .activation2 {
-            fill: #4a4a4a !important;
-            stroke: #ffffff !important;
-        }
-        """
-    )
 
     /// Initialize with custom settings
     public init(
         enabled: Bool = true,
+        assetSource: AssetSource = .cdn(version: MermaidConfiguration.defaultRuntimeVersion),
         theme: Theme = .default,
-        assetSource: AssetSource = .cdn(version: "10.9.1"),
-        securityLevel: SecurityLevel = .strict,
-        startOnLoad: Bool = true,
-        fontFamily: String = "\"Trebuchet MS\", verdana, arial, sans-serif",
+        fontFamily: String? = nil,
         fontSize: Int = 16,
         maxTextSize: Int = 50000,
-        useMaxWidth: Bool = true,
+        zoom: Zoom = .auto,
         htmlIdPrefix: String = "mermaid-",
-        displayErrors: Bool = false,
-        logLevel: Int = 5,
-        customCSS: String? = nil,
-        themeVariables: ThemeVariables? = nil,
-        flowchart: FlowchartConfig = .default,
-        sequence: SequenceConfig = .default
+        messages: Messages = .localized(),
+        customCSS: String? = nil
     ) {
         self.enabled = enabled
-        self.theme = theme
         self.assetSource = assetSource
-        self.securityLevel = securityLevel
-        self.startOnLoad = startOnLoad
+        self.theme = theme
         self.fontFamily = fontFamily
         self.fontSize = fontSize
         self.maxTextSize = maxTextSize
-        self.useMaxWidth = useMaxWidth
+        self.zoom = zoom
         self.htmlIdPrefix = htmlIdPrefix
-        self.displayErrors = displayErrors
-        self.logLevel = logLevel
+        self.messages = messages
         self.customCSS = customCSS
-        self.themeVariables = themeVariables
-        self.flowchart = flowchart
-        self.sequence = sequence
-    }
-
-}
-
-extension MermaidConfiguration.ThemeVariables {
-    var browserConfiguration: [String: Any] {
-        let values: [String: Any?] = [
-            "primaryColor": primaryColor,
-            "primaryTextColor": primaryTextColor,
-            "primaryBorderColor": primaryBorderColor,
-            "lineColor": lineColor,
-            "sectionBkgColor": sectionBackgroundColor,
-            "altSectionBkgColor": alternateSectionBackgroundColor,
-            "gridColor": gridColor,
-            "secondaryColor": secondaryColor,
-            "tertiaryColor": tertiaryColor,
-            "background": background,
-            "mainBkg": mainBackground,
-            "secondBkg": secondaryBackground,
-            "secondaryTextColor": secondaryTextColor,
-            "tertiaryTextColor": tertiaryTextColor,
-            "darkMode": darkMode
-        ]
-        return values.compactMapValues { $0 }
     }
 }
 
-// MARK: - Flowchart Configuration
+// MARK: - CSS projection
 
-/// Configuration specific to flowchart diagrams
-public struct FlowchartConfig: Sendable {
+extension MermaidConfiguration {
+    /// The `:root` rule declaring every configured `--pele-*` variable, or `nil` when none is set.
+    var themeStyleSheet: String? {
+        var variables: [(name: String, value: String)] = []
+        func add(_ name: String, _ value: String?) {
+            guard let value = Self.safeCSSValue(value) else { return }
+            variables.append((name, value))
+        }
 
-    /// Curve style for flowchart edges
-    public enum Curve: String, Sendable {
-        case basis = "basis"
-        case linear = "linear"
-        case cardinal = "cardinal"
-        case stepBefore = "stepBefore"
-        case stepAfter = "stepAfter"
+        add("--pele-bg", theme.background)
+        add("--pele-fg", theme.foreground)
+        add("--pele-fg-on-dark", theme.foregroundOnDark)
+        add("--pele-fg-on-light", theme.foregroundOnLight)
+        add("--pele-line", theme.line)
+        add("--pele-border", theme.border)
+        add("--pele-surface", theme.surface)
+        add("--pele-surface-alt", theme.surfaceAlternate)
+        add("--pele-muted", theme.muted)
+        add("--pele-accent", theme.accent)
+        add("--pele-critical", theme.critical)
+        add("--pele-error", theme.error)
+        for (index, color) in theme.series.prefix(Theme.seriesCount).enumerated() {
+            add("--pele-series-\(index + 1)", color)
+        }
+        add("--pele-font", fontFamily)
+
+        guard !variables.isEmpty else { return nil }
+        let declarations = variables.map { "    \($0.name): \($0.value);" }.joined(separator: "\n")
+        return ":root {\n\(declarations)\n}"
     }
 
-    /// Curve style for edges
-    public let curve: Curve
-
-    /// Padding around nodes
-    public let padding: Int
-
-    /// Spacing between nodes
-    public let nodeSpacing: Int
-
-    /// Spacing between ranks
-    public let rankSpacing: Int
-
-    /// Whether to use max width
-    public let useMaxWidth: Bool
-
-    /// Default flowchart configuration
-    public static let `default` = FlowchartConfig()
-
-    public init(
-        curve: Curve = .basis,
-        padding: Int = 8,
-        nodeSpacing: Int = 50,
-        rankSpacing: Int = 50,
-        useMaxWidth: Bool = true
-    ) {
-        self.curve = curve
-        self.padding = padding
-        self.nodeSpacing = nodeSpacing
-        self.rankSpacing = rankSpacing
-        self.useMaxWidth = useMaxWidth
-    }
-}
-
-// MARK: - Sequence Diagram Configuration
-
-/// Configuration specific to sequence diagrams
-public struct SequenceConfig: Sendable {
-
-    /// Whether to show sequence numbers
-    public let showNumbers: Bool
-
-    /// Margin between actors
-    public let actorMargin: Int
-
-    /// Margin for notes
-    public let noteMargin: Int
-
-    /// Margin for messages
-    public let messageMargin: Int
-
-    /// Whether to mirror actors at bottom
-    public let mirrorActors: Bool
-
-    /// Whether to use max width
-    public let useMaxWidth: Bool
-
-    /// Default sequence diagram configuration
-    public static let `default` = SequenceConfig()
-
-    public init(
-        showNumbers: Bool = false,
-        actorMargin: Int = 50,
-        noteMargin: Int = 10,
-        messageMargin: Int = 35,
-        mirrorActors: Bool = true,
-        useMaxWidth: Bool = true
-    ) {
-        self.showNumbers = showNumbers
-        self.actorMargin = actorMargin
-        self.noteMargin = noteMargin
-        self.messageMargin = messageMargin
-        self.mirrorActors = mirrorActors
-        self.useMaxWidth = useMaxWidth
+    private static func safeCSSValue(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        let forbidden = CharacterSet(charactersIn: ";{}<>\\").union(.newlines)
+        guard trimmed.rangeOfCharacter(from: forbidden) == nil else { return nil }
+        return trimmed
     }
 }

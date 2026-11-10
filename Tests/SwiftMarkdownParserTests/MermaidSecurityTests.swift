@@ -24,7 +24,7 @@ import Testing
 
         let html = try await HTMLRenderer().renderFragment(parser.parse(maliciousMarkdown))
 
-        // Should contain the Mermaid diagram structure (security handled by Mermaid.js)
+        // Should contain the Mermaid diagram structure (the diagram is drawn by the Pele browser runtime)
         #expect(html.contains("mermaid-container"))
         #expect(html.contains("class=\"mermaid\""))
 
@@ -306,9 +306,7 @@ import Testing
         // Test that security configuration prevents unsafe operations
         let secureConfig = MermaidConfiguration(
             enabled: true,
-            securityLevel: .strict,
-            maxTextSize: 10000,   // Limit content size
-            displayErrors: false  // Don't expose error details
+            maxTextSize: 10000   // Limit content size
         )
 
         let node = AST.MermaidDiagramNode(content: "graph TD\n    A --> B")
@@ -320,8 +318,9 @@ import Testing
         #expect(html.contains("mermaid-container"))
         #expect(html.contains("class=\"mermaid\""))
 
-        #expect(html.contains("\"securityLevel\":\"strict\""))
-        #expect(html.contains("\"suppressErrorRendering\":true"))
+        #expect(html.contains("\"limit\":10000"))
+        // Pele's own error text is never shown: the localized message replaces it.
+        #expect(!html.contains("onError: function(error)"))
     }
 
     @Test func mermaidRendererDisabledSecurely() async throws {
