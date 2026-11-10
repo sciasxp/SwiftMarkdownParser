@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Diagrams are drawn by Pele instead of Mermaid.js**: the package bundles Pele 1.13.0 (`pele.global.js`, MIT) and removes `mermaid.min.js`. The ```` ```mermaid ```` fence is still the syntax. `.cdn(version:)` loads `pele@<version>/dist/pele.global.js`; its default version is `MermaidConfiguration.defaultRuntimeVersion`.
+- **Breaking, `MermaidConfiguration`**: `Theme` is now a palette emitted as `--pele-*` CSS variables (replaces the Mermaid theme enum and `ThemeVariables`); `fontFamily` is optional; `zoom` and `messages` are new. Removed: `securityLevel`, `startOnLoad`, `useMaxWidth`, `displayErrors`, `logLevel`, `flowchart`, `sequence`, `FlowchartConfig`, `SequenceConfig`, and the `.dark` and `.darkHighContrast` presets.
+- A diagram Pele rejects now shows a localized message (`MermaidConfiguration.Messages`) and its source in place, and the readiness report stays `ready`; before, one bad diagram failed the whole `mermaid` feature.
+
 ### Added
 - **🎨 Professional Syntax Highlighting**: Complete syntax highlighting system for code blocks
   - **6 Programming Languages**: JavaScript, TypeScript, Swift, Kotlin, Python, Bash

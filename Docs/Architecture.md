@@ -50,7 +50,7 @@ disappear.
 ## HTML and browser enrichment
 
 HTML body rendering discovers the browser behavior actually required by the
-document: Mermaid, KaTeX, footnote navigation, and task-list interaction.
+document: diagrams, KaTeX, footnote navigation, and task-list interaction.
 `BrowserDocumentAssembler` then adds the required resources exactly once,
 places them in the correct part of a fragment or complete document, and emits
 one readiness/failure bootstrap.
@@ -60,7 +60,7 @@ metadata, trusted styles, trusted scripts, and addressable marker regions. The i
 assembler validates and projects those regions in the rendered body, then emits the
 head and body once. Hosts do not patch completed HTML or duplicate shell placement.
 
-Mermaid and KaTeX resources can be bundled, loaded from pinned CDN versions,
+Pele (diagram) and KaTeX resources can be bundled, loaded from pinned CDN versions,
 or supplied through validated custom URLs. Bundled resources are inlined for
 deterministic offline output. Configuration values remain data; they do not
 assemble scripts or styles themselves.
@@ -214,7 +214,7 @@ Sources/SwiftMarkdownParser/
 ├── SyntaxHighlighting.swift           public token, theme, and language types
 ├── *SyntaxEngine.swift                internal built-in language adapters
 └── Resources/
-    ├── Browser/                       bundled KaTeX/Mermaid assets and licenses
+    ├── Browser/                       bundled KaTeX/Pele assets and licenses
     └── Localizable.xcstrings          native SwiftUI string catalog
 ```
 

@@ -53,7 +53,7 @@ struct MarkdownView: View {
 let options = SwiftUIRenderOptions(
     baseURL: URL(string: "https://example.com/docs/"),
     styleConfiguration: .github,
-    mermaidConfiguration: MermaidConfiguration(theme: .dark),
+    mermaidConfiguration: MermaidConfiguration(theme: .init(accent: "#0a84ff")),
     syntaxHighlightingTheme: .xcode,
     richContentAdapter: SwiftUIRichContentAdapter { request in
         switch request {

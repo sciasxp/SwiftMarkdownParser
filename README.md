@@ -199,7 +199,7 @@ always recognized. Every parser-produced node includes a precise source range.
 
 ### Mermaid Diagrams
 
-HTML renders Mermaid through the configured browser runtime. Native SwiftUI
+HTML draws Mermaid-syntax diagrams with the bundled Pele browser runtime. Native SwiftUI
 preserves a readable source fallback and can delegate visual rendering through
 one `SwiftUIRichContentAdapter`:
 

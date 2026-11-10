@@ -1,7 +1,7 @@
 import Foundation
 import SwiftMarkdownParser
 
-// Example demonstrating enhanced dark theme support for Mermaid diagrams
+// Example demonstrating a dark palette for diagrams drawn by the bundled Pele runtime
 
 let sequenceDiagramMarkdown = """
 # Sequence Diagram Example
@@ -27,64 +27,30 @@ sequenceDiagram
 This diagram demonstrates the improved dark theme visibility.
 """
 
-async func demonstrateDarkThemes() {
+func demonstrateDarkThemes() async {
     let parser = SwiftMarkdownParser()
-    
+
     do {
-        // Regular dark theme with enhanced visibility
-        print("=== Enhanced Dark Theme ===")
         let document = try parser.parse(sequenceDiagramMarkdown)
-        let darkOptions = HTMLRenderOptions(mermaidConfiguration: .dark)
-        let darkHTML = try await HTMLRenderer(options: darkOptions).renderFragment(document)
-        print("✅ Enhanced dark theme generated successfully")
-        
-        // High contrast dark theme for maximum visibility
-        print("\n=== High Contrast Dark Theme ===")
-        let highContrastOptions = HTMLRenderOptions(mermaidConfiguration: .darkHighContrast)
-        let highContrastHTML = try await HTMLRenderer(options: highContrastOptions).renderFragment(document)
-        print("✅ High contrast dark theme generated successfully")
-        
-        // Custom theme example
-        print("\n=== Custom Dark Theme ===")
-        let customConfig = MermaidConfiguration(
-            theme: .dark,
-            fontSize: 18,
-            customCSS: """
-            .mermaid text {
-                fill: #00ff00 !important;
-                font-weight: bold;
-                stroke: #000000;
-                stroke-width: 0.5;
-            }
-            .mermaid .actor {
-                fill: #1a1a1a !important;
-                stroke: #00ff00 !important;
-                stroke-width: 3px;
-            }
-            """
+
+        // Diagrams are drawn by the bundled Pele runtime, which paints with --pele-* variables.
+        let darkTheme = MermaidConfiguration.Theme(
+            background: "#0d1117",
+            foreground: "#e6edf3",
+            line: "#8b949e",
+            border: "#30363d",
+            surface: "#161b22",
+            accent: "#2f81f7"
         )
-        let options = HTMLRenderOptions(mermaidConfiguration: customConfig)
-        let customHTML = try await HTMLRenderer(options: options).renderFragment(document)
-        print("✅ Custom dark theme with green text generated successfully")
-        
-        // Verify all themes contain proper styling
-        let themes = [
-            ("Enhanced Dark", darkHTML),
-            ("High Contrast", highContrastHTML),
-            ("Custom Green", customHTML)
-        ]
-        
-        for (name, html) in themes {
-            let hasCustomCSS = html.contains("document.createElement('style')")
-            let hasWhiteText = html.contains("fill: #ffffff") || html.contains("fill: #00ff00")
-            let hasMermaidContainer = html.contains("mermaid-container")
-            
-            print("\n\(name) Theme Validation:")
-            print("  ✅ Custom CSS injection: \(hasCustomCSS ? "✓" : "✗")")
-            print("  ✅ Visible text colors: \(hasWhiteText ? "✓" : "✗")")
-            print("  ✅ Mermaid structure: \(hasMermaidContainer ? "✓" : "✗")")
-        }
-        
+        let darkOptions = HTMLRenderOptions(
+            mermaidConfiguration: MermaidConfiguration(assetSource: .bundled, theme: darkTheme)
+        )
+        let darkHTML = try await HTMLRenderer(options: darkOptions).renderFragment(document)
+
+        let hasThemeVariables = darkHTML.contains("--pele-bg: #0d1117;")
+        let hasMermaidContainer = darkHTML.contains("mermaid-container")
+        print("Dark theme variables: \(hasThemeVariables ? "✓" : "✗")")
+        print("Diagram container: \(hasMermaidContainer ? "✓" : "✗")")
     } catch {
         print("❌ Error: \(error)")
     }

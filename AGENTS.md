@@ -35,7 +35,7 @@ Markdown Source
 
 **AST operations:** `depthFirst()` in `ASTTraversal.swift` is the shared lazy preorder seam for generic scans. `DocumentNode.rewriting(_:)` in `ASTRewriter.swift` is a bottom-up, one-shot immutable rewrite; built-in metadata is preserved, and custom containers adopt `ASTRewritableNode` to support rewritten descendants.
 
-**HTML output seam:** `HTMLRenderer` owns HTML escaping, GFM, syntax highlighting, Mermaid, KaTeX, CSS, scripts, and complete-document composition. Configure it with `HTMLRenderOptions`; callers render only complete `DocumentNode` values. `BrowserDocumentAssembler` discovers runtime requirements during body rendering, deduplicates assets, and emits one readiness/failure bootstrap. Configuration values stay data-only.
+**HTML output seam:** `HTMLRenderer` owns HTML escaping, GFM, syntax highlighting, Mermaid-syntax diagrams (drawn in the browser by the bundled Pele runtime), KaTeX, CSS, scripts, and complete-document composition. Configure it with `HTMLRenderOptions`; callers render only complete `DocumentNode` values. `BrowserDocumentAssembler` discovers runtime requirements during body rendering, deduplicates assets, and emits one readiness/failure bootstrap. Configuration values stay data-only.
 
 **Syntax-highlighting seam:** `SyntaxHighlighter` accepts code plus a language identifier and returns optional semantic tokens. It owns built-in adapter selection, aliases, support discovery, token validation, best-effort fallback, and bounded LRU caching. The six `*SyntaxEngine` adapters and cache representation are internal; `HTMLCodeBlockRenderer` owns only safe token-to-HTML presentation.
 
@@ -51,7 +51,7 @@ Markdown Source
   - Native SwiftUI output: `Rendering/SwiftUI/`
   - GFM table utilities: `GFMExtensions.swift`
   - Syntax highlighting: `SyntaxHighlighter.swift`, public semantic types in `SyntaxHighlighting.swift`, and one internal `*SyntaxEngine.swift` adapter per language
-  - Resources: `Resources/Browser/` (bundled KaTeX/Mermaid assets, fonts, `licenses/`) and `Resources/Localizable.xcstrings`
+  - Resources: `Resources/Browser/` (bundled KaTeX and Pele assets, fonts, `licenses/`) and `Resources/Localizable.xcstrings`
 - `Tests/SwiftMarkdownParserTests/` — Swift Testing suites and repository-owned fixtures
 - `Examples/` — `WebViewTest.swift`, `AST_Example.swift`
 - `Docs/` — usage guides for HTML rendering, SwiftUI rendering, syntax highlighting, Mermaid, KaTeX
@@ -64,8 +64,9 @@ Markdown Source
 - **Tests use Swift Testing** — use `@Test` with `#expect`/`#require`; add `async` only when the test performs asynchronous work.
 - **Syntax support has one source of truth** — ask `await SyntaxHighlighter.supportedLanguages`; HTML options only enable highlighting and choose the CSS prefix.
 - **SwiftUI output requires `@MainActor`** — create and call `SwiftUIRenderer` and (on macOS) `MarkdownWebView` on the main actor.
-- **Bundled browser assets are real package resources** — `.bundled` inlines pinned Mermaid 11.0.0 or KaTeX 0.16.21 assets (both `katex.min.js` and `katex.min.css` report 0.16.21; upstream licenses live in `Resources/Browser/licenses/`); `.cdn` keeps documents small, and `.custom` accepts validated HTTPS or file URLs.
+- **Bundled browser assets are real package resources** — `.bundled` inlines the pinned Pele 1.13.0 (`pele.global.js`, SHA-256 `0b0a46c5…a0910`) or KaTeX 0.16.21 assets (both `katex.min.js` and `katex.min.css` report 0.16.21; upstream licenses live in `Resources/Browser/licenses/`); `.cdn` keeps documents small, and `.custom` accepts validated HTTPS or file URLs.
 - **Browser readiness is semantic** — on macOS, `MarkdownWebView.onRender` succeeds after required runtimes initialize, not merely after WebKit navigation finishes.
+- **Diagrams are drawn by Pele, not Mermaid** — the ```` ```mermaid ```` fence is only the syntax. `MermaidConfiguration` projects `--pele-*` CSS variables and `pele.mount` options; Pele rejects a diagram through `onError`, and the package then shows `MermaidConfiguration.Messages.diagramFailed` plus the escaped source. A missing runtime reports feature `mermaid` as failed in the `markdownRuntime` report.
 - **HTML entity decoding is not implemented** — entities like `&amp;` pass through as-is.
 
 ## Code Style

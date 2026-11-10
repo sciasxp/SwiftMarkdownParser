@@ -1,6 +1,6 @@
 # Mermaid Diagrams Guide
 
-Create interactive charts and diagrams in Markdown using [Mermaid](https://mermaid.js.org/) syntax.
+Create charts and diagrams in Markdown using [Mermaid](https://mermaid.js.org/) syntax.
 
 ## Supported Diagram Types
 
@@ -111,18 +111,23 @@ struct ContentView: View {
 
 ## Configuration
 
+Diagrams are written in Mermaid syntax and drawn in the browser by
+[Pele](https://github.com/obsidianmd/pele) 1.13.0, which the package bundles.
+
 ```swift
-// Custom Mermaid themes and settings
 let config = MermaidConfiguration(
-    theme: .base,
     assetSource: .bundled,
-    securityLevel: .strict,
-    themeVariables: .init(
-        primaryColor: "#243447",
-        primaryTextColor: "#f4f7fb",
-        lineColor: "#78a9ff",
-        darkMode: true
-    )
+    theme: .init(
+        background: "#0d1117",
+        foreground: "#e6edf3",
+        line: "#78a9ff",
+        surface: "#161b22",
+        accent: "#0a84ff",
+        series: ["#4493f8", "#3fb950", "#d29922"]
+    ),
+    fontFamily: "\"Avenir Next\", sans-serif",
+    zoom: .auto,
+    messages: .localized(locale: Locale(identifier: "pt-BR"))
 )
 
 let document = try parser.parse(markdown)
@@ -130,28 +135,35 @@ let options = HTMLRenderOptions(mermaidConfiguration: config)
 let html = try await HTMLRenderer(options: options).renderFragment(document)
 ```
 
-`MermaidConfiguration.dark` and `.darkHighContrast` are ready-made dark
-presets. Diagram-specific layout is set through `flowchart` and `sequence`:
+`Theme` is projected onto the `--pele-*` custom properties (`--pele-bg`,
+`--pele-fg`, `--pele-fg-on-dark`, `--pele-fg-on-light`, `--pele-line`,
+`--pele-border`, `--pele-surface`, `--pele-surface-alt`, `--pele-muted`,
+`--pele-accent`, `--pele-critical`, `--pele-error`, `--pele-series-1…12`) and
+`fontFamily` onto `--pele-font`. Pele paints with these variables at paint
+time, so changing them restyles a rendered diagram without rendering it again.
+A value containing `;`, `{`, `}`, `<`, `>`, a backslash or a line break is
+ignored. `customCSS` is trusted host CSS for anything else.
 
-```swift
-let config = MermaidConfiguration(
-    flowchart: FlowchartConfig(curve: .linear, nodeSpacing: 40, rankSpacing: 60),
-    sequence: SequenceConfig(showNumbers: true, mirrorActors: false)
-)
-```
+`zoom` is `.auto` (controls only when a diagram is scaled down), `.always`, or
+`.disabled`. `fontSize` and `maxTextSize` (Pele's source `limit`) are passed to
+`pele.mount`.
 
-`FlowchartConfig.Curve` is `.basis` (default), `.linear`, `.cardinal`,
-`.stepBefore`, or `.stepAfter`.
+When Pele rejects a diagram, the diagram's container shows
+`messages.diagramFailed` followed by the escaped source in a
+`code.language-mermaid` block; Pele's own English message is never shown. The
+default text comes from the package string catalog (`.localized(locale:)`);
+a host can pass any string. Other diagrams in the document still render and
+the readiness report stays `ready`.
 
-`assetSource` accepts `.bundled`, `.cdn(version:)`, or
-`.custom(scriptURL:)`. Bundled mode inlines the pinned Mermaid runtime and
-works without network access. Diagram source is HTML-escaped before entering
-the DOM; Mermaid receives the original text through the `<pre>` element.
-`ThemeVariables` is encoded by the browser assembler and never emits caller
-values as executable JavaScript.
+`assetSource` accepts `.bundled`, `.cdn(version:)` (loads
+`pele@<version>/dist/pele.global.js` from jsDelivr), or `.custom(scriptURL:)`.
+Bundled mode inlines the runtime and works without network access. Diagram
+source is HTML-escaped before entering the DOM and is read back as text;
+Pele does not accept HTML labels. Configuration is encoded by the browser
+assembler and never emits caller values as executable JavaScript.
 
-Complete documents include Mermaid in the versioned browser-runtime report's
-`requiredFeatures`. If its asset or initialization fails, `failedFeatures`
+Complete documents include the `mermaid` feature in the versioned browser-runtime
+report's `requiredFeatures`. If the Pele asset or its initialization fails, `failedFeatures`
 contains `mermaid`; mixed failures name every identified failed feature. The
 report describes runtime state only. Host applications remain responsible for
 whether that state completes, falls back, or rejects an artifact.

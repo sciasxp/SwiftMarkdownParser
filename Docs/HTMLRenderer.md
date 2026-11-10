@@ -83,7 +83,7 @@ let options = HTMLRenderOptions(
         includeSourcePositions: true,
         syntaxHighlighting: HTMLSyntaxHighlightingOptions(enabled: true)
     ),
-    mermaidConfiguration: MermaidConfiguration(theme: .dark),
+    mermaidConfiguration: MermaidConfiguration(theme: .init(background: "#0d1117", foreground: "#e6edf3")),
     katexConfiguration: KaTeXConfiguration(
         assetSource: .cdn(version: "0.16.21"),
         throwOnError: false
@@ -115,9 +115,8 @@ failure without inferring capability from DOM selectors. Consumers should
 reject unknown numbered versions; package-owned legacy WebView decoding alone
 continues to accept the former unversioned status/detail payload.
 
-Mermaid themes are selected through `MermaidConfiguration.Theme`: `.default`,
-`.dark`, `.forest`, `.neutral`, and `.base`. Use
-`MermaidConfiguration.darkHighContrast` for the high-contrast preset.
+Diagram colors are set through `MermaidConfiguration.Theme`, which is emitted as
+the `--pele-*` CSS custom properties; see [Mermaid Diagrams](MermaidUsage.md).
 
 Both browser runtimes support `.bundled`, `.cdn(version:)`, and caller-owned
 custom URLs. Bundled resources are inlined into the result for deterministic,
@@ -134,7 +133,7 @@ languages or highlighting failures fall back to the original escaped code.
 `HTMLRenderer` throws `HTMLRenderingError`:
 
 - `unsupportedNodeType(ASTNodeType)` - a node the renderer cannot emit.
-- `bundledAssetUnavailable(String)` - a `.bundled` KaTeX/Mermaid resource is missing.
+- `bundledAssetUnavailable(String)` - a `.bundled` KaTeX/Pele resource is missing.
 - `invalidAssetURL(feature:value:)` - a custom asset URL is not valid.
 - `browserConfigurationEncodingFailed` - runtime configuration could not be encoded.
 - `invalidDocumentRegion(String)` - an `HTMLDocumentRegion` could not be assembled.
