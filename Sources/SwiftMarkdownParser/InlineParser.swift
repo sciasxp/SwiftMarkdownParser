@@ -584,8 +584,10 @@ final class InlineParser {
     private func parseImage() throws -> (any ASTNode)? {
         let startPosition = tokenStream.currentPosition
         let startLocation = tokenStream.current.location
-        guard tokenStream.match(.exclamation) else { return parseText() }
-        guard let image = try parseLinkOrImage(startingAt: startLocation) else {
+        // A `!` that does not open an image stays literal text
+        guard tokenStream.check(.exclamation), tokenStream.peek().type == .leftBracket else { return parseText() }
+        tokenStream.advance()
+        guard let image = try parseLinkOrImage(startingAt: startLocation), image is AST.ImageNode else {
             tokenStream.setPosition(startPosition)
             return parseText()
         }

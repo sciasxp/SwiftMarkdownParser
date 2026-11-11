@@ -15,7 +15,7 @@ indirect enum ParsedBlock {
     case paragraph(InlineSource, range: SourceLocation)
     case heading(level: Int, InlineSource, range: SourceLocation)
     case blockQuote(children: [ParsedBlock], range: SourceLocation)
-    case list(isOrdered: Bool, startNumber: Int?, items: [ParsedBlock], range: SourceLocation)
+    case list(isOrdered: Bool, startNumber: Int?, items: [ParsedBlock], isTight: Bool, range: SourceLocation)
     /// `taskIsChecked` is `nil` for an item without a task-list marker.
     case listItem(taskIsChecked: Bool?, children: [ParsedBlock], range: SourceLocation)
     case table(rows: [ParsedTableRow], alignments: [GFMTableAlignment], range: SourceLocation)
@@ -243,6 +243,8 @@ final class BlockParser {
         let bulletChar = isOrdered ? nil : firstMarker.first
 
         var items: [ParsedBlock] = []
+        var isTight = true
+        var lastItemEnd: Int?
 
         func continuesList(_ marker: String) -> Bool {
             // Check if this marker matches the list type
@@ -257,17 +259,30 @@ final class BlockParser {
             // A list inside a block quote continues on the quote's marked lines
             let lineStart = tokenStream.currentPosition
             advancePastContainerMarkers()
+            // A marker left of an enclosing item's content belongs to an outer list
             guard tokenStream.check(.listMarker), continuesList(tokenStream.current.content),
-                  !isThematicBreak(from: tokenStream.currentLocation.offset) else {
-                if tokenStream.currentPosition != lineStart {
-                    tokenStream.setPosition(lineStart)
+                  !isThematicBreak(from: tokenStream.currentLocation.offset),
+                  matchContainers(onLine: lineIndex(containing: tokenStream.currentLocation.offset)).matched
+                    == containers.count else {
+                // The list ends where its last item ends, so an enclosing item
+                // checks the following lines against its own indentation
+                let end = lastItemEnd ?? lineStart
+                if tokenStream.currentPosition != end {
+                    tokenStream.setPosition(end)
                 }
                 break
             }
 
-            // Parse list item
+            // A blank line between items, or between blocks of an item, makes the list loose
+            if !items.isEmpty && followsBlankLine(tokenStream.currentLocation.offset) {
+                isTight = false
+            }
             let item = try parseListItem()
-            items.append(item)
+            items.append(item.block)
+            if item.hasBlankLineBetweenBlocks {
+                isTight = false
+            }
+            lastItemEnd = tokenStream.currentPosition
 
             skipWhitespaceAndNewlines()
         }
@@ -276,11 +291,12 @@ final class BlockParser {
             isOrdered: isOrdered,
             startNumber: startNumber,
             items: items,
+            isTight: isTight,
             range: tokenStream.range(startingAt: startLocation)
         )
     }
 
-    private func parseListItem() throws -> ParsedBlock {
+    private func parseListItem() throws -> (block: ParsedBlock, hasBlankLineBetweenBlocks: Bool) {
         let startLocation = tokenStream.current.location
 
         // Consume list marker
@@ -291,6 +307,7 @@ final class BlockParser {
         defer { containers.removeLast() }
 
         var children: [ParsedBlock] = []
+        var hasBlankLineBetweenBlocks = false
         let definitionParagraphsAtStart = definitionParagraphCount
 
         let taskMarker = tokenStream.check(.taskListMarker) ? tokenStream.consume() : nil
@@ -329,19 +346,28 @@ final class BlockParser {
             // Parse any continuation blocks; a paragraph of only definitions
             // leaves no block
             let definitionParagraphsBefore = definitionParagraphCount
+            let blockFollowsBlankLine = !children.isEmpty && followsBlankLine(tokenStream.currentLocation.offset)
             if let block = try parseNestedBlock() {
                 children.append(block)
+                hasBlankLineBetweenBlocks = hasBlankLineBetweenBlocks || blockFollowsBlankLine
             } else if definitionParagraphCount == definitionParagraphsBefore {
                 break
             }
             isEmpty = false
         }
 
-        return .listItem(
+        let item = ParsedBlock.listItem(
             taskIsChecked: taskMarker.map { $0.content.lowercased() != "[ ]" },
             children: children,
             range: tokenStream.range(startingAt: startLocation)
         )
+        return (item, hasBlankLineBetweenBlocks)
+    }
+
+    /// Whether the line before the one containing `offset` is blank.
+    private func followsBlankLine(_ offset: Int) -> Bool {
+        let line = lineIndex(containing: offset)
+        return line > 0 && isBlank(lineContentRange(line - 1))
     }
 
     /// Moves past the open containers' markers when the token stream is at a
@@ -374,6 +400,7 @@ final class BlockParser {
 
         // A thematic break takes precedence over a list item
         let result = tokenStream.check(.listMarker) && !isThematicBreak(from: tokenStream.currentLocation.offset)
+            && startsBeforeInnermostItemContent()
 
         // Restore position
         tokenStream.setPosition(currentPos)
@@ -399,11 +426,21 @@ final class BlockParser {
         // Check if there's a list marker here that is not a thematic break
         let hasListMarker = tokenStream.check(.listMarker)
             && !isThematicBreak(from: tokenStream.currentLocation.offset)
+            && startsBeforeInnermostItemContent()
 
         // Restore position
         tokenStream.setPosition(currentPos)
 
         return hasListMarker
+    }
+
+    /// Whether the current token starts left of the innermost list item's
+    /// content column; a list marker there ends the item instead of nesting
+    /// inside it.
+    private func startsBeforeInnermostItemContent() -> Bool {
+        guard case .listItem(let contentColumn)? = containers.last else { return true }
+        let offset = tokenStream.currentLocation.offset
+        return offset - lineStarts[lineIndex(containing: offset)] < contentColumn - 1
     }
 
     /// The column where the content of the list item opened by `marker`

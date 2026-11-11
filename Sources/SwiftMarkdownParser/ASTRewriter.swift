@@ -156,6 +156,7 @@ extension AST.ListNode: ASTRewritableNode {
             isOrdered: isOrdered,
             startNumber: startNumber,
             items: children,
+            isTight: isTight,
             sourceLocation: sourceLocation
         )
     }

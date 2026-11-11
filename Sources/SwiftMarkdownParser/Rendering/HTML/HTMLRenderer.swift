@@ -136,7 +136,11 @@ public struct HTMLRenderer: Sendable {
         case let listNode as AST.ListNode:
             var content = ""
             for child in listNode.children {
-                content += try await render(node: child, requirements: &requirements)
+                if listNode.isTight, let item = child as? AST.ListItemNode {
+                    content += try await renderTightListItem(item, requirements: &requirements)
+                } else {
+                    content += try await render(node: child, requirements: &requirements)
+                }
             }
 
             let tagName = listNode.isOrdered ? "ol" : "ul"

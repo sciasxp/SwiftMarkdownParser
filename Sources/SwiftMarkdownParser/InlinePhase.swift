@@ -28,11 +28,12 @@ struct InlinePhase {
         case let .blockQuote(children, range):
             return AST.BlockQuoteNode(children: try children.map(node), sourceLocation: range)
 
-        case let .list(isOrdered, startNumber, items, range):
+        case let .list(isOrdered, startNumber, items, isTight, range):
             return AST.ListNode(
                 isOrdered: isOrdered,
                 startNumber: startNumber,
                 items: try items.map(node),
+                isTight: isTight,
                 sourceLocation: range
             )
 

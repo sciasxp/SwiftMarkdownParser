@@ -199,9 +199,8 @@ import Testing
 
         let listNode = try #require(ast.children[0] as? AST.ListNode, "Expected ListNode")
 
-        // The current parser treats indented items as separate list items
-        // This is actually correct behavior for markdown parsing
-        #expect(listNode.items.count == 3)
+        // Items indented to the parent's content column nest inside it
+        #expect(listNode.items.count == 1)
 
         // Get the parent task (first item)
         let parentTaskListItem = try #require(listNode.items[0] as? AST.GFMTaskListItemNode, "Failed to navigate to parent task list item")
@@ -219,8 +218,11 @@ import Testing
         #expect(parentTextContent.contains("Parent task"), "Should contain parent task text")
 
         // Check child tasks
-        guard let childTask1 = listNode.items[1] as? AST.GFMTaskListItemNode,
-              let childTask2 = listNode.items[2] as? AST.GFMTaskListItemNode else {
+        let childList = try #require(parentTaskListItem.children.last as? AST.ListNode, "Expected nested ListNode")
+        #expect(childList.items.count == 2)
+        guard childList.items.count == 2,
+              let childTask1 = childList.items[0] as? AST.GFMTaskListItemNode,
+              let childTask2 = childList.items[1] as? AST.GFMTaskListItemNode else {
             Issue.record("Failed to navigate to child task list items")
             return
         }

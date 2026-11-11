@@ -218,10 +218,22 @@ public enum AST {
         /// List items
         public let items: [any ASTNode]
 
-        public init(isOrdered: Bool, startNumber: Int? = nil, items: [any ASTNode], sourceLocation: SourceLocation? = nil) {
+        /// Whether no blank line separates the items or the blocks inside an
+        /// item (CommonMark "tight"); a tight list shows its paragraphs
+        /// without paragraph wrappers.
+        public let isTight: Bool
+
+        public init(
+            isOrdered: Bool,
+            startNumber: Int? = nil,
+            items: [any ASTNode],
+            isTight: Bool = false,
+            sourceLocation: SourceLocation? = nil
+        ) {
             self.isOrdered = isOrdered
             self.startNumber = startNumber
             self.items = items
+            self.isTight = isTight
             self.sourceLocation = sourceLocation
             self.children = items
         }
