@@ -158,8 +158,10 @@ all of them in one locale).
 The readiness report has an additive `rejectedDiagrams` count of diagrams Pele
 refused or that threw while mounting, so a host can tell "all drawn" from "3 of
 5 refused". With diagrams in the document, `ready` is reported after
-`document.fonts.ready` and two animation frames, bounded to 2 seconds because a
-web view that is not on screen never runs frames.
+`document.fonts.ready` and two animation frames. A hidden page
+(`document.visibilityState == "hidden"`, such as an off-screen window that
+prints to PDF) never runs frames, so it waits only for fonts. The wait is
+bounded to 2 seconds in case a visible web view is throttled.
 
 When Pele rejects a diagram, the diagram's container shows
 `messages.diagramFailed` followed by the escaped source in a

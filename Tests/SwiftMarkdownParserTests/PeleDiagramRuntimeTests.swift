@@ -164,10 +164,10 @@ struct PeleDiagramRuntimeTests {
     }
 
     @Test(
-        "The report waits for fonts and two animation frames after the diagrams are mounted",
-        arguments: [0, 300]
+        "The report waits for fonts, and for two animation frames only while the page is visible",
+        arguments: [0, 300], ["visible", "hidden"]
     )
-    func readyWaitsForFontsAndFrames(fontDelay: Int) async throws {
+    func readyWaitsForFontsAndFrames(fontDelay: Int, visibility: String) async throws {
         let directory = try TemporaryDirectory()
         defer { directory.remove() }
         let script = try directory.write(
@@ -181,6 +181,11 @@ struct PeleDiagramRuntimeTests {
                 window.requestAnimationFrame = function(callback) {
                     return setTimeout(function() { frames += 1; callback(performance.now()); }, 16);
                 };
+                // A hidden page (the PDF export window, or no window at all) is reported without frames.
+                Object.defineProperty(document, 'visibilityState', {
+                    configurable: true,
+                    get: function() { return '\(visibility)'; }
+                });
                 if (\(fontDelay) > 0) {
                     Object.defineProperty(document.fonts, 'ready', {
                         configurable: true,
@@ -208,8 +213,9 @@ struct PeleDiagramRuntimeTests {
         let probe: Probe = try await page.json("window.__probe")
 
         #expect(report.status == "ready")
-        #expect(probe.frames == 2)
+        #expect(probe.frames == (visibility == "visible" ? 2 : 0))
         #expect(probe.elapsed >= Double(fontDelay) - 20)
+        #expect(probe.elapsed < Double(fontDelay) + 1000)
     }
 
     @Test("Diagram links follow the package schemes: https stays, tel is dropped")

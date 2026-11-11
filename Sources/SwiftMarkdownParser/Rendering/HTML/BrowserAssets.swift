@@ -355,14 +355,16 @@ struct BrowserAssetAssembler: Sendable {
             }
 
             // Pele measures text again once fonts load, so a report made before that describes a drawing
-            // that may still change. Hidden or throttled web views may never run frames or finish a font
-            // load, so the wait is bounded rather than able to hold the report forever.
+            // that may still change. A hidden page (off screen or outside any window, as when printing to
+            // PDF) never runs animation frames, so it waits only for fonts. Throttled web views may still
+            // stall, so the wait is bounded rather than able to hold the report forever.
             async function waitForDiagramLayout() {
                 const nextFrame = function() {
                     return new Promise(function(resolve) { requestAnimationFrame(function() { resolve(); }); });
                 };
                 const settled = (async function() {
                     if (document.fonts && document.fonts.ready) { await document.fonts.ready; }
+                    if (document.visibilityState === 'hidden') { return; }
                     await nextFrame();
                     await nextFrame();
                 })();
