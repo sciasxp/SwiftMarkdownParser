@@ -182,10 +182,7 @@ struct PeleDiagramRuntimeTests {
                     return setTimeout(function() { frames += 1; callback(performance.now()); }, 16);
                 };
                 // A hidden page (the PDF export window, or no window at all) is reported without frames.
-                Object.defineProperty(document, 'visibilityState', {
-                    configurable: true,
-                    get: function() { return '\(visibility)'; }
-                });
+                Object.defineProperty(document, 'visibilityState', { get: function() { return '\(visibility)'; } });
                 if (\(fontDelay) > 0) {
                     Object.defineProperty(document.fonts, 'ready', {
                         configurable: true,
